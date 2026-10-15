@@ -19,7 +19,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.zentask.mobile",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -30,6 +36,12 @@
       "expo-font",
       "expo-asset",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "962754ce-73de-47ca-bb20-8bb71a0158fe"
+      }
+    }
   }
 }

@@ -89,6 +89,7 @@ interface AppContextValue {
   resetTimer: () => void;
   adjustTime: (deltaSeconds: number) => void;
   setTimerMinutes: (minutes: number) => void;
+  finishEarlySession: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -169,6 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetTimer,
     adjustTime,
     setTimerMinutes,
+    finishEarlySession,
   } = useZenTimer(25, recordFocusSession);
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -387,6 +389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         resetTimer,
         adjustTime,
         setTimerMinutes,
+        finishEarlySession,
       }}
     >
       {children}

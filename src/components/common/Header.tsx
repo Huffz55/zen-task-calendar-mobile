@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../../hooks/useHaptics';
@@ -23,6 +24,9 @@ export function Header({
   title = 'Plan your day',
   subtitle,
 }: HeaderProps) {
+  const insets = useSafeAreaInsets();
+  const safeTopPadding = Math.max(insets.top, Platform.OS === 'android' ? 28 : 20) + 6;
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return 'A calm morning ahead 🌸';
@@ -32,7 +36,7 @@ export function Header({
   };
 
   return (
-    <View style={[styles.container, { borderBottomColor: theme.border }]}>
+    <View style={[styles.container, { borderBottomColor: theme.border, paddingTop: safeTopPadding }]}>
       <View style={styles.left}>
         <View style={styles.greetingRow}>
           <Text style={[styles.subtitle, { color: theme.accent }]}>
@@ -98,7 +102,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   left: {

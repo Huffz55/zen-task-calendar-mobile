@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { defaultNotificationService } from '../../services/notifications/notificationService';
+import { playZenChime } from '../../services/audio/audioService';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -25,6 +28,10 @@ interface SettingsModalProps {
   onImportBackup: () => Promise<void>;
   onShowToast: (msg: string) => void;
 }
+
+const SETTINGS_MORNING_KEY = '@noteapp_setting_morning_summary';
+const SETTINGS_HAPTIC_KEY = '@noteapp_setting_haptic';
+const SETTINGS_CHIME_KEY = '@noteapp_setting_chime';
 
 export function SettingsModal({
   visible,
@@ -39,6 +46,49 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(true);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [chimeEnabled, setChimeEnabled] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SETTINGS_MORNING_KEY).then(val => {
+      if (val !== null) setMorningSummaryEnabled(val === 'true');
+    });
+    AsyncStorage.getItem(SETTINGS_HAPTIC_KEY).then(val => {
+      if (val !== null) setHapticsEnabled(val === 'true');
+    });
+    AsyncStorage.getItem(SETTINGS_CHIME_KEY).then(val => {
+      if (val !== null) setChimeEnabled(val === 'true');
+    });
+  }, [visible]);
+
+  const handleToggleMorning = async (enabled: boolean) => {
+    hapticLight();
+    setMorningSummaryEnabled(enabled);
+    await AsyncStorage.setItem(SETTINGS_MORNING_KEY, String(enabled));
+    if (enabled) {
+      await defaultNotificationService.scheduleDailySummary(9, 0, totalTasks);
+      onShowToast('Daily 09:00 AM summary activated 🌸');
+    } else {
+      await defaultNotificationService.cancelNotification('daily-summary');
+      onShowToast('Daily morning summary turned off');
+    }
+  };
+
+  const handleToggleHaptics = async (enabled: boolean) => {
+    if (enabled) hapticLight();
+    setHapticsEnabled(enabled);
+    await AsyncStorage.setItem(SETTINGS_HAPTIC_KEY, String(enabled));
+    onShowToast(enabled ? 'Haptic feedback enabled ✨' : 'Haptic feedback disabled');
+  };
+
+  const handleToggleChime = async (enabled: boolean) => {
+    hapticLight();
+    setChimeEnabled(enabled);
+    await AsyncStorage.setItem(SETTINGS_CHIME_KEY, String(enabled));
+    if (enabled) playZenChime();
+    onShowToast(enabled ? 'Zen chime enabled 🧘' : 'Zen chime disabled');
+  };
 
   const handleExport = async () => {
     hapticLight();
@@ -63,11 +113,11 @@ export function SettingsModal({
   const handleTestNotification = async () => {
     hapticSuccess();
     if (!defaultNotificationService.isSupported) {
-      onShowToast('Notifications are limited in Expo Go on Android. A development build is required 🌸');
+      onShowToast('Notifications require a development build on Android Expo Go 🌸');
       return;
     }
     await defaultNotificationService.scheduleDailySummary(9, 0, totalTasks);
-    onShowToast('Morning notification (09:00 AM) scheduled successfully 🌸');
+    onShowToast('Test morning briefing scheduled (09:00 AM) 🌸');
   };
 
   return (
@@ -77,7 +127,7 @@ export function SettingsModal({
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={[styles.sheetTitle, { color: theme.text }]}>Settings & Data</Text>
+              <Text style={[styles.sheetTitle, { color: theme.text }]}>Settings & Preferences</Text>
               <Text style={[styles.subtitle, { color: theme.textDim }]}>
                 {totalTasks} tasks, {totalLists} custom lists
               </Text>
@@ -111,6 +161,74 @@ export function SettingsModal({
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
+
+            {/* Section: Preferences & Daily Summary */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DAILY SUMMARY & NOTIFICATIONS</Text>
+
+            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="notifications-outline" size={20} color={theme.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <View style={styles.titleRowWithBtn}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Morning Briefing (09:00 AM)</Text>
+                  <TouchableOpacity
+                    style={[styles.miniTestBtn, { borderColor: theme.border }]}
+                    onPress={handleTestNotification}
+                  >
+                    <Text style={[styles.miniTestText, { color: theme.primary }]}>Test</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                  Receive a gentle morning overview with today&apos;s pending tasks.
+                </Text>
+              </View>
+              <Switch
+                value={morningSummaryEnabled}
+                onValueChange={handleToggleMorning}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {/* Section: Experience & Haptics */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>AUDIO & TOUCH FEEDBACK</Text>
+
+            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="musical-notes-outline" size={20} color={theme.accent} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: theme.text }]}>Zen Singing Bowl Chime</Text>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                  Play 432 Hz bell chime when completing focus sessions.
+                </Text>
+              </View>
+              <Switch
+                value={chimeEnabled}
+                onValueChange={handleToggleChime}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="radio-outline" size={20} color={theme.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: theme.text }]}>Haptic Tactile Feedback</Text>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                  Subtle vibrations when checking tasks and tapping controls.
+                </Text>
+              </View>
+              <Switch
+                value={hapticsEnabled}
+                onValueChange={handleToggleHaptics}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
 
             {/* Section: Data Backup & Restore */}
             <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DATA PORTABILITY (JSON)</Text>
@@ -161,31 +279,11 @@ export function SettingsModal({
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
 
-            {/* Section: Notifications */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>NOTIFICATIONS</Text>
-
-            <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-              onPress={handleTestNotification}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="notifications-outline" size={20} color={theme.primary} />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Morning Summary (09:00 AM)</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Schedule or test the daily morning overview notification.
-                </Text>
-              </View>
-              <Ionicons name="refresh" size={16} color={theme.textDim} />
-            </TouchableOpacity>
-
             {/* Section: App Info */}
             <View style={[styles.infoCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <Text style={[styles.infoTitle, { color: theme.text }]}>Zen Task Calendar Mobile 🌸</Text>
+              <Text style={[styles.infoTitle, { color: theme.text }]}>Zen Task Calendar 🌸</Text>
               <Text style={[styles.infoSub, { color: theme.textDim }]}>
-                Version 1.0.0 • Clean Architecture • Offline-First
+                Version 1.0.0
               </Text>
             </View>
           </ScrollView>
@@ -261,6 +359,23 @@ const styles = StyleSheet.create({
   actionDesc: {
     fontSize: 11,
     lineHeight: 15,
+  },
+  titleRowWithBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  miniTestBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 6,
+  },
+  miniTestText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   infoCard: {
     marginTop: 20,

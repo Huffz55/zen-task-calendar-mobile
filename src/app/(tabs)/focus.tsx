@@ -17,6 +17,7 @@ export default function FocusRoute() {
     focusStats,
     setIsSettingsModalOpen,
     setIsSyncModalOpen,
+    finishEarlySession,
   } = useApp();
 
   return (
@@ -31,6 +32,7 @@ export default function FocusRoute() {
       onResetTimer={resetTimer}
       onAdjustTime={adjustTime}
       onSetMinutes={setTimerMinutes}
+      onFinishEarlySession={finishEarlySession}
       onOpenThemeModal={() => setIsThemeModalOpen(true)}
       onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
       onOpenSyncModal={() => setIsSyncModalOpen(true)}

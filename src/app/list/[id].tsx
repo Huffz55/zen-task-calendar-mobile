@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
 
 export default function ListDetailRoute() {
+  const insets = useSafeAreaInsets();
+  const safeTopPadding = Math.max(insets.top, Platform.OS === 'android' ? 28 : 20) + 6;
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     theme,
@@ -50,7 +53,7 @@ export default function ListDetailRoute() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header Bar */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: safeTopPadding }]}>
         <TouchableOpacity
           style={[styles.headerBtn, { backgroundColor: theme.surfaceMuted }]}
           onPress={() => {
@@ -196,7 +199,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 54,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },

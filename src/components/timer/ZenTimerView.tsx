@@ -13,6 +13,7 @@ interface ZenTimerViewProps {
   onResetTimer: () => void;
   onAdjustTime: (deltaSeconds: number) => void;
   onSetMinutes: (minutes: number) => void;
+  onFinishEarly?: () => void;
 }
 
 export function ZenTimerView({
@@ -24,6 +25,7 @@ export function ZenTimerView({
   onResetTimer,
   onAdjustTime,
   onSetMinutes,
+  onFinishEarly,
 }: ZenTimerViewProps) {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -101,6 +103,20 @@ export function ZenTimerView({
           />
         </TouchableOpacity>
       </View>
+
+      {/* Early Finish Session Button */}
+      {(isTimerRunning || timeLeft < initialTime) && onFinishEarly && (
+        <TouchableOpacity
+          style={[styles.finishEarlyBtn, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}
+          onPress={onFinishEarly}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="checkmark-done-circle-outline" size={18} color={theme.primary} />
+          <Text style={[styles.finishEarlyText, { color: theme.primary }]}>
+            Finish Session & Log Focus
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* Preset Minutes Chips */}
       <View style={styles.presetSection}>
@@ -232,6 +248,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 6,
+  },
+  finishEarlyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginTop: 20,
+    alignSelf: 'center',
+  },
+  finishEarlyText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   presetSection: {
     alignItems: 'center',

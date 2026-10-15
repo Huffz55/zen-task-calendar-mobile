@@ -5,6 +5,7 @@ import { validateTask, validateCustomList } from '../validation/validator';
 import { db, ensureAuth } from '../firebase/firebaseClient';
 import { mergeItemsWithTombstones, cleanUndefined } from './syncEngine';
 import { getSyncKey, setSyncKey } from './syncKeyManager';
+import { defaultFocusStorage } from './focusStorage';
 
 export const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
 export const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
@@ -425,5 +426,6 @@ export async function switchGlobalSyncKey(newKey: string): Promise<boolean> {
   if (!success) return false;
   await (defaultTaskStorage as MobileTaskStorage).switchSyncKey(newKey);
   await (defaultListStorage as MobileListStorage).switchSyncKey(newKey);
+  await defaultFocusStorage.switchSyncKey(newKey);
   return true;
 }

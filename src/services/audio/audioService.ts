@@ -1,15 +1,21 @@
 import { createAudioPlayer, AudioPlayer } from 'expo-audio';
 
-// Local high quality synthesized 432 Hz Tibetan singing bowl chime
+// Local high quality synthesized ambient tracks and 432 Hz chime
 const zenChimeSource = require('../../../assets/zen_chime.wav');
+const ambientSources = {
+  rain: require('../../../assets/ambient_rain.wav'),
+  waves: require('../../../assets/ambient_waves.wav'),
+  forest: require('../../../assets/ambient_forest.wav'),
+  wind: require('../../../assets/ambient_wind.wav'),
+  fire: require('../../../assets/ambient_fire.wav'),
+};
 
-export type AmbientSoundType = 'none' | 'rain' | 'waves' | 'forest' | 'fire';
+export type AmbientSoundType = 'none' | 'rain' | 'waves' | 'forest' | 'wind' | 'fire';
 
 export interface AmbientTrackConfig {
   id: AmbientSoundType;
   label: string;
   icon: string;
-  url: string;
 }
 
 export const AMBIENT_TRACKS: Record<AmbientSoundType, AmbientTrackConfig> = {
@@ -17,31 +23,31 @@ export const AMBIENT_TRACKS: Record<AmbientSoundType, AmbientTrackConfig> = {
     id: 'none',
     label: 'Mute',
     icon: 'volume-mute-outline',
-    url: '',
   },
   rain: {
     id: 'rain',
     label: 'Soft Rain',
     icon: 'rainy-outline',
-    url: 'https://cdn.pixabay.com/download/audio/2021/09/06/audio_73e7215b13.mp3?filename=soft-rain-ambient-111154.mp3',
   },
   waves: {
     id: 'waves',
     label: 'Ocean Waves',
     icon: 'water-outline',
-    url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=ocean-waves-ambient-110055.mp3',
   },
   forest: {
     id: 'forest',
     label: 'Forest Birds',
     icon: 'leaf-outline',
-    url: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_db49742099.mp3?filename=forest-birds-ambient-112344.mp3',
+  },
+  wind: {
+    id: 'wind',
+    label: 'Gentle Wind',
+    icon: 'cloudy-outline',
   },
   fire: {
     id: 'fire',
     label: 'Cozy Fireplace',
     icon: 'flame-outline',
-    url: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c35f29f046.mp3?filename=fireplace-ambient-112345.mp3',
   },
 };
 
@@ -82,10 +88,10 @@ export async function playAmbientSound(
       ambientPlayer = null;
     }
 
-    const track = AMBIENT_TRACKS[type];
-    if (!track || !track.url) return;
+    const source = (ambientSources as Record<string, any>)[type];
+    if (!source) return;
 
-    ambientPlayer = createAudioPlayer({ uri: track.url });
+    ambientPlayer = createAudioPlayer(source);
     ambientPlayer.loop = true;
     ambientPlayer.volume = currentVolume;
     ambientPlayer.play();

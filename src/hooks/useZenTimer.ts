@@ -128,7 +128,33 @@ export function useZenTimer(
     }, 500);
 
     return () => clearInterval(interval);
-  }, [isTimerRunning, initialTime, timeLeft, onTimerComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTimerRunning, initialTime, onTimerComplete]);
+
+  const finishEarlySession = useCallback(() => {
+    let elapsedSeconds = 0;
+    if (endTimeRef.current !== null) {
+      const remainingMs = Math.max(0, endTimeRef.current - Date.now());
+      const remainingSecs = Math.max(0, Math.ceil(remainingMs / 1000));
+      elapsedSeconds = Math.max(0, initialTime - remainingSecs);
+    } else {
+      elapsedSeconds = Math.max(0, initialTime - timeLeft);
+    }
+
+    if (elapsedSeconds >= 10 && onTimerComplete) {
+      onTimerComplete(elapsedSeconds);
+      hapticSuccess();
+      playZenChime();
+    } else {
+      hapticMedium();
+    }
+
+    endTimeRef.current = null;
+    timeLeftMsRef.current = null;
+    setIsTimerRunning(false);
+    setTimeLeft(initialTime);
+    defaultNotificationService.cancelNotification('zen-timer-end');
+  }, [initialTime, timeLeft, onTimerComplete]);
 
   return {
     timeLeft,
@@ -138,5 +164,6 @@ export function useZenTimer(
     resetTimer,
     adjustTime,
     setTimerMinutes,
+    finishEarlySession,
   };
 }

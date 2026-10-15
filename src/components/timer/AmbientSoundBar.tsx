@@ -22,7 +22,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
   const [selectedSound, setSelectedSound] = useState<AmbientSoundType>(getActiveAmbientSound());
   const [volume, setVolumeState] = useState<number>(getAmbientVolume());
 
-  const soundKeys: AmbientSoundType[] = ['none', 'rain', 'waves', 'forest', 'fire'];
+  const soundKeys: AmbientSoundType[] = ['none', 'rain', 'waves', 'forest', 'wind', 'fire'];
 
   const handleSelect = (sound: AmbientSoundType) => {
     hapticLight();

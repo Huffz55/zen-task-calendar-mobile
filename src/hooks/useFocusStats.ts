@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, subDays } from 'date-fns';
 import { FocusSession } from '../types';
+
+import { defaultFocusStorage } from '../services/storage/focusStorage';
 
 export const FOCUS_SESSIONS_STORAGE_KEY = '@noteapp_mobile_focus_sessions_v1';
 
@@ -22,29 +23,27 @@ export function useFocusStats() {
 
   useEffect(() => {
     let mounted = true;
-    AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY)
-      .then(stored => {
-        if (!mounted) return;
-        if (stored) {
-          try {
-            const raw = JSON.parse(stored);
-            if (Array.isArray(raw)) {
-              setSessions(raw);
-            }
-          } catch {}
-        }
-        setIsLoaded(true);
-      })
-      .catch(() => setIsLoaded(true));
+    defaultFocusStorage.loadSessions().then(items => {
+      if (!mounted) return;
+      setSessions(items);
+      setIsLoaded(true);
+    });
+
+    const unsubscribe = defaultFocusStorage.subscribeSessions(updated => {
+      if (mounted) {
+        setSessions(updated);
+      }
+    });
 
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
 
   const saveSessions = useCallback((updated: FocusSession[]) => {
     setSessions(updated);
-    AsyncStorage.setItem(FOCUS_SESSIONS_STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
+    defaultFocusStorage.saveSessions(updated).catch(() => {});
   }, []);
 
   const recordSession = useCallback(
