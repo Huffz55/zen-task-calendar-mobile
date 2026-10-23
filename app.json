@@ -30,12 +30,19 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/962754ce-73de-47ca-bb20-8bb71a0158fe"
+    },
     "plugins": [
       "expo-audio",
       "expo-router",
       "expo-font",
       "expo-asset",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-updates"
     ],
     "extra": {
       "router": {},
