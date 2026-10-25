@@ -25,6 +25,10 @@ function RootLayoutContent() {
     handleImportBackup,
     tasks,
     lists,
+    currentStreak,
+    focusStats,
+    autoNightShift,
+    toggleAutoNightShift,
     toast,
     showToast,
     dismissToast,
@@ -64,6 +68,11 @@ function RootLayoutContent() {
         theme={theme}
         totalTasks={tasks.length}
         totalLists={lists.length}
+        currentStreak={currentStreak}
+        totalFocusSeconds={focusStats.totalFocusSeconds}
+        tasks={tasks}
+        autoNightShift={autoNightShift}
+        onToggleAutoNightShift={toggleAutoNightShift}
         onClose={() => setIsSettingsModalOpen(false)}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onExportBackup={handleExportBackup}

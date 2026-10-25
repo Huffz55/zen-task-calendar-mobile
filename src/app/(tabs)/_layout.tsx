@@ -1,11 +1,20 @@
 import React from 'react';
+import { View } from 'react-native';
 import { Tabs, router, usePathname } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { BottomNav } from '../../components/common/BottomNav';
+import { MiniFocusPlayer } from '../../components/timer/MiniFocusPlayer';
 import { MobileTab } from '../../types';
 
 export default function TabsLayout() {
-  const { theme } = useApp();
+  const {
+    theme,
+    timeLeft,
+    initialTime,
+    isTimerRunning,
+    toggleTimer,
+    activeFocusTask,
+  } = useApp();
   const pathname = usePathname();
 
   const getActiveTab = (): MobileTab => {
@@ -14,6 +23,9 @@ export default function TabsLayout() {
     if (pathname.includes('/focus')) return 'focus';
     return 'today';
   };
+
+  const activeTab = getActiveTab();
+  const shouldShowMiniPlayer = activeTab !== 'focus' && (isTimerRunning || (timeLeft < initialTime && timeLeft > 0));
 
   const handleSelectTab = (tab: MobileTab) => {
     switch (tab) {
@@ -38,11 +50,24 @@ export default function TabsLayout() {
         headerShown: false,
       }}
       tabBar={() => (
-        <BottomNav
-          activeTab={getActiveTab()}
-          onSelectTab={handleSelectTab}
-          theme={theme}
-        />
+        <View style={{ backgroundColor: 'transparent' }}>
+          {shouldShowMiniPlayer && (
+            <MiniFocusPlayer
+              timeLeft={timeLeft}
+              initialTime={initialTime}
+              isTimerRunning={isTimerRunning}
+              onToggleTimer={toggleTimer}
+              onOpenFocus={() => handleSelectTab('focus')}
+              activeTaskTitle={activeFocusTask?.title}
+              theme={theme}
+            />
+          )}
+          <BottomNav
+            activeTab={activeTab}
+            onSelectTab={handleSelectTab}
+            theme={theme}
+          />
+        </View>
       )}
     >
       <Tabs.Screen

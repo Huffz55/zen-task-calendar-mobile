@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Task, DailyTask, RecurrenceType, TaskTag } from '../types';
-import { differenceInDays, parseISO, isValid, subDays, format } from 'date-fns';
+import { Task, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
+import { differenceInDays, parseISO, isValid, subDays, addDays, format } from 'date-fns';
 import { ITaskStorage, defaultTaskStorage } from '../services/storage/taskStorage';
 
 function generateUniqueId(): string {
@@ -40,7 +40,15 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     }
   }, [storage]);
 
-  const addTask = useCallback((title: string, date: string, recurrence: RecurrenceType = 'none', tag?: TaskTag) => {
+  const addTask = useCallback((
+    title: string,
+    date: string,
+    recurrence: RecurrenceType = 'none',
+    tag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean
+  ) => {
     const newTask: Task = {
       id: generateUniqueId(),
       title: title.trim(),
@@ -48,6 +56,9 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       recurrence,
       tag,
       completedDates: [],
+      subtasks: subtasks && subtasks.length > 0 ? subtasks : undefined,
+      estimatedMinutes: estimatedMinutes && estimatedMinutes > 0 ? estimatedMinutes : undefined,
+      isPinned: isPinned || undefined,
     };
     setTasks(prev => [newTask, ...prev]);
     return newTask;
@@ -99,10 +110,122 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     }));
   }, []);
 
-  const editTask = useCallback((taskId: string, newTitle: string, newTag?: TaskTag) => {
+  const editTask = useCallback((
+    taskId: string,
+    newTitle: string,
+    newTag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean
+  ) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        return { ...t, title: newTitle.trim(), tag: newTag !== undefined ? newTag : t.tag };
+        return {
+          ...t,
+          title: newTitle.trim(),
+          tag: newTag !== undefined ? newTag : t.tag,
+          subtasks: subtasks !== undefined ? subtasks : t.subtasks,
+          estimatedMinutes: estimatedMinutes !== undefined ? estimatedMinutes : t.estimatedMinutes,
+          isPinned: isPinned !== undefined ? isPinned : t.isPinned,
+        };
+      }
+      return t;
+    }));
+  }, []);
+
+  const togglePinTask = useCallback((taskId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, isPinned: !t.isPinned };
+      }
+      return t;
+    }));
+  }, []);
+
+  const deferTaskToTomorrow = useCallback((taskId: string, currentDateStr: string) => {
+    const targetDate = parseISO(currentDateStr);
+    if (!isValid(targetDate)) return;
+    const tomorrowStr = format(addDays(targetDate, 1), 'yyyy-MM-dd');
+
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        if (t.recurrence !== 'none') {
+          return {
+            ...t,
+            excludedDates: [...(t.excludedDates || []), currentDateStr],
+          };
+        }
+        return { ...t, date: tomorrowStr };
+      }
+      return t;
+    }));
+  }, []);
+
+  const duplicateTask = useCallback((taskId: string, dateStr: string) => {
+    let duplicated: Task | null = null;
+    setTasks(prev => {
+      const original = prev.find(t => t.id === taskId);
+      if (!original) return prev;
+      duplicated = {
+        ...original,
+        id: generateUniqueId(),
+        title: `${original.title} (Copy)`,
+        date: dateStr,
+        recurrence: 'none',
+        completedDates: [],
+        subtasks: original.subtasks?.map(s => ({ ...s, id: generateUniqueId(), isCompleted: false })),
+        isPinned: false,
+      };
+      return [duplicated, ...prev];
+    });
+    return duplicated;
+  }, []);
+
+  const toggleSubtask = useCallback((taskId: string, subtaskId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId && t.subtasks) {
+        const updatedSubs = t.subtasks.map(s =>
+          s.id === subtaskId ? { ...s, isCompleted: !s.isCompleted } : s
+        );
+        return { ...t, subtasks: updatedSubs };
+      }
+      return t;
+    }));
+  }, []);
+
+  const addSubtask = useCallback((taskId: string, title: string) => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    const newSub: Subtask = {
+      id: generateUniqueId(),
+      title: cleanTitle,
+      isCompleted: false,
+    };
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, subtasks: [...(t.subtasks || []), newSub] };
+      }
+      return t;
+    }));
+  }, []);
+
+  const deleteSubtask = useCallback((taskId: string, subtaskId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId && t.subtasks) {
+        return { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) };
+      }
+      return t;
+    }));
+  }, []);
+
+  const addTaskFocusTime = useCallback((taskId: string, seconds: number) => {
+    if (seconds <= 0) return;
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          focusedSeconds: (t.focusedSeconds || 0) + seconds,
+        };
       }
       return t;
     }));
@@ -126,7 +249,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     const targetDate = parseISO(dateStr);
     if (!isValid(targetDate)) return [];
 
-    return tasks.filter(task => {
+    const mapped: DailyTask[] = tasks.filter(task => {
       const startDate = parseISO(task.date);
       if (!isValid(startDate)) return false;
 
@@ -153,7 +276,21 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       isCompleted: (Array.isArray(task.completedDates) ? task.completedDates : []).includes(dateStr),
       recurrence: task.recurrence,
       tag: task.tag,
+      subtasks: task.subtasks,
+      focusedSeconds: task.focusedSeconds,
+      isPinned: task.isPinned,
+      estimatedMinutes: task.estimatedMinutes,
     }));
+
+    return mapped.sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) {
+        return a.isCompleted ? 1 : -1;
+      }
+      if (a.isPinned !== b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      return 0;
+    });
   }, [tasks]);
 
   const rolloverOverdueTasks = useCallback((targetDateStr: string): number => {
@@ -225,6 +362,13 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     restoreTask,
     toggleTaskCompletion,
     editTask,
+    togglePinTask,
+    deferTaskToTomorrow,
+    duplicateTask,
+    toggleSubtask,
+    addSubtask,
+    deleteSubtask,
+    addTaskFocusTime,
     rescheduleTask,
     getTasksForDate,
     rolloverOverdueTasks,

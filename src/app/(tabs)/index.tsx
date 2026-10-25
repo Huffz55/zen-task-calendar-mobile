@@ -18,9 +18,17 @@ export default function TodayRoute() {
     handleInstanceDelete,
     handleFutureDelete,
     handleEditTask,
+    togglePinTask,
+    deferTaskToTomorrow,
+    duplicateTask,
+    toggleSubtask,
+    startTaskFocus,
     setIsThemeModalOpen,
     setIsSettingsModalOpen,
     setIsSyncModalOpen,
+    isEveningReviewOpen,
+    setIsEveningReviewOpen,
+    focusStats,
     overdueCount,
     handleRollover,
   } = useApp();
@@ -34,8 +42,8 @@ export default function TodayRoute() {
       onSelectDate={setSelectedDate}
       getTaskCountForDate={getTaskCountForDate}
       onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-      onAddTask={(title, dateStr, rec, tag) => {
-        addTask(title, dateStr, rec, tag);
+      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned) => {
+        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned);
         showToast({
           type: 'success',
           title: 'Added',
@@ -43,12 +51,30 @@ export default function TodayRoute() {
         });
       }}
       onEditTask={handleEditTask}
+      onTogglePin={togglePinTask}
+      onDeferTask={deferTaskToTomorrow}
+      onDuplicateTask={(taskId, dateStr) => {
+        const dup = duplicateTask(taskId, dateStr);
+        if (dup) {
+          showToast({
+            type: 'success',
+            title: 'Task Duplicated 📋',
+            message: `Created copy of "${dup.title.replace(' (Copy)', '')}"`,
+          });
+        }
+      }}
       onDeleteSingle={handleSingleDelete}
       onDeleteInstance={handleInstanceDelete}
       onDeleteFuture={handleFutureDelete}
+      onToggleSubtask={toggleSubtask}
+      onStartFocus={startTaskFocus}
       onOpenThemeModal={() => setIsThemeModalOpen(true)}
       onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
       onOpenSyncModal={() => setIsSyncModalOpen(true)}
+      isEveningReviewOpen={isEveningReviewOpen}
+      onOpenEveningReview={() => setIsEveningReviewOpen(true)}
+      onCloseEveningReview={() => setIsEveningReviewOpen(false)}
+      todayFocusSeconds={focusStats.todayFocusSeconds}
       overdueCount={overdueCount}
       onRolloverTasks={handleRollover}
     />

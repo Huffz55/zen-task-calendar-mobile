@@ -4,10 +4,10 @@ import { ThemeColors } from '../../constants/colors';
 import {
   AmbientSoundType,
   AMBIENT_TRACKS,
-  playAmbientSound,
-  stopAmbientSound,
+  toggleAmbientSound,
+  stopAllAmbientSounds,
   setAmbientVolume,
-  getActiveAmbientSound,
+  getActiveAmbientSounds,
   getAmbientVolume,
 } from '../../services/audio/audioService';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,18 +19,19 @@ interface AmbientSoundBarProps {
 }
 
 export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps) {
-  const [selectedSound, setSelectedSound] = useState<AmbientSoundType>(getActiveAmbientSound());
+  const [activeSounds, setActiveSounds] = useState<AmbientSoundType[]>(() => getActiveAmbientSounds());
   const [volume, setVolumeState] = useState<number>(getAmbientVolume());
 
   const soundKeys: AmbientSoundType[] = ['none', 'rain', 'waves', 'forest', 'wind', 'fire'];
 
-  const handleSelect = (sound: AmbientSoundType) => {
+  const handleSelect = async (sound: AmbientSoundType) => {
     hapticLight();
-    setSelectedSound(sound);
     if (sound === 'none') {
-      stopAmbientSound();
+      stopAllAmbientSounds();
+      setActiveSounds([]);
     } else {
-      playAmbientSound(sound, volume);
+      await toggleAmbientSound(sound, volume);
+      setActiveSounds(getActiveAmbientSounds());
     }
   };
 
@@ -40,17 +41,27 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
     setAmbientVolume(newVol);
   };
 
+  const isPlaying = activeSounds.length > 0;
+  const statusLabel = isPlaying
+    ? activeSounds.length === 1
+      ? 'Playing 🎵'
+      : `${activeSounds.length} Mixed 🎵`
+    : null;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Ionicons name="headset-outline" size={17} color={theme.primary} />
-          <Text style={[styles.title, { color: theme.text }]}>Zen Ambient Sounds</Text>
+          <View>
+            <Text style={[styles.title, { color: theme.text }]}>Zen Ambient Mixer</Text>
+            <Text style={[styles.subtitle, { color: theme.textDim }]}>Layer sounds together</Text>
+          </View>
         </View>
-        {selectedSound !== 'none' && (
+        {statusLabel && (
           <View style={[styles.activePill, { backgroundColor: theme.primaryLight }]}>
-            <Text style={[styles.activePillText, { color: theme.primary }]}>Playing 🎵</Text>
+            <Text style={[styles.activePillText, { color: theme.primary }]}>{statusLabel}</Text>
           </View>
         )}
       </View>
@@ -63,7 +74,9 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
       >
         {soundKeys.map(key => {
           const config = AMBIENT_TRACKS[key];
-          const isSelected = selectedSound === key;
+          const isSelected = key === 'none'
+            ? activeSounds.length === 0
+            : activeSounds.includes(key);
 
           return (
             <TouchableOpacity
@@ -71,8 +84,12 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
               style={[
                 styles.chip,
                 {
-                  backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
-                  borderColor: isSelected ? theme.primary : theme.border,
+                  backgroundColor: isSelected && key !== 'none'
+                    ? theme.primary
+                    : key === 'none' && activeSounds.length === 0
+                    ? theme.surfaceMuted
+                    : theme.surfaceMuted,
+                  borderColor: isSelected && key !== 'none' ? theme.primary : theme.border,
                 },
               ]}
               onPress={() => handleSelect(key)}
@@ -81,24 +98,27 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
               <Ionicons
                 name={config.icon as any}
                 size={14}
-                color={isSelected ? '#ffffff' : theme.textMuted}
+                color={isSelected && key !== 'none' ? '#ffffff' : theme.textMuted}
                 style={{ marginRight: 5 }}
               />
               <Text
                 style={[
                   styles.chipText,
-                  { color: isSelected ? '#ffffff' : theme.textMuted },
+                  { color: isSelected && key !== 'none' ? '#ffffff' : theme.textMuted },
                 ]}
               >
                 {config.label}
               </Text>
+              {isSelected && key !== 'none' && (
+                <Text style={{ color: '#ffffff', fontSize: 10, marginLeft: 4, fontWeight: '700' }}>✓</Text>
+              )}
             </TouchableOpacity>
           );
         })}
       </ScrollView>
 
       {/* Volume Controls (Only visible when a sound is active) */}
-      {selectedSound !== 'none' && (
+      {isPlaying && (
         <View style={styles.volumeRow}>
           <Ionicons name="volume-low-outline" size={16} color={theme.textDim} />
           <View style={styles.volumePresets}>
@@ -157,6 +177,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  subtitle: {
+    fontSize: 10,
+    marginTop: 1,
   },
   activePill: {
     paddingHorizontal: 8,

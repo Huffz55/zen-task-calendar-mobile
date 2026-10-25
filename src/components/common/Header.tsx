@@ -11,6 +11,7 @@ interface HeaderProps {
   onOpenThemeModal: () => void;
   onOpenSettingsModal?: () => void;
   onOpenSyncModal?: () => void;
+  onOpenEveningReview?: () => void;
   title?: string;
   subtitle?: string;
 }
@@ -21,6 +22,7 @@ export function Header({
   onOpenThemeModal,
   onOpenSettingsModal,
   onOpenSyncModal,
+  onOpenEveningReview,
   title = 'Plan your day',
   subtitle,
 }: HeaderProps) {
@@ -54,6 +56,20 @@ export function Header({
       </View>
 
       <View style={styles.rightActions}>
+        {onOpenEveningReview && (
+          <TouchableOpacity
+            style={[styles.headerIconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={() => {
+              hapticLight();
+              onOpenEveningReview();
+            }}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="moon-outline" size={16} color={theme.primary} />
+          </TouchableOpacity>
+        )}
+
         {onOpenSyncModal && (
           <TouchableOpacity
             style={[styles.headerIconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}

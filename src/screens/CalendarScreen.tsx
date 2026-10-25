@@ -21,11 +21,13 @@ interface CalendarScreenProps {
   getTasksForDate: (dateStr: string) => DailyTask[];
   getTaskCountForDate: (dateStr: string) => number;
   onToggleTask: (taskId: string) => void;
-  onAddTask: (title: string, dateStr: string, recurrence: RecurrenceType, tag?: TaskTag) => void;
-  onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag) => void;
+  onAddTask: (title: string, dateStr: string, recurrence: RecurrenceType, tag?: TaskTag, subtasks?: any[]) => void;
+  onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: any[]) => void;
   onDeleteSingle: (taskId: string) => void;
   onDeleteInstance: (taskId: string, dateStr: string) => void;
   onDeleteFuture: (taskId: string, dateStr: string) => void;
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void;
+  onStartFocus?: (task: { id: string; title: string }) => void;
   onOpenThemeModal: () => void;
   onOpenSettingsModal?: () => void;
   onOpenSyncModal?: () => void;
@@ -44,6 +46,8 @@ export function CalendarScreen({
   onDeleteSingle,
   onDeleteInstance,
   onDeleteFuture,
+  onToggleSubtask,
+  onStartFocus,
   onOpenThemeModal,
   onOpenSettingsModal,
   onOpenSyncModal,
@@ -147,6 +151,8 @@ export function CalendarScreen({
                   onToggle={onToggleTask}
                   onDelete={t => setTaskToDelete(t)}
                   onEdit={t => setTaskToEdit(t)}
+                  onToggleSubtask={onToggleSubtask}
+                  onStartFocus={onStartFocus}
                 />
               ))
             ) : (

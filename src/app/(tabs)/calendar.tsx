@@ -18,6 +18,8 @@ export default function CalendarRoute() {
     handleInstanceDelete,
     handleFutureDelete,
     handleEditTask,
+    toggleSubtask,
+    startTaskFocus,
     setIsThemeModalOpen,
     setIsSettingsModalOpen,
     setIsSyncModalOpen,
@@ -44,6 +46,8 @@ export default function CalendarRoute() {
       onDeleteSingle={handleSingleDelete}
       onDeleteInstance={handleInstanceDelete}
       onDeleteFuture={handleFutureDelete}
+      onToggleSubtask={toggleSubtask}
+      onStartFocus={startTaskFocus}
       onOpenThemeModal={() => setIsThemeModalOpen(true)}
       onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
       onOpenSyncModal={() => setIsSyncModalOpen(true)}

@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { DailyTask, RecurrenceType, TaskTag } from '../types';
+import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { DayStrip } from '../components/calendar/DayStrip';
@@ -15,9 +15,12 @@ import { AddTaskModal } from '../components/tasks/AddTaskModal';
 import { DeleteTaskModal } from '../components/tasks/DeleteTaskModal';
 import { EditTaskModal } from '../components/tasks/EditTaskModal';
 import { TaskFilterBar } from '../components/tasks/TaskFilterBar';
+import { EveningReviewModal } from '../components/common/EveningReviewModal';
+import { SakuraPetalsOverlay } from '../components/common/SakuraPetalsOverlay';
 import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../hooks/useHaptics';
+import { playWaterDrop } from '../services/audio/audioService';
 
 interface TodayScreenProps {
   theme: ThemeColors;
@@ -27,16 +30,25 @@ interface TodayScreenProps {
   onSelectDate: (date: Date) => void;
   getTaskCountForDate: (dateStr: string) => number;
   onToggleTask: (taskId: string) => void;
-  onAddTask: (title: string, dateStr: string, recurrence: RecurrenceType, tag?: TaskTag) => void;
-  onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag) => void;
+  onAddTask: (title: string, dateStr: string, recurrence: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
+  onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
+  onTogglePin?: (taskId: string) => void;
+  onDeferTask?: (taskId: string, currentDateStr: string) => void;
+  onDuplicateTask?: (taskId: string, dateStr: string) => void;
   onDeleteSingle: (taskId: string) => void;
   onDeleteInstance: (taskId: string, dateStr: string) => void;
   onDeleteFuture: (taskId: string, dateStr: string) => void;
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void;
+  onStartFocus?: (task: { id: string; title: string }) => void;
   onOpenThemeModal: () => void;
   overdueCount: number;
   onRolloverTasks: () => void;
   onOpenSettingsModal?: () => void;
   onOpenSyncModal?: () => void;
+  isEveningReviewOpen?: boolean;
+  onOpenEveningReview?: () => void;
+  onCloseEveningReview?: () => void;
+  todayFocusSeconds?: number;
 }
 
 export function TodayScreen({
@@ -49,20 +61,30 @@ export function TodayScreen({
   onToggleTask,
   onAddTask,
   onEditTask,
+  onTogglePin,
+  onDeferTask,
+  onDuplicateTask,
   onDeleteSingle,
   onDeleteInstance,
   onDeleteFuture,
+  onToggleSubtask,
+  onStartFocus,
   onOpenThemeModal,
   onOpenSettingsModal,
   onOpenSyncModal,
   overdueCount,
   onRolloverTasks,
+  isEveningReviewOpen = false,
+  onOpenEveningReview,
+  onCloseEveningReview,
+  todayFocusSeconds = 0,
 }: TodayScreenProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<DailyTask | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<DailyTask | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<TaskTag | 'all'>('all');
+  const [showSakura, setShowSakura] = useState(false);
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -70,6 +92,32 @@ export function TodayScreen({
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.isCompleted).length;
+
+  const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
+  const formatEstimatedTotal = (mins: number) => {
+    if (mins <= 0) return null;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0) return m > 0 ? `${h}h ${m}m planned` : `${h}h planned`;
+    return `${m}m planned`;
+  };
+  const plannedTotalStr = formatEstimatedTotal(totalEstimatedMinutes);
+
+  const handleToggle = (taskId: string) => {
+    const target = tasks.find(t => t.taskId === taskId);
+    if (target && !target.isCompleted) {
+      const willBeAllDone = completedTasks + 1 === totalTasks && totalTasks > 0;
+      if (willBeAllDone) {
+        setShowSakura(true);
+      }
+    }
+    onToggleTask(taskId);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    playWaterDrop();
+    onSelectDate(date);
+  };
 
   const tagCounts = {
     all: tasks.length,
@@ -97,6 +145,7 @@ export function TodayScreen({
         onOpenThemeModal={onOpenThemeModal}
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
+        onOpenEveningReview={onOpenEveningReview}
         title={isToday ? 'Today' : format(selectedDate, 'MMMM d')}
         subtitle={format(selectedDate, 'EEEE, yyyy')}
       />
@@ -104,7 +153,7 @@ export function TodayScreen({
       {/* Horizontal Day Strip */}
       <DayStrip
         selectedDate={selectedDate}
-        onSelectDate={onSelectDate}
+        onSelectDate={handleDateSelect}
         getTaskCountForDate={getTaskCountForDate}
         theme={theme}
       />
@@ -135,12 +184,19 @@ export function TodayScreen({
           </TouchableOpacity>
         )}
 
-        {/* Progress Summary */}
+        {/* Progress Summary & Planned Time */}
         {totalTasks > 0 && (
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryText, { color: theme.textDim }]}>
-              {completedTasks} of {totalTasks} completed
-            </Text>
+            <View style={styles.summaryLeft}>
+              <Text style={[styles.summaryText, { color: theme.textDim }]}>
+                {completedTasks} of {totalTasks} completed
+              </Text>
+              {plannedTotalStr && (
+                <Text style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
+                  {plannedTotalStr}
+                </Text>
+              )}
+            </View>
             {completedTasks === totalTasks && (
               <Text style={[styles.perfectBadge, { color: theme.success }]}>
                 Perfect Day! 🌸
@@ -169,9 +225,14 @@ export function TodayScreen({
                 key={task.id}
                 task={task}
                 theme={theme}
-                onToggle={onToggleTask}
+                onToggle={handleToggle}
                 onDelete={t => setTaskToDelete(t)}
                 onEdit={t => setTaskToEdit(t)}
+                onTogglePin={onTogglePin}
+                onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
+                onDuplicateTask={onDuplicateTask ? () => onDuplicateTask(task.taskId, selectedDateStr) : undefined}
+                onToggleSubtask={onToggleSubtask}
+                onStartFocus={onStartFocus}
               />
             ))
           ) : (
@@ -257,6 +318,26 @@ export function TodayScreen({
         onDeleteInstance={onDeleteInstance}
         onDeleteFuture={onDeleteFuture}
       />
+
+      {/* Evening Review Modal */}
+      {onCloseEveningReview && (
+        <EveningReviewModal
+          isOpen={isEveningReviewOpen}
+          onClose={onCloseEveningReview}
+          theme={theme}
+          completedTasks={completedTasks}
+          totalTasks={totalTasks}
+          focusSeconds={todayFocusSeconds}
+          currentStreak={currentStreak}
+          overdueCount={overdueCount}
+          onRollover={onRolloverTasks}
+        />
+      )}
+      {/* Sakura Petals Celebration Overlay */}
+      <SakuraPetalsOverlay
+        active={showSakura}
+        onFinished={() => setShowSakura(false)}
+      />
     </View>
   );
 }
@@ -303,9 +384,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  summaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   summaryText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  plannedTimeBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 8,
   },
   perfectBadge: {
     fontSize: 12,

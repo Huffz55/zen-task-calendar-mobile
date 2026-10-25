@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,22 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeColors } from '../../constants/colors';
+import { Task, ZenMilestone } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { defaultNotificationService } from '../../services/notifications/notificationService';
-import { playZenChime } from '../../services/audio/audioService';
+import { playZenChime, isSoundEffectsEnabled, setSoundEffectsEnabled, playBambooTap } from '../../services/audio/audioService';
 
 interface SettingsModalProps {
   visible: boolean;
   theme: ThemeColors;
   totalTasks: number;
   totalLists: number;
+  currentStreak?: number;
+  totalFocusSeconds?: number;
+  tasks?: Task[];
+  autoNightShift?: boolean;
+  onToggleAutoNightShift?: (enabled: boolean) => void;
   onClose: () => void;
   onOpenSyncModal?: () => void;
   onExportBackup: () => Promise<void>;
@@ -38,6 +44,11 @@ export function SettingsModal({
   theme,
   totalTasks,
   totalLists,
+  currentStreak = 0,
+  totalFocusSeconds = 0,
+  tasks = [],
+  autoNightShift = false,
+  onToggleAutoNightShift,
   onClose,
   onOpenSyncModal,
   onExportBackup,
@@ -49,6 +60,60 @@ export function SettingsModal({
   const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [chimeEnabled, setChimeEnabled] = useState(true);
+  const [sfxEnabled, setSfxEnabled] = useState(() => isSoundEffectsEnabled());
+
+  const milestones: ZenMilestone[] = useMemo(() => {
+    const hasCompletedTask = tasks.some(t => Array.isArray(t.completedDates) && t.completedDates.length > 0);
+    const hasPinnedTask = tasks.some(t => t.isPinned);
+    const hasSubtasks = tasks.some(t => t.subtasks && t.subtasks.length > 0);
+
+    return [
+      {
+        id: 'perfect_day',
+        title: 'First Perfect Day',
+        description: 'Complete all planned daily tasks',
+        icon: '🌸',
+        unlocked: hasCompletedTask || currentStreak >= 1,
+      },
+      {
+        id: 'streak_3',
+        title: 'Mindful Momentum',
+        description: 'Maintain a 3-day mindful streak',
+        icon: '🔥',
+        unlocked: currentStreak >= 3,
+      },
+      {
+        id: 'streak_7',
+        title: 'Zen Master',
+        description: 'Reach a full 7-day consistency streak',
+        icon: '⚡',
+        unlocked: currentStreak >= 7,
+      },
+      {
+        id: 'deep_focus',
+        title: 'Deep Presence',
+        description: 'Log 60+ minutes in Zen Focus timer',
+        icon: '🧘',
+        unlocked: totalFocusSeconds >= 3600,
+      },
+      {
+        id: 'focus_of_day',
+        title: 'One Big Thing',
+        description: 'Pin a high-priority daily focus goal',
+        icon: '⭐',
+        unlocked: hasPinnedTask,
+      },
+      {
+        id: 'checklist_pro',
+        title: 'Checklist Pro',
+        description: 'Break goals into mindful subtask steps',
+        icon: '📋',
+        unlocked: hasSubtasks,
+      },
+    ];
+  }, [tasks, currentStreak, totalFocusSeconds]);
+
+  const unlockedCount = milestones.filter(m => m.unlocked).length;
 
   useEffect(() => {
     AsyncStorage.getItem(SETTINGS_MORNING_KEY).then(val => {
@@ -61,6 +126,13 @@ export function SettingsModal({
       if (val !== null) setChimeEnabled(val === 'true');
     });
   }, [visible]);
+
+  const handleToggleSfx = async (enabled: boolean) => {
+    if (enabled) playBambooTap();
+    setSfxEnabled(enabled);
+    await setSoundEffectsEnabled(enabled);
+    onShowToast(enabled ? 'Zen Sound Effects enabled 🎋' : 'Zen Sound Effects muted');
+  };
 
   const handleToggleMorning = async (enabled: boolean) => {
     hapticLight();
@@ -162,6 +234,49 @@ export function SettingsModal({
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
 
+            {/* Section: Zen Milestones & Badges */}
+            <View style={styles.milestonesHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: theme.textDim, marginTop: 0, marginBottom: 0 }]}>
+                ZEN MILESTONES & ACHIEVEMENTS
+              </Text>
+              <Text style={[styles.milestonesBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
+                {unlockedCount} of {milestones.length}
+              </Text>
+            </View>
+
+            <View style={styles.milestonesGrid}>
+              {milestones.map(m => (
+                <View
+                  key={m.id}
+                  style={[
+                    styles.milestoneCard,
+                    {
+                      backgroundColor: m.unlocked ? theme.surfaceMuted : theme.surface,
+                      borderColor: m.unlocked ? (theme.accent || theme.primary) : theme.border,
+                      opacity: m.unlocked ? 1 : 0.65,
+                    },
+                  ]}
+                >
+                  <View style={styles.milestoneTopRow}>
+                    <Text style={styles.milestoneIcon}>{m.icon}</Text>
+                    {m.unlocked ? (
+                      <View style={[styles.unlockedPill, { backgroundColor: theme.primaryLight }]}>
+                        <Ionicons name="checkmark-circle" size={11} color={theme.primary} />
+                        <Text style={[styles.unlockedPillText, { color: theme.primary }]}>Unlocked</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.lockedPill, { backgroundColor: theme.surfaceMuted }]}>
+                        <Ionicons name="lock-closed" size={9} color={theme.textDim} />
+                        <Text style={[styles.lockedPillText, { color: theme.textDim }]}>In Progress</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.milestoneTitle, { color: theme.text }]}>{m.title}</Text>
+                  <Text style={[styles.milestoneDesc, { color: theme.textDim }]}>{m.description}</Text>
+                </View>
+              ))}
+            </View>
+
             {/* Section: Preferences & Daily Summary */}
             <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DAILY SUMMARY & NOTIFICATIONS</Text>
 
@@ -191,8 +306,47 @@ export function SettingsModal({
               />
             </View>
 
+            {/* Section: Appearance & Night Shift */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>APPEARANCE & NIGHT SHIFT</Text>
+
+            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="moon-outline" size={20} color={theme.accent || theme.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: theme.text }]}>Auto Night Shift (20:00 - 07:00)</Text>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                  Automatically switch to Midnight dark mode in the evening.
+                </Text>
+              </View>
+              <Switch
+                value={autoNightShift}
+                onValueChange={onToggleAutoNightShift}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
             {/* Section: Experience & Haptics */}
             <Text style={[styles.sectionTitle, { color: theme.textDim }]}>AUDIO & TOUCH FEEDBACK</Text>
+
+            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="volume-medium-outline" size={20} color={theme.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: theme.text }]}>Zen Sound Effects (ASMR)</Text>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                  Organic woodblock clicks, water drops, and soft swooshes.
+                </Text>
+              </View>
+              <Switch
+                value={sfxEnabled}
+                onValueChange={handleToggleSfx}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
 
             <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
@@ -392,5 +546,73 @@ const styles = StyleSheet.create({
   },
   infoSub: {
     fontSize: 11,
+  },
+  milestonesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 10,
+  },
+  milestonesBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  milestonesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  milestoneCard: {
+    width: '48.5%',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  milestoneTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  milestoneIcon: {
+    fontSize: 20,
+  },
+  unlockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  unlockedPillText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  lockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  lockedPillText: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  milestoneTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  milestoneDesc: {
+    fontSize: 10,
+    lineHeight: 14,
   },
 });

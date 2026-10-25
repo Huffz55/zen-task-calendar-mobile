@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticMedium } from '../../hooks/useHaptics';
+import { playSingingBowl } from '../../services/audio/audioService';
 
 interface ZenTimerViewProps {
   timeLeft: number;
@@ -32,6 +33,43 @@ export function ZenTimerView({
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   const presets = [15, 25, 45, 60];
 
+  const [pulseAnim] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    if (!isTimerRunning) {
+      pulseAnim.setValue(1);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.12,
+          duration: 3200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 3200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => loop.stop();
+  }, [isTimerRunning, pulseAnim]);
+
+  const handlePlayToggle = () => {
+    hapticMedium();
+    if (!isTimerRunning) {
+      playSingingBowl();
+    }
+    onToggleTimer();
+  };
+
   return (
     <View style={styles.container}>
       {/* Zen Focus Status Pill */}
@@ -47,36 +85,49 @@ export function ZenTimerView({
         </Text>
       </View>
 
-      {/* Big Circular Clock Card */}
-      <View
-        style={[
-          styles.clockCard,
-          {
-            backgroundColor: theme.card,
-            borderColor: isTimerRunning ? theme.primary : theme.border,
-            shadowColor: theme.primary,
-          },
-        ]}
-      >
-        <Text style={[styles.timeDigits, { color: theme.text }]}>{timeFormatted}</Text>
-        <Text style={[styles.timeSub, { color: theme.textDim }]}>
-          {isTimerRunning ? 'Deep Focus Mode' : 'Tap to start'}
-        </Text>
+      {/* Big Circular Clock Card with Breathing Glow Aura */}
+      <View style={styles.clockCardWrapper}>
+        {isTimerRunning && (
+          <Animated.View
+            style={[
+              styles.glowAura,
+              {
+                backgroundColor: theme.primary,
+                transform: [{ scale: pulseAnim }],
+              },
+            ]}
+          />
+        )}
+        <View
+          style={[
+            styles.clockCard,
+            {
+              backgroundColor: theme.card,
+              borderColor: isTimerRunning ? theme.primary : theme.border,
+              shadowColor: theme.primary,
+            },
+          ]}
+        >
+          <Text style={[styles.timeDigits, { color: theme.text }]}>{timeFormatted}</Text>
+          <Text style={[styles.timeSub, { color: theme.textDim }]}>
+            {isTimerRunning ? 'Deep Focus Mode' : 'Tap to start'}
+          </Text>
 
-        {/* Adjust Buttons */}
-        <View style={styles.adjustRow}>
-          <TouchableOpacity
-            style={[styles.adjustBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-            onPress={() => onAdjustTime(-300)}
-          >
-            <Text style={[styles.adjustBtnText, { color: theme.text }]}>-5 min</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.adjustBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-            onPress={() => onAdjustTime(300)}
-          >
-            <Text style={[styles.adjustBtnText, { color: theme.text }]}>+5 min</Text>
-          </TouchableOpacity>
+          {/* Adjust Buttons */}
+          <View style={styles.adjustRow}>
+            <TouchableOpacity
+              style={[styles.adjustBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+              onPress={() => onAdjustTime(-300)}
+            >
+              <Text style={[styles.adjustBtnText, { color: theme.text }]}>-5 min</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.adjustBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+              onPress={() => onAdjustTime(300)}
+            >
+              <Text style={[styles.adjustBtnText, { color: theme.text }]}>+5 min</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -92,7 +143,7 @@ export function ZenTimerView({
 
         <TouchableOpacity
           style={[styles.playBtn, { backgroundColor: theme.primary }]}
-          onPress={onToggleTimer}
+          onPress={handlePlayToggle}
           activeOpacity={0.8}
         >
           <Ionicons
@@ -184,10 +235,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  clockCard: {
+  clockCardWrapper: {
     width: '100%',
     maxWidth: 320,
     aspectRatio: 1,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowAura: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 160,
+    opacity: 0.18,
+  },
+  clockCard: {
+    width: '100%',
+    height: '100%',
     borderRadius: 160,
     alignItems: 'center',
     justifyContent: 'center',

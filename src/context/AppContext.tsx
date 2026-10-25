@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
+import { router } from 'expo-router';
 
-import { AppTheme, AppToast, Task, CustomList, TaskTag, RecurrenceType, DailyTask } from '../types';
+import { AppTheme, AppToast, Task, CustomList, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
 import { THEMES, ThemeColors } from '../constants/colors';
 import { THEME_STORAGE_KEY } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
@@ -11,7 +12,7 @@ import { defaultBackupService } from '../services/storage/backupService';
 import { useTasks } from '../hooks/useTasks';
 import { useLists } from '../hooks/useLists';
 import { useZenTimer } from '../hooks/useZenTimer';
-import { useFocusStats, DayFocusStat } from '../hooks/useFocusStats';
+import { useFocusStats, DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { hapticSuccess, hapticWarning } from '../hooks/useHaptics';
 
 interface AppContextValue {
@@ -21,6 +22,8 @@ interface AppContextValue {
   setTheme: (theme: AppTheme) => void;
   isThemeModalOpen: boolean;
   setIsThemeModalOpen: (open: boolean) => void;
+  autoNightShift: boolean;
+  toggleAutoNightShift: (enabled: boolean) => void;
 
   // Settings & Backup
   isSettingsModalOpen: boolean;
@@ -37,8 +40,16 @@ interface AppContextValue {
     todayFocusSeconds: number;
     weeklyDays: DayFocusStat[];
     maxDaySeconds: number;
+    heatmapDays?: HeatmapDay[];
   };
-  recordFocusSession: (durationSeconds: number) => void;
+  recordFocusSession: (durationSeconds: number, taskId?: string, taskTitle?: string) => void;
+  activeFocusTask: { id: string; title: string } | null;
+  setActiveFocusTask: (task: { id: string; title: string } | null) => void;
+  startTaskFocus: (task: { id: string; title: string }) => void;
+  isEveningReviewOpen: boolean;
+  setIsEveningReviewOpen: (open: boolean) => void;
+  isZenBreathingOpen: boolean;
+  setIsZenBreathingOpen: (open: boolean) => void;
 
   // Toast
   toast: AppToast | null;
@@ -56,19 +67,26 @@ interface AppContextValue {
   currentDayTasks: DailyTask[];
   currentStreak: number;
   overdueCount: number;
-  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag) => Task;
+  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => Task;
   deleteTask: (taskId: string) => void;
   deleteTaskInstance: (taskId: string, dateStr: string) => void;
   deleteTaskFuture: (taskId: string, dateStr: string) => void;
   restoreTask: (task: Task) => void;
   toggleTaskCompletion: (taskId: string, dateStr: string) => void;
-  editTask: (taskId: string, newTitle: string, newTag?: TaskTag) => void;
+  editTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
+  togglePinTask: (taskId: string) => void;
+  deferTaskToTomorrow: (taskId: string, currentDateStr: string) => void;
+  duplicateTask: (taskId: string, dateStr: string) => Task | null;
+  toggleSubtask: (taskId: string, subtaskId: string) => void;
+  addSubtask: (taskId: string, title: string) => void;
+  deleteSubtask: (taskId: string, subtaskId: string) => void;
+  addTaskFocusTime: (taskId: string, seconds: number) => void;
   getTasksForDate: (dateStr: string) => DailyTask[];
   getTaskCountForDate: (dateStr: string) => number;
   handleSingleDelete: (taskId: string) => void;
   handleInstanceDelete: (taskId: string, dateStr: string) => void;
   handleFutureDelete: (taskId: string, dateStr: string) => void;
-  handleEditTask: (taskId: string, newTitle: string, newTag?: TaskTag) => void;
+  handleEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   handleRollover: () => void;
 
   // Lists Engine
@@ -94,9 +112,16 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+const AUTO_NIGHT_STORAGE_KEY = '@noteapp_auto_night_shift';
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [currentThemeKey, setCurrentThemeKey] = useState<AppTheme>('sakura');
+  const [daytimeThemeKey, setDaytimeThemeKey] = useState<AppTheme>('sakura');
+  const [autoNightShift, setAutoNightShift] = useState(false);
+  const [isNightTime, setIsNightTime] = useState(() => {
+    const h = new Date().getHours();
+    return h >= 20 || h < 7;
+  });
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -105,13 +130,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Focus sessions and analytics engine
   const { stats: focusStats, recordSession: recordFocusSession } = useFocusStats();
 
-  // Load theme preference from AsyncStorage
+  // Load theme and auto night preferences from AsyncStorage
   useEffect(() => {
     AsyncStorage.getItem(THEME_STORAGE_KEY).then(saved => {
       if (saved && saved in THEMES) {
-        setCurrentThemeKey(saved as AppTheme);
+        setDaytimeThemeKey(saved as AppTheme);
       }
     });
+    AsyncStorage.getItem(AUTO_NIGHT_STORAGE_KEY).then(saved => {
+      if (saved !== null) {
+        setAutoNightShift(saved === 'true');
+      }
+    });
+  }, []);
+
+  // Check night hours every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const h = new Date().getHours();
+      const night = h >= 20 || h < 7;
+      setIsNightTime(prev => (prev !== night ? night : prev));
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const showToast = useCallback((t: AppToast) => {
@@ -122,8 +162,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setToast(null);
   }, []);
 
+  const toggleAutoNightShift = useCallback((enabled: boolean) => {
+    setAutoNightShift(enabled);
+    AsyncStorage.setItem(AUTO_NIGHT_STORAGE_KEY, String(enabled)).catch(() => {});
+    showToast({
+      type: 'info',
+      title: enabled ? 'Auto Night Shift On 🌙' : 'Auto Night Shift Off',
+      message: enabled
+        ? 'Theme will auto-switch to Midnight between 20:00 and 07:00'
+        : 'App will stay on your selected theme',
+    });
+  }, [showToast]);
+
   const handleSelectTheme = (theme: AppTheme) => {
-    setCurrentThemeKey(theme);
+    setDaytimeThemeKey(theme);
     AsyncStorage.setItem(THEME_STORAGE_KEY, theme).catch(() => {});
     showToast({
       type: 'info',
@@ -132,6 +184,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const currentThemeKey: AppTheme = (autoNightShift && isNightTime) ? 'midnight' : daytimeThemeKey;
   const theme: ThemeColors = THEMES[currentThemeKey] || THEMES.sakura;
 
   // Task Management Engine
@@ -144,6 +197,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     restoreTask,
     toggleTaskCompletion,
     editTask,
+    togglePinTask,
+    deferTaskToTomorrow,
+    duplicateTask,
+    toggleSubtask,
+    addSubtask,
+    deleteSubtask,
+    addTaskFocusTime,
     getTasksForDate,
     rolloverOverdueTasks,
     getOverdueTasksCount,
@@ -161,6 +221,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleListItem,
   } = useLists();
 
+  // Active focus task, breathing modal, and evening review states
+  const [activeFocusTask, setActiveFocusTask] = useState<{ id: string; title: string } | null>(null);
+  const [isEveningReviewOpen, setIsEveningReviewOpen] = useState(false);
+  const [isZenBreathingOpen, setIsZenBreathingOpen] = useState(false);
+
+  const handleTimerComplete = useCallback((elapsedSeconds: number) => {
+    recordFocusSession(elapsedSeconds, activeFocusTask?.id, activeFocusTask?.title);
+    if (activeFocusTask) {
+      addTaskFocusTime(activeFocusTask.id, elapsedSeconds);
+      const mins = Math.max(1, Math.round(elapsedSeconds / 60));
+      showToast({
+        type: 'success',
+        title: 'Focus Logged 🧘',
+        message: `${mins}m dedicated to "${activeFocusTask.title}" ✨`,
+      });
+    }
+    // Offer / trigger Zen Breathing break
+    setIsZenBreathingOpen(true);
+  }, [recordFocusSession, activeFocusTask, addTaskFocusTime, showToast]);
+
   // Zen Focus Timer Engine (auto-records completed sessions to analytics)
   const {
     timeLeft,
@@ -171,7 +251,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adjustTime,
     setTimerMinutes,
     finishEarlySession,
-  } = useZenTimer(25, recordFocusSession);
+  } = useZenTimer(25, handleTimerComplete);
+
+  const startTaskFocus = useCallback((task: { id: string; title: string }) => {
+    setActiveFocusTask(task);
+    router.replace('/(tabs)/focus');
+    showToast({
+      type: 'info',
+      title: 'Target Set 🎯',
+      message: `Focusing on "${task.title}"`,
+    });
+  }, [showToast]);
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -239,8 +329,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const handleEditTask = useCallback(
-    (taskId: string, newTitle: string, newTag?: TaskTag) => {
-      editTask(taskId, newTitle, newTag);
+    (
+      taskId: string,
+      newTitle: string,
+      newTag?: TaskTag,
+      subtasks?: Subtask[],
+      estimatedMinutes?: number,
+      isPinned?: boolean
+    ) => {
+      editTask(taskId, newTitle, newTag, subtasks, estimatedMinutes, isPinned);
       showToast({
         type: 'info',
         title: 'Task Updated',
@@ -341,6 +438,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTheme: handleSelectTheme,
         isThemeModalOpen,
         setIsThemeModalOpen,
+        autoNightShift,
+        toggleAutoNightShift,
         isSettingsModalOpen,
         setIsSettingsModalOpen,
         isSyncModalOpen,
@@ -349,6 +448,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         handleImportBackup,
         focusStats,
         recordFocusSession,
+        activeFocusTask,
+        setActiveFocusTask,
+        startTaskFocus,
+        isEveningReviewOpen,
+        setIsEveningReviewOpen,
+        isZenBreathingOpen,
+        setIsZenBreathingOpen,
         toast,
         showToast,
         dismissToast,
@@ -367,6 +473,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         restoreTask,
         toggleTaskCompletion,
         editTask,
+        togglePinTask,
+        deferTaskToTomorrow,
+        duplicateTask,
+        toggleSubtask,
+        addSubtask,
+        deleteSubtask,
+        addTaskFocusTime,
         getTasksForDate,
         getTaskCountForDate,
         handleSingleDelete,
