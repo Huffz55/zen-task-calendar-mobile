@@ -6,6 +6,7 @@ export interface INotificationService {
   readonly isSupported: boolean;
   requestPermissions(): Promise<boolean>;
   scheduleDailySummary(hour?: number, minute?: number, taskCount?: number): Promise<string | null>;
+  scheduleEveningWindDown(hour?: number, minute?: number, pendingCount?: number): Promise<string | null>;
   scheduleFocusTimerEnd(seconds: number, sessionTitle?: string): Promise<string | null>;
   cancelNotification(identifier: string): Promise<void>;
   cancelAll(): Promise<void>;
@@ -129,6 +130,43 @@ export class MobileNotificationService implements INotificationService {
       return id;
     } catch (e) {
       console.warn('Failed to schedule daily summary notification', e);
+      return null;
+    }
+  }
+
+  async scheduleEveningWindDown(hour = 20, minute = 30, pendingCount = 0): Promise<string | null> {
+    if (!this.isSupported || !Notifications || !SchedulableTriggerInputTypes) return null;
+
+    try {
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) return null;
+
+      await this.cancelNotification('evening-winddown');
+
+      const bodyText =
+        pendingCount > 0
+          ? `Ready to wind down? 🌸 You have ${pendingCount} task${pendingCount > 1 ? 's' : ''} left today. Complete ${pendingCount > 1 ? 'them' : 'it'} or gently roll over to tomorrow.`
+          : 'Mindful day complete ✨ Take a deep breath, unwind, and rest well tonight 🌸';
+
+      const id = await Notifications.scheduleNotificationAsync({
+        identifier: 'evening-winddown',
+        content: {
+          title: 'Evening Wind-Down 🌙',
+          body: bodyText,
+          sound: true,
+          data: { type: 'evening-winddown' },
+        },
+        trigger: {
+          type: SchedulableTriggerInputTypes.DAILY,
+          channelId: 'zen-general',
+          hour,
+          minute,
+        },
+      });
+
+      return id;
+    } catch (e) {
+      console.warn('Failed to schedule evening wind-down notification', e);
       return null;
     }
   }

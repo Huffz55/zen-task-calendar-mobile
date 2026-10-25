@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Animated,
   PanResponder,
+  Linking,
 } from 'react-native';
 import { DailyTask } from '../../types';
 import { ThemeColors } from '../../constants/colors';
@@ -51,6 +52,21 @@ export function TaskCard({
 }: TaskCardProps) {
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
   const tagConfig = task.tag ? TAGS[task.tag] : null;
+
+  // Extract link if task contains a URL (Görev Kapsülü)
+  const linkInfo = useMemo(() => {
+    const match = task.title.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/i);
+    if (!match) return null;
+    const raw = match[0].replace(/[.,)]+$/, '');
+    const url = raw.startsWith('http') ? raw : `https://${raw}`;
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.replace(/^www\./, '');
+      return { url, displayLabel: host || 'Link' };
+    } catch {
+      return { url, displayLabel: 'Link' };
+    }
+  }, [task.title]);
 
   // Swipe animation setup
   const [panX] = useState(() => new Animated.Value(0));
@@ -229,6 +245,24 @@ export function TaskCard({
                   </Text>
                 </View>
               ) : null}
+
+              {/* Quick Link Badge (Görev Kapsülü) */}
+              {linkInfo && (
+                <TouchableOpacity
+                  style={[styles.badge, { backgroundColor: theme.primaryLight, borderColor: theme.primary, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 3 }]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    hapticLight();
+                    Linking.openURL(linkInfo.url).catch(() => {});
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="link-outline" size={11} color={theme.primary} />
+                  <Text style={[styles.badgeText, { color: theme.primary, fontWeight: '600' }]} numberOfLines={1}>
+                    {linkInfo.displayLabel}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               {/* Subtasks Badge */}
               {subtasks.length > 0 && (

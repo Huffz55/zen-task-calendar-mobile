@@ -48,9 +48,14 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor: theme.background,
+          borderTopWidth: 0,
+          elevation: 0,
+        },
       }}
       tabBar={() => (
-        <View style={{ backgroundColor: 'transparent' }}>
+        <View style={{ backgroundColor: theme.background }}>
           {shouldShowMiniPlayer && (
             <MiniFocusPlayer
               timeLeft={timeLeft}

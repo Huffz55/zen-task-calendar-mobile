@@ -29,6 +29,8 @@ function RootLayoutContent() {
     focusStats,
     autoNightShift,
     toggleAutoNightShift,
+    unarchiveTask,
+    getArchivedTasks,
     toast,
     showToast,
     dismissToast,
@@ -71,6 +73,8 @@ function RootLayoutContent() {
         currentStreak={currentStreak}
         totalFocusSeconds={focusStats.totalFocusSeconds}
         tasks={tasks}
+        archivedTasks={getArchivedTasks()}
+        onUnarchiveTask={unarchiveTask}
         autoNightShift={autoNightShift}
         onToggleAutoNightShift={toggleAutoNightShift}
         onClose={() => setIsSettingsModalOpen(false)}

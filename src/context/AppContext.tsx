@@ -88,6 +88,8 @@ interface AppContextValue {
   handleFutureDelete: (taskId: string, dateStr: string) => void;
   handleEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   handleRollover: () => void;
+  unarchiveTask: (taskId: string, targetDateStr?: string) => void;
+  getArchivedTasks: () => Task[];
 
   // Lists Engine
   lists: CustomList[];
@@ -205,6 +207,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteSubtask,
     addTaskFocusTime,
     getTasksForDate,
+    autoArchiveNeglectedTasks,
+    unarchiveTask,
+    getArchivedTasks,
     rolloverOverdueTasks,
     getOverdueTasksCount,
     currentStreak,
@@ -268,11 +273,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const currentDayTasks = getTasksForDate(selectedDateStr);
   const overdueCount = getOverdueTasksCount(todayStr);
 
-  // Sync morning daily notification with today's tasks
+  // Sync morning daily summary and evening wind-down notifications
   useEffect(() => {
-    const todayCount = getTasksForDate(todayStr).length;
-    defaultNotificationService.scheduleDailySummary(9, 0, todayCount).catch(() => {});
+    const todayTasks = getTasksForDate(todayStr);
+    const pendingCount = todayTasks.filter(t => !t.isCompleted).length;
+    defaultNotificationService.scheduleDailySummary(9, 0, todayTasks.length).catch(() => {});
+    defaultNotificationService.scheduleEveningWindDown(20, 30, pendingCount).catch(() => {});
   }, [getTasksForDate, todayStr, tasks]);
+
+  // Silently auto-archive neglected tasks older than 14 days to reduce mental baggage
+  useEffect(() => {
+    autoArchiveNeglectedTasks(todayStr);
+  }, [todayStr, autoArchiveNeglectedTasks]);
 
   const handleSingleDelete = useCallback(
     (taskId: string) => {
@@ -487,6 +499,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         handleFutureDelete,
         handleEditTask,
         handleRollover,
+        unarchiveTask,
+        getArchivedTasks,
         lists,
         addList,
         deleteList,

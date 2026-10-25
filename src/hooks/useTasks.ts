@@ -250,6 +250,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     if (!isValid(targetDate)) return [];
 
     const mapped: DailyTask[] = tasks.filter(task => {
+      if (task.isArchived) return false;
       const startDate = parseISO(task.date);
       if (!isValid(startDate)) return false;
 
@@ -280,6 +281,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       focusedSeconds: task.focusedSeconds,
       isPinned: task.isPinned,
       estimatedMinutes: task.estimatedMinutes,
+      isArchived: task.isArchived,
     }));
 
     return mapped.sort((a, b) => {
@@ -293,9 +295,57 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     });
   }, [tasks]);
 
+  const autoArchiveNeglectedTasks = useCallback((currentDateStr: string): number => {
+    const today = parseISO(currentDateStr);
+    if (!isValid(today)) return 0;
+
+    let archivedCount = 0;
+    setTasks(prev => prev.map(task => {
+      if (task.isArchived) return task;
+      const isNonRecurring = !task.recurrence || task.recurrence === 'none';
+      const isCompleted = (Array.isArray(task.completedDates) ? task.completedDates : []).includes(task.date);
+
+      if (isNonRecurring && !isCompleted) {
+        const taskDate = parseISO(task.date);
+        if (isValid(taskDate)) {
+          const daysOld = differenceInDays(today, taskDate);
+          if (daysOld >= 14) {
+            archivedCount++;
+            return {
+              ...task,
+              isArchived: true,
+              archivedAt: currentDateStr,
+            };
+          }
+        }
+      }
+      return task;
+    }));
+    return archivedCount;
+  }, []);
+
+  const unarchiveTask = useCallback((taskId: string, targetDateStr?: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          isArchived: false,
+          archivedAt: undefined,
+          date: targetDateStr || t.date,
+        };
+      }
+      return t;
+    }));
+  }, []);
+
+  const getArchivedTasks = useCallback(() => {
+    return tasks.filter(t => t.isArchived);
+  }, [tasks]);
+
   const rolloverOverdueTasks = useCallback((targetDateStr: string): number => {
     let count = 0;
     setTasks(prev => prev.map(task => {
+      if (task.isArchived) return task;
       const isNonRecurring = !task.recurrence || task.recurrence === 'none';
       const isCompleted = (Array.isArray(task.completedDates) ? task.completedDates : []).includes(task.date);
       const isOverdue = task.date < targetDateStr;
@@ -311,6 +361,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
 
   const getOverdueTasksCount = useCallback((todayStr: string): number => {
     return tasks.filter(task => {
+      if (task.isArchived) return false;
       const isNonRecurring = !task.recurrence || task.recurrence === 'none';
       const isCompleted = (Array.isArray(task.completedDates) ? task.completedDates : []).includes(task.date);
       return isNonRecurring && !isCompleted && task.date < todayStr;
@@ -371,6 +422,9 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     addTaskFocusTime,
     rescheduleTask,
     getTasksForDate,
+    autoArchiveNeglectedTasks,
+    unarchiveTask,
+    getArchivedTasks,
     rolloverOverdueTasks,
     getOverdueTasksCount,
     currentStreak,

@@ -26,6 +26,8 @@ interface SettingsModalProps {
   currentStreak?: number;
   totalFocusSeconds?: number;
   tasks?: Task[];
+  archivedTasks?: Task[];
+  onUnarchiveTask?: (taskId: string) => void;
   autoNightShift?: boolean;
   onToggleAutoNightShift?: (enabled: boolean) => void;
   onClose: () => void;
@@ -36,6 +38,7 @@ interface SettingsModalProps {
 }
 
 const SETTINGS_MORNING_KEY = '@noteapp_setting_morning_summary';
+const SETTINGS_EVENING_KEY = '@noteapp_setting_evening_winddown';
 const SETTINGS_HAPTIC_KEY = '@noteapp_setting_haptic';
 const SETTINGS_CHIME_KEY = '@noteapp_setting_chime';
 
@@ -47,6 +50,8 @@ export function SettingsModal({
   currentStreak = 0,
   totalFocusSeconds = 0,
   tasks = [],
+  archivedTasks = [],
+  onUnarchiveTask,
   autoNightShift = false,
   onToggleAutoNightShift,
   onClose,
@@ -58,9 +63,11 @@ export function SettingsModal({
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(true);
+  const [eveningWindDownEnabled, setEveningWindDownEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [sfxEnabled, setSfxEnabled] = useState(() => isSoundEffectsEnabled());
+  const [isArchiveExpanded, setIsArchiveExpanded] = useState(false);
 
   const milestones: ZenMilestone[] = useMemo(() => {
     const hasCompletedTask = tasks.some(t => Array.isArray(t.completedDates) && t.completedDates.length > 0);
@@ -119,6 +126,9 @@ export function SettingsModal({
     AsyncStorage.getItem(SETTINGS_MORNING_KEY).then(val => {
       if (val !== null) setMorningSummaryEnabled(val === 'true');
     });
+    AsyncStorage.getItem(SETTINGS_EVENING_KEY).then(val => {
+      if (val !== null) setEveningWindDownEnabled(val === 'true');
+    });
     AsyncStorage.getItem(SETTINGS_HAPTIC_KEY).then(val => {
       if (val !== null) setHapticsEnabled(val === 'true');
     });
@@ -144,6 +154,19 @@ export function SettingsModal({
     } else {
       await defaultNotificationService.cancelNotification('daily-summary');
       onShowToast('Daily morning summary turned off');
+    }
+  };
+
+  const handleToggleEvening = async (enabled: boolean) => {
+    hapticLight();
+    setEveningWindDownEnabled(enabled);
+    await AsyncStorage.setItem(SETTINGS_EVENING_KEY, String(enabled));
+    if (enabled) {
+      await defaultNotificationService.scheduleEveningWindDown(20, 30, totalTasks);
+      onShowToast('Evening 20:30 PM wind-down activated 🌙');
+    } else {
+      await defaultNotificationService.cancelNotification('evening-winddown');
+      onShowToast('Evening wind-down briefing turned off');
     }
   };
 
@@ -190,6 +213,16 @@ export function SettingsModal({
     }
     await defaultNotificationService.scheduleDailySummary(9, 0, totalTasks);
     onShowToast('Test morning briefing scheduled (09:00 AM) 🌸');
+  };
+
+  const handleTestEveningNotification = async () => {
+    hapticSuccess();
+    if (!defaultNotificationService.isSupported) {
+      onShowToast('Notifications require a development build on Android Expo Go 🌸');
+      return;
+    }
+    await defaultNotificationService.scheduleEveningWindDown(20, 30, totalTasks);
+    onShowToast('Test evening wind-down scheduled (20:30 PM) 🌙');
   };
 
   return (
@@ -306,6 +339,32 @@ export function SettingsModal({
               />
             </View>
 
+            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="moon-outline" size={20} color={theme.accent || theme.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <View style={styles.titleRowWithBtn}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Evening Wind-Down (20:30 PM)</Text>
+                  <TouchableOpacity
+                    style={[styles.miniTestBtn, { borderColor: theme.border }]}
+                    onPress={handleTestEveningNotification}
+                  >
+                    <Text style={[styles.miniTestText, { color: theme.primary }]}>Test</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                  Gentle evening reminder to complete remaining tasks or peacefully roll them over to tomorrow.
+                </Text>
+              </View>
+              <Switch
+                value={eveningWindDownEnabled}
+                onValueChange={handleToggleEvening}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
             {/* Section: Appearance & Night Shift */}
             <Text style={[styles.sectionTitle, { color: theme.textDim }]}>APPEARANCE & NIGHT SHIFT</Text>
 
@@ -383,6 +442,81 @@ export function SettingsModal({
                 thumbColor="#ffffff"
               />
             </View>
+
+            {/* Section: Görev Mezarlığı (Silent Archive) */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>SILENT ARCHIVE (GÖREV MEZARLIĞI)</Text>
+
+            <TouchableOpacity
+              style={[
+                styles.actionCard,
+                { backgroundColor: theme.surfaceMuted, borderColor: theme.border, flexDirection: 'column', alignItems: 'stretch' },
+              ]}
+              onPress={() => {
+                if (archivedTasks.length > 0) {
+                  hapticLight();
+                  setIsArchiveExpanded(prev => !prev);
+                }
+              }}
+              activeOpacity={archivedTasks.length > 0 ? 0.7 : 1}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Text style={{ fontSize: 18 }}>🪦</Text>
+                </View>
+                <View style={styles.actionContent}>
+                  <View style={styles.titleRowWithBtn}>
+                    <Text style={[styles.actionTitle, { color: theme.text }]}>Mindful Archive</Text>
+                    {archivedTasks.length > 0 && (
+                      <View style={[styles.archiveCountBadge, { backgroundColor: theme.primaryLight }]}>
+                        <Text style={[styles.archiveCountText, { color: theme.primary }]}>
+                          {archivedTasks.length} {archivedTasks.length === 1 ? 'task' : 'tasks'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                    {archivedTasks.length > 0
+                      ? 'Tasks untouched for 14+ days are quietly rested here to clear mental clutter.'
+                      : 'No neglected tasks. Tasks untouched for 14+ days will quietly rest here without guilt.'}
+                  </Text>
+                </View>
+                {archivedTasks.length > 0 && (
+                  <Ionicons
+                    name={isArchiveExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={theme.textDim}
+                  />
+                )}
+              </View>
+
+              {isArchiveExpanded && archivedTasks.length > 0 && (
+                <View style={[styles.archiveListContainer, { borderTopColor: theme.border }]}>
+                  {archivedTasks.map(t => (
+                    <View key={t.id} style={[styles.archiveItemRow, { borderBottomColor: theme.border }]}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={[styles.archiveItemTitle, { color: theme.text }]} numberOfLines={1}>
+                          {t.title}
+                        </Text>
+                        <Text style={[styles.archiveItemDate, { color: theme.textDim }]}>
+                          Planned: {t.date} {t.archivedAt ? `• Archived: ${t.archivedAt}` : ''}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.unarchiveBtn, { borderColor: theme.primary }]}
+                        onPress={() => {
+                          hapticSuccess();
+                          onUnarchiveTask?.(t.id);
+                          onShowToast(`"${t.title}" restored to today 🌸`);
+                        }}
+                      >
+                        <Ionicons name="arrow-undo-outline" size={13} color={theme.primary} />
+                        <Text style={[styles.unarchiveBtnText, { color: theme.primary }]}>Restore</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </TouchableOpacity>
 
             {/* Section: Data Backup & Restore */}
             <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DATA PORTABILITY (JSON)</Text>
@@ -614,5 +748,48 @@ const styles = StyleSheet.create({
   milestoneDesc: {
     fontSize: 10,
     lineHeight: 14,
+  },
+  archiveCountBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  archiveCountText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  archiveListContainer: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  archiveItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  archiveItemTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  archiveItemDate: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  unarchiveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  unarchiveBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

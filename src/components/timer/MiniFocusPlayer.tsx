@@ -29,7 +29,7 @@ export function MiniFocusPlayer({
   const progressPercent = initialTime > 0 ? Math.min(100, Math.max(0, ((initialTime - timeLeft) / initialTime) * 100)) : 0;
 
   return (
-    <View style={styles.outerContainer}>
+    <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
       <TouchableOpacity
         style={[
           styles.container,
