@@ -47,6 +47,7 @@ export function AddTaskModal({
   const [isPinned, setIsPinned] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
+  const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | null>(null);
 
   const handleAddSubtask = () => {
     const trimmed = newSubtaskInput.trim();
@@ -77,6 +78,12 @@ export function AddTaskModal({
     setIsPinned(false);
     setSubtasks([]);
     setNewSubtaskInput('');
+    setActiveSection(null);
+    onClose();
+  };
+
+  const handleClose = () => {
+    setActiveSection(null);
     onClose();
   };
 
@@ -110,7 +117,7 @@ export function AddTaskModal({
               <Text style={[styles.sheetTitle, { color: theme.text }]}>Add New Task</Text>
               <Text style={[styles.dateSubtitle, { color: theme.textDim }]}>{selectedDateStr}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
               <Ionicons name="close" size={20} color={theme.textDim} />
             </TouchableOpacity>
           </View>
@@ -134,117 +141,63 @@ export function AddTaskModal({
             onSubmitEditing={handleSave}
           />
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Tag Selector */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim }]}>TAG</Text>
-            <View style={styles.chipsRow}>
-              {tagKeys.map(tKey => {
-                const conf = TAGS[tKey];
-                const isSelected = tag === tKey;
-                return (
-                  <TouchableOpacity
-                    key={tKey}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isSelected
-                          ? conf.color
-                          : theme.isDark
-                          ? conf.bgDark
-                          : conf.bgLight,
-                        borderColor: isSelected ? conf.color : 'transparent',
-                      },
-                    ]}
-                    onPress={() => {
-                      hapticLight();
-                      setTag(isSelected ? undefined : tKey);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: isSelected ? '#ffffff' : conf.color },
-                      ]}
-                    >
-                      {conf.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Recurrence Selector */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>RECURRENCE</Text>
-            <View style={styles.chipsRow}>
-              {recurrenceOptions.map(opt => {
-                const isSelected = recurrence === opt.id;
-                return (
-                  <TouchableOpacity
-                    key={opt.id}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
-                        borderColor: isSelected ? theme.primary : theme.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      hapticLight();
-                      setRecurrence(opt.id);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: isSelected ? '#ffffff' : theme.textMuted },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Estimated Duration */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>ESTIMATED TIME</Text>
-            <View style={styles.chipsRow}>
-              {durationOptions.map(opt => {
-                const isSelected = estimatedMinutes === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.label}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
-                        borderColor: isSelected ? theme.primary : theme.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      hapticLight();
-                      setEstimatedMinutes(opt.value);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: isSelected ? '#ffffff' : theme.textMuted },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Pin as Focus of the Day Toggle */}
+          {/* Quick Option Pills Bar */}
+          <View style={styles.optionPillsBar}>
             <TouchableOpacity
               style={[
-                styles.pinToggleCard,
+                styles.optionPill,
                 {
-                  backgroundColor: isPinned ? (theme.isDark ? '#78350f33' : '#fef3c7') : theme.surfaceMuted,
+                  backgroundColor: activeSection === 'tag' || tag ? theme.primaryLight : theme.surfaceMuted,
+                  borderColor: activeSection === 'tag' || tag ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => setActiveSection(prev => prev === 'tag' ? null : 'tag')}
+            >
+              <Ionicons
+                name="pricetag-outline"
+                size={13}
+                color={activeSection === 'tag' || tag ? theme.primary : theme.textDim}
+              />
+              <Text
+                style={[
+                  styles.optionPillText,
+                  { color: activeSection === 'tag' || tag ? theme.primary : theme.textDim },
+                ]}
+              >
+                {tag ? TAGS[tag].label : 'Tag'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: activeSection === 'time' || estimatedMinutes ? theme.primaryLight : theme.surfaceMuted,
+                  borderColor: activeSection === 'time' || estimatedMinutes ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => setActiveSection(prev => prev === 'time' ? null : 'time')}
+            >
+              <Ionicons
+                name="timer-outline"
+                size={13}
+                color={activeSection === 'time' || estimatedMinutes ? theme.primary : theme.textDim}
+              />
+              <Text
+                style={[
+                  styles.optionPillText,
+                  { color: activeSection === 'time' || estimatedMinutes ? theme.primary : theme.textDim },
+                ]}
+              >
+                {estimatedMinutes ? `${estimatedMinutes}m` : 'Time'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: isPinned ? (theme.isDark ? '#78350f44' : '#fef3c7') : theme.surfaceMuted,
                   borderColor: isPinned ? '#f59e0b' : theme.border,
                 },
               ]}
@@ -252,73 +205,238 @@ export function AddTaskModal({
                 hapticLight();
                 setIsPinned(!isPinned);
               }}
-              activeOpacity={0.8}
             >
               <Ionicons
                 name={isPinned ? 'star' : 'star-outline'}
-                size={22}
+                size={13}
                 color={isPinned ? '#f59e0b' : theme.textDim}
               />
-              <View style={styles.pinToggleContent}>
-                <Text style={[styles.pinToggleTitle, { color: isPinned ? '#b45309' : theme.text }]}>
-                  Focus of the Day (One Big Thing)
-                </Text>
-                <Text style={[styles.pinToggleDesc, { color: theme.textDim }]}>
-                  Pin to top with gold badge as your highest priority goal.
-                </Text>
-              </View>
+              <Text style={[styles.optionPillText, { color: isPinned ? '#b45309' : theme.textDim }]}>
+                Priority
+              </Text>
             </TouchableOpacity>
 
-            {/* Subtasks Builder */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>
-              SUBTASKS ({subtasks.length})
-            </Text>
-            <View style={styles.subtaskInputRow}>
-              <TextInput
-                style={[
-                  styles.subtaskTextInput,
-                  {
-                    backgroundColor: theme.surfaceMuted,
-                    borderColor: theme.border,
-                    color: theme.text,
-                  },
-                ]}
-                placeholder="Add checklist step..."
-                placeholderTextColor={theme.textDim}
-                value={newSubtaskInput}
-                onChangeText={setNewSubtaskInput}
-                onSubmitEditing={handleAddSubtask}
-                returnKeyType="done"
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: activeSection === 'repeat' || recurrence !== 'none' ? theme.primaryLight : theme.surfaceMuted,
+                  borderColor: activeSection === 'repeat' || recurrence !== 'none' ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => setActiveSection(prev => prev === 'repeat' ? null : 'repeat')}
+            >
+              <Ionicons
+                name="repeat-outline"
+                size={13}
+                color={activeSection === 'repeat' || recurrence !== 'none' ? theme.primary : theme.textDim}
               />
-              <TouchableOpacity
-                style={[styles.addSubtaskBtn, { backgroundColor: theme.primary }]}
-                onPress={handleAddSubtask}
+              <Text
+                style={[
+                  styles.optionPillText,
+                  { color: activeSection === 'repeat' || recurrence !== 'none' ? theme.primary : theme.textDim },
+                ]}
               >
-                <Ionicons name="add" size={20} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
+                {recurrence !== 'none' ? recurrence : 'Repeat'}
+              </Text>
+            </TouchableOpacity>
 
-            {subtasks.length > 0 && (
-              <View style={styles.subtaskChipsList}>
-                {subtasks.map(s => (
-                  <View
-                    key={s.id}
-                    style={[
-                      styles.subtaskChip,
-                      { backgroundColor: theme.surfaceMuted, borderColor: theme.border },
-                    ]}
-                  >
-                    <Text style={[styles.subtaskChipText, { color: theme.text }]} numberOfLines={1}>
-                      • {s.title}
-                    </Text>
-                    <TouchableOpacity onPress={() => handleRemoveSubtask(s.id)}>
-                      <Ionicons name="close-circle" size={16} color={theme.textDim} />
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: activeSection === 'subtasks' || subtasks.length > 0 ? theme.primaryLight : theme.surfaceMuted,
+                  borderColor: activeSection === 'subtasks' || subtasks.length > 0 ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => setActiveSection(prev => prev === 'subtasks' ? null : 'subtasks')}
+            >
+              <Ionicons
+                name="list-outline"
+                size={13}
+                color={activeSection === 'subtasks' || subtasks.length > 0 ? theme.primary : theme.textDim}
+              />
+              <Text
+                style={[
+                  styles.optionPillText,
+                  { color: activeSection === 'subtasks' || subtasks.length > 0 ? theme.primary : theme.textDim },
+                ]}
+              >
+                Steps{subtasks.length > 0 ? ` (${subtasks.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Expandable Section Content (only when a pill is selected) */}
+          {activeSection !== null && (
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.expandedSectionScroll}>
+              {activeSection === 'tag' && (
+                <View style={styles.sectionBlock}>
+                  <Text style={[styles.sectionLabel, { color: theme.textDim }]}>CHOOSE TAG</Text>
+                  <View style={styles.chipsRow}>
+                    {tagKeys.map(tKey => {
+                      const conf = TAGS[tKey];
+                      const isSelected = tag === tKey;
+                      return (
+                        <TouchableOpacity
+                          key={tKey}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: isSelected
+                                ? conf.color
+                                : theme.isDark
+                                ? conf.bgDark
+                                : conf.bgLight,
+                              borderColor: isSelected ? conf.color : 'transparent',
+                            },
+                          ]}
+                          onPress={() => {
+                            hapticLight();
+                            setTag(isSelected ? undefined : tKey);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: isSelected ? '#ffffff' : conf.color },
+                            ]}
+                          >
+                            {conf.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {activeSection === 'repeat' && (
+                <View style={styles.sectionBlock}>
+                  <Text style={[styles.sectionLabel, { color: theme.textDim }]}>RECURRENCE</Text>
+                  <View style={styles.chipsRow}>
+                    {recurrenceOptions.map(opt => {
+                      const isSelected = recurrence === opt.id;
+                      return (
+                        <TouchableOpacity
+                          key={opt.id}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
+                              borderColor: isSelected ? theme.primary : theme.border,
+                            },
+                          ]}
+                          onPress={() => {
+                            hapticLight();
+                            setRecurrence(opt.id);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: isSelected ? '#ffffff' : theme.textMuted },
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {activeSection === 'time' && (
+                <View style={styles.sectionBlock}>
+                  <Text style={[styles.sectionLabel, { color: theme.textDim }]}>ESTIMATED TIME</Text>
+                  <View style={styles.chipsRow}>
+                    {durationOptions.map(opt => {
+                      const isSelected = estimatedMinutes === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.label}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
+                              borderColor: isSelected ? theme.primary : theme.border,
+                            },
+                          ]}
+                          onPress={() => {
+                            hapticLight();
+                            setEstimatedMinutes(opt.value);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: isSelected ? '#ffffff' : theme.textMuted },
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {activeSection === 'subtasks' && (
+                <View style={styles.sectionBlock}>
+                  <Text style={[styles.sectionLabel, { color: theme.textDim }]}>
+                    SUBTASKS ({subtasks.length})
+                  </Text>
+                  <View style={styles.subtaskInputRow}>
+                    <TextInput
+                      style={[
+                        styles.subtaskTextInput,
+                        {
+                          backgroundColor: theme.surfaceMuted,
+                          borderColor: theme.border,
+                          color: theme.text,
+                        },
+                      ]}
+                      placeholder="Add checklist step..."
+                      placeholderTextColor={theme.textDim}
+                      value={newSubtaskInput}
+                      onChangeText={setNewSubtaskInput}
+                      onSubmitEditing={handleAddSubtask}
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity
+                      style={[styles.addSubtaskBtn, { backgroundColor: theme.primary }]}
+                      onPress={handleAddSubtask}
+                    >
+                      <Ionicons name="add" size={20} color="#ffffff" />
                     </TouchableOpacity>
                   </View>
-                ))}
-              </View>
-            )}
-          </ScrollView>
+
+                  {subtasks.length > 0 && (
+                    <View style={styles.subtaskChipsList}>
+                      {subtasks.map(s => (
+                        <View
+                          key={s.id}
+                          style={[
+                            styles.subtaskChip,
+                            { backgroundColor: theme.surfaceMuted, borderColor: theme.border },
+                          ]}
+                        >
+                          <Text style={[styles.subtaskChipText, { color: theme.text }]} numberOfLines={1}>
+                            • {s.title}
+                          </Text>
+                          <TouchableOpacity onPress={() => handleRemoveSubtask(s.id)}>
+                            <Ionicons name="close-circle" size={16} color={theme.textDim} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+          )}
 
           {/* Submit Button */}
           <TouchableOpacity
@@ -474,5 +592,33 @@ const styles = StyleSheet.create({
   subtaskChipText: {
     fontSize: 12,
     flex: 1,
+  },
+  optionPillsBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  optionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  optionPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  expandedSectionScroll: {
+    maxHeight: 180,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  sectionBlock: {
+    paddingVertical: 4,
   },
 });

@@ -7,6 +7,9 @@ import {
   Animated,
   PanResponder,
   Linking,
+  Modal,
+  Pressable,
+  Platform,
 } from 'react-native';
 import { DailyTask } from '../../types';
 import { ThemeColors } from '../../constants/colors';
@@ -51,6 +54,7 @@ export function TaskCard({
   onStartFocus,
 }: TaskCardProps) {
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const tagConfig = task.tag ? TAGS[task.tag] : null;
 
   // Extract link if task contains a URL (Görev Kapsülü)
@@ -311,96 +315,148 @@ export function TaskCard({
 
           {/* Actions */}
           <View style={styles.actionsRow}>
-            {/* Quick Focus Button */}
-            {onStartFocus && !task.isCompleted && (
-              <TouchableOpacity
-                style={[styles.focusActionBtn, { backgroundColor: theme.primaryLight }]}
-                onPress={() => {
-                  hapticSuccess();
-                  onStartFocus({ id: task.taskId, title: task.title });
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Focus on this task"
-              >
-                <Ionicons name="timer-outline" size={15} color={theme.primary} />
-              </TouchableOpacity>
-            )}
+            {!task.isCompleted ? (
+              <>
+                {/* Quick Focus Button */}
+                {onStartFocus && (
+                  <TouchableOpacity
+                    style={[styles.focusActionBtn, { backgroundColor: theme.primaryLight }]}
+                    onPress={() => {
+                      hapticSuccess();
+                      onStartFocus({ id: task.taskId, title: task.title });
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel="Focus on this task"
+                  >
+                    <Ionicons name="timer-outline" size={15} color={theme.primary} />
+                  </TouchableOpacity>
+                )}
 
-            {/* Toggle Pin / Focus of the Day */}
-            {onTogglePin && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  hapticLight();
-                  onTogglePin(task.taskId);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel={task.isPinned ? 'Unpin task' : 'Pin as focus of the day'}
-              >
-                <Ionicons
-                  name={task.isPinned ? 'star' : 'star-outline'}
-                  size={15}
-                  color={task.isPinned ? '#f59e0b' : theme.textDim}
-                />
-              </TouchableOpacity>
-            )}
-
-            {/* Defer to Tomorrow */}
-            {onDeferTask && !task.isCompleted && (
+                {/* More Options Button */}
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={() => {
+                    hapticLight();
+                    setIsMenuOpen(true);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Task options"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={17} color={theme.textDim} />
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* Completed Task: ONLY Delete */
               <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={() => {
-                  hapticLight();
-                  onDeferTask();
+                  hapticWarning();
+                  onDelete(task);
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Defer to tomorrow"
+                accessibilityLabel="Delete completed task"
               >
-                <Ionicons name="arrow-forward-circle-outline" size={16} color={theme.textDim} />
+                <Ionicons name="trash-outline" size={16} color={theme.textDim} />
               </TouchableOpacity>
             )}
-
-            {/* Duplicate Task */}
-            {onDuplicateTask && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  hapticLight();
-                  onDuplicateTask();
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Duplicate task"
-              >
-                <Ionicons name="copy-outline" size={15} color={theme.textDim} />
-              </TouchableOpacity>
-            )}
-
-            {onEdit && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  hapticLight();
-                  onEdit(task);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="pencil-outline" size={16} color={theme.textDim} />
-              </TouchableOpacity>
-            )}
-
-            {/* Delete Button */}
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => {
-                hapticWarning();
-                onDelete(task);
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="trash-outline" size={16} color={theme.textDim} />
-            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Mobile Task Actions Bottom Sheet Modal */}
+        <Modal visible={isMenuOpen} transparent animationType="fade" onRequestClose={() => setIsMenuOpen(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setIsMenuOpen(false)}>
+            <Pressable style={[styles.menuSheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={styles.menuHeader}>
+                <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1}>
+                  {task.title}
+                </Text>
+              </View>
+
+              {onTogglePin && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    hapticLight();
+                    setIsMenuOpen(false);
+                    onTogglePin(task.taskId);
+                  }}
+                >
+                  <Ionicons
+                    name={task.isPinned ? 'star' : 'star-outline'}
+                    size={18}
+                    color={task.isPinned ? '#f59e0b' : theme.text}
+                  />
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>
+                    {task.isPinned ? 'Unpin Focus Goal' : 'Focus of the Day ⭐'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {onDeferTask && !task.isCompleted && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    hapticLight();
+                    setIsMenuOpen(false);
+                    onDeferTask();
+                  }}
+                >
+                  <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Defer to Tomorrow 📅</Text>
+                </TouchableOpacity>
+              )}
+
+              {onDuplicateTask && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    hapticLight();
+                    setIsMenuOpen(false);
+                    onDuplicateTask();
+                  }}
+                >
+                  <Ionicons name="copy-outline" size={18} color={theme.text} />
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Duplicate Task 📋</Text>
+                </TouchableOpacity>
+              )}
+
+              {onEdit && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    hapticLight();
+                    setIsMenuOpen(false);
+                    onEdit(task);
+                  }}
+                >
+                  <Ionicons name="pencil-outline" size={18} color={theme.text} />
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Edit Task Details</Text>
+                </TouchableOpacity>
+              )}
+
+              <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  hapticWarning();
+                  setIsMenuOpen(false);
+                  onDelete(task);
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                <Text style={[styles.menuItemText, { color: '#ef4444', fontWeight: '600' }]}>Delete Task</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.cancelBtn, { backgroundColor: theme.surfaceMuted }]}
+                onPress={() => setIsMenuOpen(false)}
+              >
+                <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>Cancel</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* Expandable Subtasks Checklist */}
         {isSubtasksExpanded && subtasks.length > 0 && (
@@ -607,5 +663,61 @@ const styles = StyleSheet.create({
   },
   subtaskTitle: {
     fontSize: 13,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  menuSheet: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 16,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  menuHeader: {
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
+    marginBottom: 6,
+  },
+  menuTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    opacity: 0.8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 4,
+  },
+  cancelBtn: {
+    marginTop: 8,
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
