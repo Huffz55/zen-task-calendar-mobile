@@ -4,8 +4,6 @@ import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { ZenTimerView } from '../components/timer/ZenTimerView';
 import { AmbientSoundBar } from '../components/timer/AmbientSoundBar';
-import { FocusAnalyticsCard } from '../components/timer/FocusAnalyticsCard';
-import { ZenHeatmap } from '../components/timer/ZenHeatmap';
 import { ZenBreathingModal } from '../components/timer/ZenBreathingModal';
 import { DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,6 +37,14 @@ interface FocusScreenProps {
   onOpenThemeModal: () => void;
   onOpenSettingsModal?: () => void;
   onOpenSyncModal?: () => void;
+}
+
+function formatFocusTime(seconds: number): string {
+  if (seconds <= 0) return '0m';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
 }
 
 export function FocusScreen({
@@ -118,7 +124,34 @@ export function FocusScreen({
           onFinishEarly={onFinishEarlySession}
         />
 
-        {/* Breathing Break Shortcut */}
+        {/* Daily Focus Summary Card */}
+        <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: theme.text }]}>
+              {formatFocusTime(focusStats.todayFocusSeconds)}
+            </Text>
+            <Text style={[styles.summaryLabel, { color: theme.textDim }]}>Today</Text>
+          </View>
+          <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: theme.text }]}>
+              {focusStats.totalSessionsCount}
+            </Text>
+            <Text style={[styles.summaryLabel, { color: theme.textDim }]}>Sessions</Text>
+          </View>
+          <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: theme.text }]}>
+              {currentStreak}d
+            </Text>
+            <Text style={[styles.summaryLabel, { color: theme.textDim }]}>Streak</Text>
+          </View>
+        </View>
+
+        {/* Ambient Sound Selector */}
+        <AmbientSoundBar theme={theme} isTimerRunning={isTimerRunning} />
+
+        {/* Breathing Pause */}
         {onOpenZenBreathing && (
           <TouchableOpacity
             style={[styles.breathingShortcutBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -129,32 +162,14 @@ export function FocusScreen({
             activeOpacity={0.7}
           >
             <View style={styles.breathingShortcutLeft}>
-              <Ionicons name="leaf-outline" size={18} color={theme.primary} />
+              <Ionicons name="leaf-outline" size={17} color={theme.primary} />
               <View>
-                <Text style={[styles.breathingTitle, { color: theme.text }]}>Zen Box Breathing</Text>
-                <Text style={[styles.breathingSubtitle, { color: theme.textDim }]}>Take a guided 3-minute mindful pause</Text>
+                <Text style={[styles.breathingTitle, { color: theme.text }]}>Box Breathing</Text>
+                <Text style={[styles.breathingSubtitle, { color: theme.textDim }]}>A 3-minute mindful pause</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
           </TouchableOpacity>
-        )}
-
-        {/* Ambient Sound Selector */}
-        <AmbientSoundBar theme={theme} isTimerRunning={isTimerRunning} />
-
-        {/* Weekly Focus Analytics Card */}
-        <FocusAnalyticsCard
-          theme={theme}
-          totalFocusSeconds={focusStats.totalFocusSeconds}
-          totalSessionsCount={focusStats.totalSessionsCount}
-          todayFocusSeconds={focusStats.todayFocusSeconds}
-          weeklyDays={focusStats.weeklyDays}
-          maxDaySeconds={focusStats.maxDaySeconds}
-        />
-
-        {/* 12-Week Activity Heatmap */}
-        {focusStats.heatmapDays && (
-          <ZenHeatmap theme={theme} days={focusStats.heatmapDays} />
         )}
       </ScrollView>
 
@@ -238,6 +253,35 @@ const styles = StyleSheet.create({
   breathingSubtitle: {
     fontSize: 11,
     marginTop: 2,
+  },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginHorizontal: 24,
+    marginTop: 10,
+    marginBottom: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  summaryDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 24,
   },
 });
 

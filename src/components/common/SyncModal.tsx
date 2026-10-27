@@ -158,7 +158,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 <View>
                   <Text style={[styles.sheetTitle, { color: theme.text }]}>Cloud Sync</Text>
                   <Text style={[styles.subtitle, { color: theme.textDim }]}>
-                    Instant Real-time Sync across Web & Mobile
+                    Sync across web and mobile
                   </Text>
                 </View>
               </View>
@@ -185,7 +185,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 </View>
 
                 <Text style={[styles.description, { color: theme.textDim }]}>
-                  Enter this code on your other devices to sync notes and tasks in real-time without reloading:
+                  Enter this key on your other devices to access your tasks:
                 </Text>
 
                 <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -248,7 +248,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                   >
                     <Ionicons name="sparkles-outline" size={13} color={theme.textDim} />
                     <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
-                      Generate New Key (Unlink)
+                      Generate New Key
                     </Text>
                   </TouchableOpacity>
                 )}

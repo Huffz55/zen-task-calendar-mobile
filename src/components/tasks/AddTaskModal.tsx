@@ -475,7 +475,7 @@ export function AddTaskModal({
                 { color: title.trim() ? '#ffffff' : theme.textDim },
               ]}
             >
-              Add Task 🌸
+              Add Task
             </Text>
           </TouchableOpacity>
         </View>

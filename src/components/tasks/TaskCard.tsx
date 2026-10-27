@@ -436,7 +436,7 @@ export function TaskCard({
                     color={task.isPinned ? '#f59e0b' : theme.text}
                   />
                   <Text style={[styles.menuItemText, { color: theme.text }]}>
-                    {task.isPinned ? 'Unpin Focus Goal' : 'Focus of the Day ⭐'}
+                    {task.isPinned ? 'Unpin Focus Goal' : 'Set as Focus of the Day'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -451,7 +451,7 @@ export function TaskCard({
                   }}
                 >
                   <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
-                  <Text style={[styles.menuItemText, { color: theme.text }]}>Defer to Tomorrow 📅</Text>
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Defer to Tomorrow</Text>
                 </TouchableOpacity>
               )}
 
@@ -465,7 +465,7 @@ export function TaskCard({
                   }}
                 >
                   <Ionicons name="copy-outline" size={18} color={theme.text} />
-                  <Text style={[styles.menuItemText, { color: theme.text }]}>Duplicate Task 📋</Text>
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Duplicate Task</Text>
                 </TouchableOpacity>
               )}
 

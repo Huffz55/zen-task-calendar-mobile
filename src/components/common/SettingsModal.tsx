@@ -85,35 +85,35 @@ export function SettingsModal({
       {
         id: 'streak_3',
         title: 'Mindful Momentum',
-        description: 'Maintain a 3-day mindful streak',
+        description: 'Maintain a 3-day consistency streak',
         icon: '🔥',
         unlocked: currentStreak >= 3,
       },
       {
         id: 'streak_7',
         title: 'Zen Master',
-        description: 'Reach a full 7-day consistency streak',
+        description: 'Complete a full 7-day consistency streak',
         icon: '⚡',
         unlocked: currentStreak >= 7,
       },
       {
         id: 'deep_focus',
         title: 'Deep Presence',
-        description: 'Log 60+ minutes in Zen Focus timer',
+        description: 'Log 60+ minutes in Focus timer',
         icon: '🧘',
         unlocked: totalFocusSeconds >= 3600,
       },
       {
         id: 'focus_of_day',
         title: 'One Big Thing',
-        description: 'Pin a high-priority daily focus goal',
+        description: 'Pin a daily focus goal',
         icon: '⭐',
         unlocked: hasPinnedTask,
       },
       {
         id: 'checklist_pro',
         title: 'Checklist Pro',
-        description: 'Break goals into mindful subtask steps',
+        description: 'Break goals into checklist steps',
         icon: '📋',
         unlocked: hasSubtasks,
       },
@@ -141,7 +141,7 @@ export function SettingsModal({
     if (enabled) playBambooTap();
     setSfxEnabled(enabled);
     await setSoundEffectsEnabled(enabled);
-    onShowToast(enabled ? 'Zen Sound Effects enabled 🎋' : 'Zen Sound Effects muted');
+    onShowToast(enabled ? 'Sound effects enabled' : 'Sound effects muted');
   };
 
   const handleToggleMorning = async (enabled: boolean) => {
@@ -150,10 +150,10 @@ export function SettingsModal({
     await AsyncStorage.setItem(SETTINGS_MORNING_KEY, String(enabled));
     if (enabled) {
       await defaultNotificationService.scheduleDailySummary(9, 0, totalTasks);
-      onShowToast('Daily 09:00 AM summary activated 🌸');
+      onShowToast('Morning briefing scheduled for 9:00 AM');
     } else {
       await defaultNotificationService.cancelNotification('daily-summary');
-      onShowToast('Daily morning summary turned off');
+      onShowToast('Morning briefing turned off');
     }
   };
 
@@ -163,10 +163,10 @@ export function SettingsModal({
     await AsyncStorage.setItem(SETTINGS_EVENING_KEY, String(enabled));
     if (enabled) {
       await defaultNotificationService.scheduleEveningWindDown(20, 30, totalTasks);
-      onShowToast('Evening 20:30 PM wind-down activated 🌙');
+      onShowToast('Evening review scheduled for 8:30 PM');
     } else {
       await defaultNotificationService.cancelNotification('evening-winddown');
-      onShowToast('Evening wind-down briefing turned off');
+      onShowToast('Evening review turned off');
     }
   };
 
@@ -174,7 +174,7 @@ export function SettingsModal({
     if (enabled) hapticLight();
     setHapticsEnabled(enabled);
     await AsyncStorage.setItem(SETTINGS_HAPTIC_KEY, String(enabled));
-    onShowToast(enabled ? 'Haptic feedback enabled ✨' : 'Haptic feedback disabled');
+    onShowToast(enabled ? 'Haptics enabled' : 'Haptics disabled');
   };
 
   const handleToggleChime = async (enabled: boolean) => {
@@ -182,7 +182,7 @@ export function SettingsModal({
     setChimeEnabled(enabled);
     await AsyncStorage.setItem(SETTINGS_CHIME_KEY, String(enabled));
     if (enabled) playZenChime();
-    onShowToast(enabled ? 'Zen chime enabled 🧘' : 'Zen chime disabled');
+    onShowToast(enabled ? 'Session chime enabled' : 'Session chime disabled');
   };
 
   const handleExport = async () => {
@@ -205,26 +205,6 @@ export function SettingsModal({
     }
   };
 
-  const handleTestNotification = async () => {
-    hapticSuccess();
-    if (!defaultNotificationService.isSupported) {
-      onShowToast('Notifications require a development build on Android Expo Go 🌸');
-      return;
-    }
-    await defaultNotificationService.scheduleDailySummary(9, 0, totalTasks);
-    onShowToast('Test morning briefing scheduled (09:00 AM) 🌸');
-  };
-
-  const handleTestEveningNotification = async () => {
-    hapticSuccess();
-    if (!defaultNotificationService.isSupported) {
-      onShowToast('Notifications require a development build on Android Expo Go 🌸');
-      return;
-    }
-    await defaultNotificationService.scheduleEveningWindDown(20, 30, totalTasks);
-    onShowToast('Test evening wind-down scheduled (20:30 PM) 🌙');
-  };
-
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -232,22 +212,21 @@ export function SettingsModal({
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={[styles.sheetTitle, { color: theme.text }]}>Settings & Preferences</Text>
+              <Text style={[styles.sheetTitle, { color: theme.text }]}>Settings</Text>
               <Text style={[styles.subtitle, { color: theme.textDim }]}>
-                {totalTasks} tasks, {totalLists} custom lists
+                {totalTasks} tasks • {totalLists} lists
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={theme.textDim} />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}>
+              <Ionicons name="close" size={18} color={theme.textDim} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {/* Section: Cloud Sync */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>CLOUD & DEVICE SYNC</Text>
-
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>SYNC</Text>
             <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+              style={[styles.groupCard, styles.standaloneCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
               onPress={() => {
                 hapticLight();
                 onClose();
@@ -256,21 +235,21 @@ export function SettingsModal({
               activeOpacity={0.7}
             >
               <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
-                <Ionicons name="cloud-outline" size={20} color={theme.primary} />
+                <Ionicons name="cloud-outline" size={18} color={theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Cloud Sync (Pairing Key)</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]}>Cloud Sync</Text>
                 <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Manage your real-time sync key across web and mobile.
+                  Keep tasks synced across web and mobile
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
 
-            {/* Section: Zen Milestones & Badges */}
+            {/* Section: Achievements */}
             <View style={styles.milestonesHeaderRow}>
               <Text style={[styles.sectionTitle, { color: theme.textDim, marginTop: 0, marginBottom: 0 }]}>
-                ZEN MILESTONES & ACHIEVEMENTS
+                ACHIEVEMENTS
               </Text>
               <Text style={[styles.milestonesBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
                 {unlockedCount} of {milestones.length}
@@ -286,7 +265,7 @@ export function SettingsModal({
                     {
                       backgroundColor: m.unlocked ? theme.surfaceMuted : theme.surface,
                       borderColor: m.unlocked ? (theme.accent || theme.primary) : theme.border,
-                      opacity: m.unlocked ? 1 : 0.65,
+                      opacity: m.unlocked ? 1 : 0.6,
                     },
                   ]}
                 >
@@ -294,161 +273,142 @@ export function SettingsModal({
                     <Text style={styles.milestoneIcon}>{m.icon}</Text>
                     {m.unlocked ? (
                       <View style={[styles.unlockedPill, { backgroundColor: theme.primaryLight }]}>
-                        <Ionicons name="checkmark-circle" size={11} color={theme.primary} />
+                        <Ionicons name="checkmark-circle" size={10} color={theme.primary} />
                         <Text style={[styles.unlockedPillText, { color: theme.primary }]}>Unlocked</Text>
                       </View>
                     ) : (
                       <View style={[styles.lockedPill, { backgroundColor: theme.surfaceMuted }]}>
                         <Ionicons name="lock-closed" size={9} color={theme.textDim} />
-                        <Text style={[styles.lockedPillText, { color: theme.textDim }]}>In Progress</Text>
+                        <Text style={[styles.lockedPillText, { color: theme.textDim }]}>Locked</Text>
                       </View>
                     )}
                   </View>
                   <Text style={[styles.milestoneTitle, { color: theme.text }]}>{m.title}</Text>
-                  <Text style={[styles.milestoneDesc, { color: theme.textDim }]}>{m.description}</Text>
+                  <Text style={[styles.milestoneDesc, { color: theme.textDim }]} numberOfLines={2}>
+                    {m.description}
+                  </Text>
                 </View>
               ))}
             </View>
 
-            {/* Section: Preferences & Daily Summary */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DAILY SUMMARY & NOTIFICATIONS</Text>
-
-            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="notifications-outline" size={20} color={theme.primary} />
-              </View>
-              <View style={styles.actionContent}>
-                <View style={styles.titleRowWithBtn}>
-                  <Text style={[styles.actionTitle, { color: theme.text }]}>Morning Briefing (09:00 AM)</Text>
-                  <TouchableOpacity
-                    style={[styles.miniTestBtn, { borderColor: theme.border }]}
-                    onPress={handleTestNotification}
-                  >
-                    <Text style={[styles.miniTestText, { color: theme.primary }]}>Test</Text>
-                  </TouchableOpacity>
+            {/* Section: Preferences Group */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>PREFERENCES</Text>
+            <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              {/* Sound Effects */}
+              <View style={styles.groupRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="volume-medium-outline" size={18} color={theme.primary} />
                 </View>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Receive a gentle morning overview with today&apos;s pending tasks.
-                </Text>
-              </View>
-              <Switch
-                value={morningSummaryEnabled}
-                onValueChange={handleToggleMorning}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="moon-outline" size={20} color={theme.accent || theme.primary} />
-              </View>
-              <View style={styles.actionContent}>
-                <View style={styles.titleRowWithBtn}>
-                  <Text style={[styles.actionTitle, { color: theme.text }]}>Evening Wind-Down (20:30 PM)</Text>
-                  <TouchableOpacity
-                    style={[styles.miniTestBtn, { borderColor: theme.border }]}
-                    onPress={handleTestEveningNotification}
-                  >
-                    <Text style={[styles.miniTestText, { color: theme.primary }]}>Test</Text>
-                  </TouchableOpacity>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Sound Effects</Text>
                 </View>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Gentle evening reminder to complete remaining tasks or peacefully roll them over to tomorrow.
-                </Text>
+                <Switch
+                  value={sfxEnabled}
+                  onValueChange={handleToggleSfx}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#ffffff"
+                />
               </View>
-              <Switch
-                value={eveningWindDownEnabled}
-                onValueChange={handleToggleEvening}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
+
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
+              {/* Session Chime */}
+              <View style={styles.groupRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="musical-notes-outline" size={18} color={theme.accent || theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Completion Chime</Text>
+                </View>
+                <Switch
+                  value={chimeEnabled}
+                  onValueChange={handleToggleChime}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
+              {/* Haptic Feedback */}
+              <View style={styles.groupRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="radio-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Haptic Feedback</Text>
+                </View>
+                <Switch
+                  value={hapticsEnabled}
+                  onValueChange={handleToggleHaptics}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
+              {/* Auto Night Shift */}
+              <View style={styles.groupRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Auto Dark Mode</Text>
+                </View>
+                <Switch
+                  value={autoNightShift}
+                  onValueChange={onToggleAutoNightShift}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#ffffff"
+                />
+              </View>
             </View>
 
-            {/* Section: Appearance & Night Shift */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>APPEARANCE & NIGHT SHIFT</Text>
+            {/* Section: Daily Notifications */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DAILY NOTIFICATIONS</Text>
+            <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              {/* Morning Briefing */}
+              <View style={styles.groupRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="sunny-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Morning Briefing</Text>
+                </View>
+                <Switch
+                  value={morningSummaryEnabled}
+                  onValueChange={handleToggleMorning}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#ffffff"
+                />
+              </View>
 
-            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="moon-outline" size={20} color={theme.accent || theme.primary} />
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
+              {/* Evening Review */}
+              <View style={styles.groupRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Evening Review</Text>
+                </View>
+                <Switch
+                  value={eveningWindDownEnabled}
+                  onValueChange={handleToggleEvening}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#ffffff"
+                />
               </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Auto Night Shift (20:00 - 07:00)</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Automatically switch to Midnight dark mode in the evening.
-                </Text>
-              </View>
-              <Switch
-                value={autoNightShift}
-                onValueChange={onToggleAutoNightShift}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
             </View>
 
-            {/* Section: Experience & Haptics */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>AUDIO & TOUCH FEEDBACK</Text>
-
-            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="volume-medium-outline" size={20} color={theme.primary} />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Zen Sound Effects (ASMR)</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Organic woodblock clicks, water drops, and soft swooshes.
-                </Text>
-              </View>
-              <Switch
-                value={sfxEnabled}
-                onValueChange={handleToggleSfx}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="musical-notes-outline" size={20} color={theme.accent} />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Zen Singing Bowl Chime</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Play 432 Hz bell chime when completing focus sessions.
-                </Text>
-              </View>
-              <Switch
-                value={chimeEnabled}
-                onValueChange={handleToggleChime}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="radio-outline" size={20} color={theme.primary} />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Haptic Tactile Feedback</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Subtle vibrations when checking tasks and tapping controls.
-                </Text>
-              </View>
-              <Switch
-                value={hapticsEnabled}
-                onValueChange={handleToggleHaptics}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            {/* Section: Görev Mezarlığı (Silent Archive) */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>SILENT ARCHIVE (GÖREV MEZARLIĞI)</Text>
-
+            {/* Section: Archive */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>ARCHIVE</Text>
             <TouchableOpacity
               style={[
-                styles.actionCard,
+                styles.groupCard,
+                styles.standaloneCard,
                 { backgroundColor: theme.surfaceMuted, borderColor: theme.border, flexDirection: 'column', alignItems: 'stretch' },
               ]}
               onPress={() => {
@@ -461,23 +421,23 @@ export function SettingsModal({
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                  <Text style={{ fontSize: 18 }}>🪦</Text>
+                  <Ionicons name="archive-outline" size={18} color={theme.primary} />
                 </View>
                 <View style={styles.actionContent}>
                   <View style={styles.titleRowWithBtn}>
-                    <Text style={[styles.actionTitle, { color: theme.text }]}>Mindful Archive</Text>
+                    <Text style={[styles.actionTitle, { color: theme.text }]}>Archived Tasks</Text>
                     {archivedTasks.length > 0 && (
                       <View style={[styles.archiveCountBadge, { backgroundColor: theme.primaryLight }]}>
                         <Text style={[styles.archiveCountText, { color: theme.primary }]}>
-                          {archivedTasks.length} {archivedTasks.length === 1 ? 'task' : 'tasks'}
+                          {archivedTasks.length}
                         </Text>
                       </View>
                     )}
                   </View>
                   <Text style={[styles.actionDesc, { color: theme.textDim }]}>
                     {archivedTasks.length > 0
-                      ? 'Tasks untouched for 14+ days are quietly rested here to clear mental clutter.'
-                      : 'No neglected tasks. Tasks untouched for 14+ days will quietly rest here without guilt.'}
+                      ? 'Tasks inactive for 14+ days'
+                      : 'No inactive tasks'}
                   </Text>
                 </View>
                 {archivedTasks.length > 0 && (
@@ -498,7 +458,7 @@ export function SettingsModal({
                           {t.title}
                         </Text>
                         <Text style={[styles.archiveItemDate, { color: theme.textDim }]}>
-                          Planned: {t.date} {t.archivedAt ? `• Archived: ${t.archivedAt}` : ''}
+                          {t.date}
                         </Text>
                       </View>
                       <TouchableOpacity
@@ -506,10 +466,10 @@ export function SettingsModal({
                         onPress={() => {
                           hapticSuccess();
                           onUnarchiveTask?.(t.id);
-                          onShowToast(`"${t.title}" restored to today 🌸`);
+                          onShowToast(`"${t.title}" restored`);
                         }}
                       >
-                        <Ionicons name="arrow-undo-outline" size={13} color={theme.primary} />
+                        <Ionicons name="arrow-undo-outline" size={12} color={theme.primary} />
                         <Text style={[styles.unarchiveBtnText, { color: theme.primary }]}>Restore</Text>
                       </TouchableOpacity>
                     </View>
@@ -518,61 +478,56 @@ export function SettingsModal({
               )}
             </TouchableOpacity>
 
-            {/* Section: Data Backup & Restore */}
-            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DATA PORTABILITY (JSON)</Text>
+            {/* Section: Data Backup */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DATA BACKUP</Text>
+            <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              {/* Export */}
+              <TouchableOpacity
+                style={styles.groupRow}
+                onPress={handleExport}
+                disabled={isExporting}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  {isExporting ? (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  ) : (
+                    <Ionicons name="share-outline" size={18} color={theme.primary} />
+                  )}
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Export Backup</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+              </TouchableOpacity>
 
-            {/* Export Card */}
-            <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-              onPress={handleExport}
-              disabled={isExporting}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
-                {isExporting ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                  <Ionicons name="share-outline" size={20} color={theme.primary} />
-                )}
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Export Backup</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Save or share all your tasks and lists as a JSON file.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
-            </TouchableOpacity>
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
 
-            {/* Import Card */}
-            <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-              onPress={handleImport}
-              disabled={isImporting}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                {isImporting ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                  <Ionicons name="download-outline" size={20} color={theme.accent} />
-                )}
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Restore Backup</Text>
-                <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                  Import a previously saved JSON backup file.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
-            </TouchableOpacity>
+              {/* Import */}
+              <TouchableOpacity
+                style={styles.groupRow}
+                onPress={handleImport}
+                disabled={isImporting}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  {isImporting ? (
+                    <ActivityIndicator size="small" color={theme.accent || theme.primary} />
+                  ) : (
+                    <Ionicons name="download-outline" size={18} color={theme.accent || theme.primary} />
+                  )}
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Restore Backup</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+              </TouchableOpacity>
+            </View>
 
-            {/* Section: App Info */}
-            <View style={[styles.infoCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <Text style={[styles.infoTitle, { color: theme.text }]}>Zen Task Calendar 🌸</Text>
-              <Text style={[styles.infoSub, { color: theme.textDim }]}>
-                Version 1.0.0
-              </Text>
+            {/* App Footer */}
+            <View style={styles.footer}>
+              <Text style={[styles.footerTitle, { color: theme.textDim }]}>Zen Task Calendar</Text>
+              <Text style={[styles.footerSub, { color: theme.textDim }]}>Version 1.0.0</Text>
             </View>
           </ScrollView>
         </View>
@@ -590,49 +545,72 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 38 : 24,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
     borderWidth: 1,
-    maxHeight: '85%',
+    maxHeight: '88%',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+    paddingHorizontal: 4,
   },
   sheetTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 12,
     marginTop: 2,
   },
   closeBtn: {
-    padding: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   sectionTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
-    marginTop: 14,
+    marginTop: 18,
     marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  actionCard: {
+  groupCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  standaloneCard: {
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    marginBottom: 8,
     gap: 12,
   },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 54,
+  },
   iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -642,51 +620,23 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 2,
   },
   actionDesc: {
     fontSize: 11,
-    lineHeight: 15,
+    marginTop: 1,
   },
   titleRowWithBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  miniTestBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginRight: 6,
-  },
-  miniTestText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  infoCard: {
-    marginTop: 20,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  infoTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  infoSub: {
-    fontSize: 11,
+    gap: 8,
   },
   milestonesHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 18,
-    marginBottom: 10,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
   milestonesBadge: {
     fontSize: 11,
@@ -699,12 +649,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 8,
   },
   milestoneCard: {
     width: '48.5%',
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
   },
   milestoneTopRow: {
@@ -761,7 +710,7 @@ const styles = StyleSheet.create({
   archiveListContainer: {
     marginTop: 12,
     paddingTop: 10,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
   archiveItemRow: {
@@ -791,5 +740,18 @@ const styles = StyleSheet.create({
   unarchiveBtnText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  footerTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  footerSub: {
+    fontSize: 10,
+    marginTop: 2,
   },
 });

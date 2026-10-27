@@ -181,7 +181,7 @@ export function TodayScreen({
               </Text>
             </View>
             <View style={[styles.rolloverPill, { backgroundColor: theme.primaryLight }]}>
-              <Text style={[styles.rolloverPillText, { color: theme.primary }]}>Roll over 🌸</Text>
+              <Text style={[styles.rolloverPillText, { color: theme.primary }]}>Roll over</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -201,7 +201,7 @@ export function TodayScreen({
             </View>
             {completedTasks === totalTasks && (
               <Text style={[styles.perfectBadge, { color: theme.success }]}>
-                Perfect Day! 🌸
+                All done today
               </Text>
             )}
           </View>

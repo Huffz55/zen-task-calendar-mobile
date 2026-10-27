@@ -54,7 +54,7 @@ export function AddListModal({ visible, theme, onClose, onAddList }: AddListModa
                 borderColor: theme.border,
               },
             ]}
-            placeholder="List Title (e.g. Groceries, Project Ideas)"
+            placeholder="List title"
             placeholderTextColor={theme.textDim}
             value={title}
             onChangeText={setTitle}

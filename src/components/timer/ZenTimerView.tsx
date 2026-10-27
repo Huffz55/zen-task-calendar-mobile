@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticMedium } from '../../hooks/useHaptics';
+import { hapticMedium, hapticLight } from '../../hooks/useHaptics';
 import { playSingingBowl } from '../../services/audio/audioService';
 
 interface ZenTimerViewProps {
@@ -12,7 +12,7 @@ interface ZenTimerViewProps {
   theme: ThemeColors;
   onToggleTimer: () => void;
   onResetTimer: () => void;
-  onAdjustTime: (deltaSeconds: number) => void;
+  onAdjustTime?: (deltaSeconds: number) => void;
   onSetMinutes: (minutes: number) => void;
   onFinishEarly?: () => void;
 }
@@ -24,7 +24,6 @@ export function ZenTimerView({
   theme,
   onToggleTimer,
   onResetTimer,
-  onAdjustTime,
   onSetMinutes,
   onFinishEarly,
 }: ZenTimerViewProps) {
@@ -44,14 +43,14 @@ export function ZenTimerView({
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.12,
-          duration: 3200,
+          toValue: 1.08,
+          duration: 3000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1.0,
-          duration: 3200,
+          duration: 3000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -70,21 +69,10 @@ export function ZenTimerView({
     onToggleTimer();
   };
 
+  const progressPercent = Math.min(100, Math.max(0, ((initialTime - timeLeft) / initialTime) * 100));
+
   return (
     <View style={styles.container}>
-      {/* Zen Focus Status Pill */}
-      <View style={[styles.statusPill, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-        <View
-          style={[
-            styles.statusDot,
-            { backgroundColor: isTimerRunning ? theme.success : theme.primary },
-          ]}
-        />
-        <Text style={[styles.statusText, { color: theme.textMuted }]}>
-          {isTimerRunning ? 'Focus Active 🧘' : 'Break / Ready'}
-        </Text>
-      </View>
-
       {/* Big Circular Clock Card with Breathing Glow Aura */}
       <View style={styles.clockCardWrapper}>
         {isTimerRunning && (
@@ -104,111 +92,115 @@ export function ZenTimerView({
             {
               backgroundColor: theme.card,
               borderColor: isTimerRunning ? theme.primary : theme.border,
-              shadowColor: theme.primary,
             },
           ]}
         >
-          <View style={{ alignItems: 'center' }}>
+          {/* Subtle Progress Arc / Ring Indicator */}
+          <View style={styles.clockInner}>
             <Text style={[styles.timeDigits, { color: theme.text }]}>
               {timeFormatted}
             </Text>
             <Text style={[styles.timeSub, { color: theme.textDim }]}>
-              {isTimerRunning ? 'Deep Focus Mode ⏱️' : 'Tap to start'}
+              {isTimerRunning ? 'Deep Focus' : 'Ready'}
             </Text>
-          </View>
-
-          {/* Adjust Buttons */}
-          <View style={styles.adjustRow}>
-            <TouchableOpacity
-              style={[styles.adjustBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-              onPress={() => onAdjustTime(-300)}
-            >
-              <Text style={[styles.adjustBtnText, { color: theme.text }]}>-5 min</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.adjustBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-              onPress={() => onAdjustTime(300)}
-            >
-              <Text style={[styles.adjustBtnText, { color: theme.text }]}>+5 min</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {/* Main Play/Pause & Reset Controls */}
+      {/* Progress Track */}
+      {isTimerRunning && (
+        <View style={[styles.progressTrack, { backgroundColor: theme.surfaceMuted }]}>
+          <View
+            style={[
+              styles.progressBar,
+              {
+                width: `${progressPercent}%`,
+                backgroundColor: theme.primary,
+              },
+            ]}
+          />
+        </View>
+      )}
+
+      {/* Controls Row */}
       <View style={styles.controlsRow}>
+        {/* Reset button */}
         <TouchableOpacity
-          style={[styles.resetBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-          onPress={onResetTimer}
+          style={[styles.secondaryBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+          onPress={() => {
+            hapticLight();
+            onResetTimer();
+          }}
           activeOpacity={0.7}
+          accessibilityLabel="Reset timer"
         >
-          <Ionicons name="reload-outline" size={22} color={theme.textDim} />
+          <Ionicons name="reload-outline" size={20} color={theme.textDim} />
         </TouchableOpacity>
 
+        {/* Primary Play / Pause Button */}
         <TouchableOpacity
           style={[styles.playBtn, { backgroundColor: theme.primary }]}
           onPress={handlePlayToggle}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
+          accessibilityLabel={isTimerRunning ? 'Pause timer' : 'Start timer'}
         >
           <Ionicons
             name={isTimerRunning ? 'pause' : 'play'}
-            size={32}
+            size={30}
             color="#ffffff"
             style={{ marginLeft: isTimerRunning ? 0 : 3 }}
           />
         </TouchableOpacity>
+
+        {/* Log / Finish Session early button */}
+        {(isTimerRunning || timeLeft < initialTime) && onFinishEarly ? (
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}
+            onPress={() => {
+              hapticMedium();
+              onFinishEarly();
+            }}
+            activeOpacity={0.75}
+            accessibilityLabel="Finish and log session"
+          >
+            <Ionicons name="checkmark" size={20} color={theme.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.secondaryPlaceholder} />
+        )}
       </View>
 
-      {/* Early Finish Session Button */}
-      {(isTimerRunning || timeLeft < initialTime) && onFinishEarly && (
-        <TouchableOpacity
-          style={[styles.finishEarlyBtn, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}
-          onPress={onFinishEarly}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="checkmark-done-circle-outline" size={18} color={theme.primary} />
-          <Text style={[styles.finishEarlyText, { color: theme.primary }]}>
-            Finish Session & Log Focus
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Preset Minutes Chips */}
-      <View style={styles.presetSection}>
-        <Text style={[styles.presetLabel, { color: theme.textDim }]}>PRESET DURATIONS</Text>
-        <View style={styles.presetRow}>
-          {presets.map(mins => {
-            const isCurrentPreset = initialTime === mins * 60;
-            return (
-              <TouchableOpacity
-                key={mins}
+      {/* Preset Durations Selector */}
+      <View style={[styles.presetBar, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+        {presets.map(mins => {
+          const isSelected = initialTime === mins * 60;
+          return (
+            <TouchableOpacity
+              key={mins}
+              style={[
+                styles.presetPill,
+                isSelected && { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#000', elevation: 2 },
+              ]}
+              onPress={() => {
+                hapticLight();
+                onSetMinutes(mins);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
                 style={[
-                  styles.presetChip,
+                  styles.presetText,
                   {
-                    backgroundColor: isCurrentPreset ? theme.primaryLight : theme.surfaceMuted,
-                    borderColor: isCurrentPreset ? theme.primary : theme.border,
+                    color: isSelected ? theme.primary : theme.textDim,
+                    fontWeight: isSelected ? '700' : '500',
                   },
                 ]}
-                onPress={() => {
-                  hapticMedium();
-                  onSetMinutes(mins);
-                }}
               >
-                <Text
-                  style={[
-                    styles.presetText,
-                    {
-                      color: isCurrentPreset ? theme.primary : theme.textMuted,
-                      fontWeight: isCurrentPreset ? '700' : '500',
-                    },
-                  ]}
-                >
-                  {mins} min
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                {mins}m
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -217,144 +209,107 @@ export function ZenTimerView({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 20,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   clockCardWrapper: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 290,
     aspectRatio: 1,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
   glowAura: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
-    borderRadius: 160,
-    opacity: 0.18,
+    width: '92%',
+    height: '92%',
+    borderRadius: 200,
+    opacity: 0.12,
   },
   clockCard: {
     width: '100%',
     height: '100%',
-    borderRadius: 160,
+    borderRadius: 200,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    padding: 24,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
     shadowRadius: 20,
-    elevation: 8,
+    elevation: 4,
+  },
+  clockInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timeDigits: {
-    fontSize: 54,
-    fontWeight: '800',
+    fontSize: 52,
+    fontWeight: '300',
     letterSpacing: -1,
   },
   timeSub: {
     fontSize: 12,
+    fontWeight: '500',
     marginTop: 4,
-    textAlign: 'center',
+    letterSpacing: 0.2,
   },
-  adjustRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 18,
+  progressTrack: {
+    width: 140,
+    height: 3,
+    borderRadius: 1.5,
+    overflow: 'hidden',
+    marginBottom: 20,
   },
-  adjustBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  adjustBtnText: {
-    fontSize: 11,
-    fontWeight: '600',
+  progressBar: {
+    height: '100%',
+    borderRadius: 1.5,
   },
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
-    marginTop: 28,
-  },
-  resetBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    gap: 20,
+    marginBottom: 22,
   },
   playBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 6,
   },
-  finishEarlyBtn: {
-    flexDirection: 'row',
+  secondaryBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    marginTop: 20,
-    alignSelf: 'center',
   },
-  finishEarlyText: {
-    fontSize: 13,
-    fontWeight: '700',
+  secondaryPlaceholder: {
+    width: 44,
+    height: 44,
   },
-  presetSection: {
-    alignItems: 'center',
-    marginTop: 26,
-    width: '100%',
-  },
-  presetLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 10,
-  },
-  presetRow: {
+  presetBar: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  presetChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 14,
+    alignItems: 'center',
+    padding: 3,
+    borderRadius: 16,
     borderWidth: 1,
+    gap: 2,
+  },
+  presetPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   presetText: {
     fontSize: 12,
