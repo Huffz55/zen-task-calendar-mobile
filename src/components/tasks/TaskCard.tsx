@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { TAGS } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
 import { playBambooTap, playSoftSwoosh } from '../../services/audio/audioService';
+import { animateLayout } from '../../utils/animations';
 
 interface TaskCardProps {
   task: DailyTask;
@@ -72,6 +73,27 @@ export function TaskCard({
     }
   }, [task.title]);
 
+  // Entrance & checkmark micro-animations
+  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [checkScale] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    Animated.spring(enterAnim, {
+      toValue: 1,
+      damping: 20,
+      mass: 0.75,
+      stiffness: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [enterAnim]);
+
+  const triggerCheckBounce = () => {
+    Animated.sequence([
+      Animated.timing(checkScale, { toValue: 0.78, duration: 70, useNativeDriver: true }),
+      Animated.spring(checkScale, { toValue: 1, friction: 3.5, tension: 80, useNativeDriver: true }),
+    ]).start();
+  };
+
   // Swipe animation setup
   const [panX] = useState(() => new Animated.Value(0));
 
@@ -124,8 +146,31 @@ export function TaskCard({
     extrapolate: 'clamp',
   });
 
+  const enterTranslateY = enterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-12, 0],
+  });
+
+  const enterScale = enterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.96, 1],
+  });
+
+  const enterOpacity = enterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
   return (
-    <View style={styles.swipeContainer}>
+    <Animated.View
+      style={[
+        styles.swipeContainer,
+        {
+          opacity: enterOpacity,
+          transform: [{ translateY: enterTranslateY }, { scale: enterScale }],
+        },
+      ]}
+    >
       {/* Background Swipe Indicators (Hidden at rest, reveals on swipe) */}
       <View style={styles.swipeBackground} pointerEvents="none">
         <Animated.View style={[styles.swipeActionLeft, { opacity: swipeOpacityLeft }]}>
@@ -161,27 +206,30 @@ export function TaskCard({
 
         <View style={styles.cardMainRow}>
           {/* Checkbox */}
-          <TouchableOpacity
-            style={[
-              styles.checkbox,
-              {
-                borderColor: task.isCompleted ? theme.primary : theme.textDim,
-                backgroundColor: task.isCompleted ? theme.primary : 'transparent',
-              },
-            ]}
-            onPress={() => {
-              if (!task.isCompleted) {
-                playBambooTap();
-                hapticSuccess();
-              } else {
-                hapticLight();
-              }
-              onToggle(task.taskId);
-            }}
-            activeOpacity={0.7}
-          >
-            {task.isCompleted && <Ionicons name="checkmark" size={14} color="#ffffff" />}
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+            <TouchableOpacity
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: task.isCompleted ? theme.primary : theme.textDim,
+                  backgroundColor: task.isCompleted ? theme.primary : 'transparent',
+                },
+              ]}
+              onPress={() => {
+                triggerCheckBounce();
+                if (!task.isCompleted) {
+                  playBambooTap();
+                  hapticSuccess();
+                } else {
+                  hapticLight();
+                }
+                onToggle(task.taskId);
+              }}
+              activeOpacity={0.7}
+            >
+              {task.isCompleted && <Ionicons name="checkmark" size={14} color="#ffffff" />}
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Content */}
           <TouchableOpacity
@@ -280,6 +328,7 @@ export function TaskCard({
                   ]}
                   onPress={() => {
                     hapticLight();
+                    animateLayout();
                     setIsSubtasksExpanded(!isSubtasksExpanded);
                   }}
                   activeOpacity={0.7}
@@ -505,7 +554,7 @@ export function TaskCard({
           </View>
         )}
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

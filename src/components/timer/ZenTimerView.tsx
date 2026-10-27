@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticMedium } from '../../hooks/useHaptics';
+import { hapticMedium } from '../../hooks/useHaptics';
 import { playSingingBowl } from '../../services/audio/audioService';
 
 interface ZenTimerViewProps {

@@ -16,6 +16,7 @@ import { TAGS } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { playWaterDrop, playBambooTap } from '../../services/audio/audioService';
+import { animateLayout, springLayout } from '../../utils/animations';
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -54,6 +55,7 @@ export function AddTaskModal({
     if (!trimmed) return;
     playBambooTap();
     hapticLight();
+    springLayout();
     setSubtasks(prev => [
       ...prev,
       { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, title: trimmed, isCompleted: false },
@@ -63,6 +65,7 @@ export function AddTaskModal({
 
   const handleRemoveSubtask = (id: string) => {
     hapticLight();
+    springLayout();
     setSubtasks(prev => prev.filter(s => s.id !== id));
   };
 
@@ -151,7 +154,11 @@ export function AddTaskModal({
                   borderColor: activeSection === 'tag' || tag ? theme.primary : theme.border,
                 },
               ]}
-              onPress={() => setActiveSection(prev => prev === 'tag' ? null : 'tag')}
+              onPress={() => {
+                hapticLight();
+                animateLayout();
+                setActiveSection(prev => prev === 'tag' ? null : 'tag');
+              }}
             >
               <Ionicons
                 name="pricetag-outline"
@@ -176,7 +183,11 @@ export function AddTaskModal({
                   borderColor: activeSection === 'time' || estimatedMinutes ? theme.primary : theme.border,
                 },
               ]}
-              onPress={() => setActiveSection(prev => prev === 'time' ? null : 'time')}
+              onPress={() => {
+                hapticLight();
+                animateLayout();
+                setActiveSection(prev => prev === 'time' ? null : 'time');
+              }}
             >
               <Ionicons
                 name="timer-outline"
@@ -224,7 +235,11 @@ export function AddTaskModal({
                   borderColor: activeSection === 'repeat' || recurrence !== 'none' ? theme.primary : theme.border,
                 },
               ]}
-              onPress={() => setActiveSection(prev => prev === 'repeat' ? null : 'repeat')}
+              onPress={() => {
+                hapticLight();
+                animateLayout();
+                setActiveSection(prev => prev === 'repeat' ? null : 'repeat');
+              }}
             >
               <Ionicons
                 name="repeat-outline"
@@ -249,7 +264,11 @@ export function AddTaskModal({
                   borderColor: activeSection === 'subtasks' || subtasks.length > 0 ? theme.primary : theme.border,
                 },
               ]}
-              onPress={() => setActiveSection(prev => prev === 'subtasks' ? null : 'subtasks')}
+              onPress={() => {
+                hapticLight();
+                animateLayout();
+                setActiveSection(prev => prev === 'subtasks' ? null : 'subtasks');
+              }}
             >
               <Ionicons
                 name="list-outline"

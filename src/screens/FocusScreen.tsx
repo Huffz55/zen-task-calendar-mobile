@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { ZenTimerView } from '../components/timer/ZenTimerView';
@@ -62,10 +62,10 @@ export function FocusScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: FocusScreenProps) {
-  const swipeHandlers = useSwipeTabNavigation('focus');
+  const { panHandlers, containerStyle } = useSwipeTabNavigation('focus');
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
+    <Animated.View style={[styles.container, { backgroundColor: theme.background }, containerStyle]} {...panHandlers}>
       <Header
         theme={theme}
         currentStreak={currentStreak}
@@ -166,7 +166,7 @@ export function FocusScreen({
           theme={theme}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 

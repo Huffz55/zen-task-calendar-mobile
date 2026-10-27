@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { ThemeColors } from '../constants/colors';
@@ -93,7 +94,7 @@ export function TodayScreen({
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.isCompleted).length;
-  const swipeHandlers = useSwipeTabNavigation('today');
+  const { panHandlers, containerStyle } = useSwipeTabNavigation('today');
 
   const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
   const formatEstimatedTotal = (mins: number) => {
@@ -139,7 +140,7 @@ export function TodayScreen({
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
+    <Animated.View style={[styles.container, { backgroundColor: theme.background }, containerStyle]} {...panHandlers}>
       {/* Header */}
       <Header
         theme={theme}
@@ -340,7 +341,7 @@ export function TodayScreen({
         active={showSakura}
         onFinished={() => setShowSakura(false)}
       />
-    </View>
+    </Animated.View>
   );
 }
 

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated } from 'react-native';
 import { CustomList } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
 
 interface ListCardProps {
   list: CustomList;
@@ -30,6 +31,18 @@ export function ListCard({
   const completedCount = list.items.filter(i => i.completed).length;
   const progress = totalItems > 0 ? completedCount / totalItems : 0;
 
+  const [enterAnim] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    Animated.spring(enterAnim, {
+      toValue: 1,
+      damping: 20,
+      mass: 0.8,
+      stiffness: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [enterAnim]);
+
   const handleAddItem = () => {
     if (!newItemText.trim()) return;
     hapticLight();
@@ -37,13 +50,31 @@ export function ListCard({
     setNewItemText('');
   };
 
+  const translateY = enterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-10, 0],
+  });
+
   return (
-    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <Animated.View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          opacity: enterAnim,
+          transform: [{ translateY }],
+        },
+      ]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.titleRow}
-          onPress={() => setIsExpanded(!isExpanded)}
+          onPress={() => {
+            animateLayout();
+            setIsExpanded(!isExpanded);
+          }}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -174,7 +205,7 @@ export function ListCard({
           </View>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CustomList, ListItem } from '../types';
 import { IListStorage, defaultListStorage } from '../services/storage/taskStorage';
+import { springLayout } from '../utils/animations';
 
 function generateUniqueId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
@@ -45,11 +46,13 @@ export function useLists(storage: IListStorage = defaultListStorage) {
       title: trimmed,
       items: [],
     };
+    springLayout();
     setLists(prev => [...prev, newList]);
     return newList;
   }, []);
 
   const deleteList = useCallback((listId: string) => {
+    springLayout();
     setLists(prev => prev.filter(l => l.id !== listId));
   }, []);
 
@@ -65,6 +68,7 @@ export function useLists(storage: IListStorage = defaultListStorage) {
   const addListItem = useCallback((listId: string, text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    springLayout();
     setLists(prev => prev.map(list => {
       if (list.id === listId) {
         const newItem: ListItem = {
@@ -79,6 +83,7 @@ export function useLists(storage: IListStorage = defaultListStorage) {
   }, []);
 
   const deleteListItem = useCallback((listId: string, itemId: string) => {
+    springLayout();
     setLists(prev => prev.map(list => {
       if (list.id === listId) {
         return { ...list, items: list.items.filter(item => item.id !== itemId) };
@@ -88,6 +93,7 @@ export function useLists(storage: IListStorage = defaultListStorage) {
   }, []);
 
   const toggleListItem = useCallback((listId: string, itemId: string) => {
+    springLayout();
     setLists(prev => prev.map(list => {
       if (list.id === listId) {
         return {

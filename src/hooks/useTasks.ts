@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Task, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { differenceInDays, parseISO, isValid, subDays, addDays, format } from 'date-fns';
 import { ITaskStorage, defaultTaskStorage } from '../services/storage/taskStorage';
+import { springLayout } from '../utils/animations';
 
 function generateUniqueId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
@@ -60,15 +61,18 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       estimatedMinutes: estimatedMinutes && estimatedMinutes > 0 ? estimatedMinutes : undefined,
       isPinned: isPinned || undefined,
     };
+    springLayout();
     setTasks(prev => [newTask, ...prev]);
     return newTask;
   }, []);
 
   const deleteTask = useCallback((taskId: string) => {
+    springLayout();
     setTasks(prev => prev.filter(t => t.id !== taskId));
   }, []);
 
   const deleteTaskInstance = useCallback((taskId: string, dateStr: string) => {
+    springLayout();
     setTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         return {
@@ -81,6 +85,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   }, []);
 
   const deleteTaskFuture = useCallback((taskId: string, dateStr: string) => {
+    springLayout();
     setTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const targetDate = parseISO(dateStr);
@@ -96,6 +101,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   }, []);
 
   const toggleTaskCompletion = useCallback((taskId: string, dateStr: string) => {
+    springLayout();
     setTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const completedList = Array.isArray(task.completedDates) ? task.completedDates : [];
@@ -134,6 +140,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   }, []);
 
   const togglePinTask = useCallback((taskId: string) => {
+    springLayout();
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, isPinned: !t.isPinned };
@@ -147,6 +154,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     if (!isValid(targetDate)) return;
     const tomorrowStr = format(addDays(targetDate, 1), 'yyyy-MM-dd');
 
+    springLayout();
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         if (t.recurrence !== 'none') {
@@ -163,6 +171,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
 
   const duplicateTask = useCallback((taskId: string, dateStr: string) => {
     let duplicated: Task | null = null;
+    springLayout();
     setTasks(prev => {
       const original = prev.find(t => t.id === taskId);
       if (!original) return prev;
@@ -344,6 +353,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
 
   const rolloverOverdueTasks = useCallback((targetDateStr: string): number => {
     let count = 0;
+    springLayout();
     setTasks(prev => prev.map(task => {
       if (task.isArchived) return task;
       const isNonRecurring = !task.recurrence || task.recurrence === 'none';
