@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../hooks/useHaptics';
 import { playWaterDrop } from '../services/audio/audioService';
+import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface TodayScreenProps {
   theme: ThemeColors;
@@ -92,6 +93,7 @@ export function TodayScreen({
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.isCompleted).length;
+  const swipeHandlers = useSwipeTabNavigation('today');
 
   const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
   const formatEstimatedTotal = (mins: number) => {
@@ -137,7 +139,7 @@ export function TodayScreen({
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       {/* Header */}
       <Header
         theme={theme}

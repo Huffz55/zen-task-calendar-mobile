@@ -28,7 +28,6 @@ export function ZenTimerView({
   onSetMinutes,
   onFinishEarly,
 }: ZenTimerViewProps) {
-  const [isSoftMode, setIsSoftMode] = useState(false);
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -86,50 +85,6 @@ export function ZenTimerView({
         </Text>
       </View>
 
-      {/* Segmented Mode Selector: Exact vs Soft Horizon */}
-      <View style={[styles.modeSelector, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.modeOption,
-            !isSoftMode && [styles.modeOptionActive, { backgroundColor: theme.card, borderColor: theme.border }],
-          ]}
-          onPress={() => {
-            hapticLight();
-            setIsSoftMode(false);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.modeOptionText,
-              { color: !isSoftMode ? theme.primary : theme.textDim, fontWeight: !isSoftMode ? '700' : '500' },
-            ]}
-          >
-            ⏱️ Exact
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.modeOption,
-            isSoftMode && [styles.modeOptionActive, { backgroundColor: theme.card, borderColor: theme.border }],
-          ]}
-          onPress={() => {
-            hapticLight();
-            setIsSoftMode(true);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.modeOptionText,
-              { color: isSoftMode ? theme.primary : theme.textDim, fontWeight: isSoftMode ? '700' : '500' },
-            ]}
-          >
-            🌸 Soft Horizon
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Big Circular Clock Card with Breathing Glow Aura */}
       <View style={styles.clockCardWrapper}>
         {isTimerRunning && (
@@ -153,21 +108,14 @@ export function ZenTimerView({
             },
           ]}
         >
-          <TouchableOpacity
-            onPress={() => {
-              hapticMedium();
-              setIsSoftMode(prev => !prev);
-            }}
-            activeOpacity={0.8}
-            style={{ alignItems: 'center' }}
-          >
+          <View style={{ alignItems: 'center' }}>
             <Text style={[styles.timeDigits, { color: theme.text }]}>
-              {isSoftMode ? (timeLeft < 60 && timeLeft > 0 ? '<1m' : `~${Math.max(1, Math.ceil(timeLeft / 60))}m`) : timeFormatted}
+              {timeFormatted}
             </Text>
             <Text style={[styles.timeSub, { color: theme.textDim }]}>
-              {isSoftMode ? 'Stress-free Soft Horizon 🌸' : (isTimerRunning ? 'Deep Focus Mode ⏱️' : 'Tap to start')}
+              {isTimerRunning ? 'Deep Focus Mode ⏱️' : 'Tap to start'}
             </Text>
-          </TouchableOpacity>
+          </View>
 
           {/* Adjust Buttons */}
           <View style={styles.adjustRow}>
@@ -290,31 +238,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-  },
-  modeSelector: {
-    flexDirection: 'row',
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 3,
-    marginBottom: 16,
-    alignSelf: 'center',
-  },
-  modeOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  modeOptionActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  modeOptionText: {
-    fontSize: 12,
   },
   clockCardWrapper: {
     width: '100%',

@@ -10,6 +10,7 @@ import { ZenBreathingModal } from '../components/timer/ZenBreathingModal';
 import { DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
+import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface FocusScreenProps {
   theme: ThemeColors;
@@ -61,8 +62,10 @@ export function FocusScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: FocusScreenProps) {
+  const swipeHandlers = useSwipeTabNavigation('focus');
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       <Header
         theme={theme}
         currentStreak={currentStreak}

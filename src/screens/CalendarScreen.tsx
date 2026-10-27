@@ -12,6 +12,7 @@ import { TaskFilterBar } from '../components/tasks/TaskFilterBar';
 import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
+import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface CalendarScreenProps {
   theme: ThemeColors;
@@ -78,8 +79,10 @@ export function CalendarScreen({
     return matchesSearch && matchesTag;
   });
 
+  const swipeHandlers = useSwipeTabNavigation('calendar');
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       <Header
         theme={theme}
         currentStreak={currentStreak}

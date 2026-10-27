@@ -7,6 +7,7 @@ import { ListCard } from '../components/lists/ListCard';
 import { AddListModal } from '../components/lists/AddListModal';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
+import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface ListsScreenProps {
   theme: ThemeColors;
@@ -36,9 +37,10 @@ export function ListsScreen({
   onOpenSyncModal,
 }: ListsScreenProps) {
   const [isAddListOpen, setIsAddListOpen] = useState(false);
+  const swipeHandlers = useSwipeTabNavigation('lists');
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       <Header
         theme={theme}
         currentStreak={currentStreak}
