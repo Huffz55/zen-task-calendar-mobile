@@ -63,7 +63,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
       onShowToast({
         type: 'info',
         title: 'Copied',
-        message: 'Sync key copied to clipboard 📋',
+        message: 'Sync key copied to clipboard',
       });
     } catch {
       setCopied(true);
@@ -81,16 +81,16 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
         setShowUnlinkConfirm(false);
         onShowToast({
           type: 'success',
-          title: 'New Workspace Created 🌸',
-          message: `Switched to new workspace: ${newKey}`,
+          title: 'New Key Active',
+          message: `Connected to ${newKey}`,
         });
       } else {
         hapticWarning();
-        setErrorMsg('Failed to generate a new key.');
+        setErrorMsg('Failed to generate key.');
       }
     } catch {
       hapticWarning();
-      setErrorMsg('Failed to unlink workspace.');
+      setErrorMsg('Failed to unlink.');
     }
   };
 
@@ -101,19 +101,19 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
 
     if (!cleaned) {
       hapticWarning();
-      setErrorMsg('Please enter the pairing key of the device you want to connect to.');
+      setErrorMsg('Please enter a sync key.');
       return;
     }
 
     if (cleaned === currentKey) {
       hapticWarning();
-      setErrorMsg('This code is already the active key for this device.');
+      setErrorMsg('This key is already active.');
       return;
     }
 
     if (!isValidSyncKey(cleaned)) {
       hapticWarning();
-      setErrorMsg("Invalid format! Key must follow the 'ZEN-XXXX-XXXX' format.");
+      setErrorMsg('Invalid format. Use ZEN-XXXX-XXXX.');
       return;
     }
 
@@ -125,17 +125,17 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
         setCurrentKey(cleaned);
         onShowToast({
           type: 'success',
-          title: 'Device Paired! 🌸',
-          message: `Connected to workspace: ${cleaned}. Real-time sync is now active.`,
+          title: 'Devices Synced',
+          message: `Connected to ${cleaned}`,
         });
         onClose();
       } else {
         hapticWarning();
-        setErrorMsg('An error occurred during connection.');
+        setErrorMsg('Connection failed. Please check the key.');
       }
     } catch {
       hapticWarning();
-      setErrorMsg('Could not establish connection. Please try again.');
+      setErrorMsg('Could not connect. Please try again.');
     } finally {
       setIsConnecting(false);
     }
@@ -157,9 +157,12 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 </View>
                 <View>
                   <Text style={[styles.sheetTitle, { color: theme.text }]}>Cloud Sync</Text>
-                  <Text style={[styles.subtitle, { color: theme.textDim }]}>
-                    Sync across web and mobile
-                  </Text>
+                  <View style={styles.syncStatusRow}>
+                    <View style={styles.statusDotActive} />
+                    <Text style={[styles.subtitle, { color: theme.textDim }]}>
+                      Sync active
+                    </Text>
+                  </View>
                 </View>
               </View>
               <TouchableOpacity
@@ -178,14 +181,14 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               {/* Section 1: Current Device Code */}
               <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
                 <View style={styles.sectionHeaderRow}>
-                  <Ionicons name="phone-portrait-outline" size={16} color={theme.primary} />
+                  <Ionicons name="key-outline" size={15} color={theme.primary} />
                   <Text style={[styles.sectionHeading, { color: theme.text }]}>
-                    YOUR SYNC KEY
+                    CURRENT DEVICE KEY
                   </Text>
                 </View>
 
                 <Text style={[styles.description, { color: theme.textDim }]}>
-                  Enter this key on your other devices to access your tasks:
+                  Use this key on your other devices to sync data:
                 </Text>
 
                 <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -220,7 +223,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 {showUnlinkConfirm ? (
                   <View style={styles.confirmBox}>
                     <Text style={styles.confirmText}>
-                      Are you sure? This device will switch to a new isolated workspace.
+                      Generate a new key? Synced devices using the current key will disconnect.
                     </Text>
                     <View style={styles.confirmActions}>
                       <TouchableOpacity
@@ -233,7 +236,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                         style={styles.unlinkBtn}
                         onPress={handleGenerateNewKey}
                       >
-                        <Text style={styles.unlinkBtnText}>Yes, Unlink</Text>
+                        <Text style={styles.unlinkBtnText}>New Key</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -257,14 +260,14 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               {/* Section 2: Connect to Another Device */}
               <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border, marginTop: 14 }]}>
                 <View style={styles.sectionHeaderRow}>
-                  <Ionicons name="sync-outline" size={16} color={theme.accent} />
+                  <Ionicons name="sync-outline" size={15} color={theme.accent || theme.primary} />
                   <Text style={[styles.sectionHeading, { color: theme.text }]}>
-                    PAIR WITH ANOTHER DEVICE
+                    PAIR ANOTHER DEVICE
                   </Text>
                 </View>
 
                 <Text style={[styles.description, { color: theme.textDim }]}>
-                  Enter the ZEN-XXXX-XXXX pairing code from your other device:
+                  Enter the pairing key from your other device:
                 </Text>
 
                 <View style={styles.inputRow}>
@@ -323,7 +326,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               <View style={[styles.securityBadge, { borderTopColor: theme.border }]}>
                 <Ionicons name="shield-checkmark-outline" size={15} color="#10B981" />
                 <Text style={[styles.securityText, { color: theme.textDim }]}>
-                  Your data is privately synced only across devices using this pairing code.
+                  Data is securely synced across paired devices.
                 </Text>
               </View>
             </ScrollView>
@@ -371,9 +374,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  syncStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  statusDotActive: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
   subtitle: {
     fontSize: 12,
-    marginTop: 2,
   },
   closeBtn: {
     padding: 6,

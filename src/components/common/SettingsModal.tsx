@@ -32,6 +32,7 @@ interface SettingsModalProps {
   onToggleAutoNightShift?: (enabled: boolean) => void;
   onClose: () => void;
   onOpenSyncModal?: () => void;
+  onOpenThemeModal?: () => void;
   onExportBackup: () => Promise<void>;
   onImportBackup: () => Promise<void>;
   onShowToast: (msg: string) => void;
@@ -56,6 +57,7 @@ export function SettingsModal({
   onToggleAutoNightShift,
   onClose,
   onOpenSyncModal,
+  onOpenThemeModal,
   onExportBackup,
   onImportBackup,
   onShowToast,
@@ -294,6 +296,34 @@ export function SettingsModal({
             {/* Section: Preferences Group */}
             <Text style={[styles.sectionTitle, { color: theme.textDim }]}>PREFERENCES</Text>
             <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              {/* Appearance / Theme */}
+              {onOpenThemeModal && (
+                <>
+                  <TouchableOpacity
+                    style={styles.groupRow}
+                    onPress={() => {
+                      hapticLight();
+                      onClose();
+                      onOpenThemeModal();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                      <Ionicons name="color-palette-outline" size={18} color={theme.primary} />
+                    </View>
+                    <View style={styles.actionContent}>
+                      <Text style={[styles.actionTitle, { color: theme.text }]}>Appearance</Text>
+                      <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                        {theme.name} {theme.icon}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+                  </TouchableOpacity>
+
+                  <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+                </>
+              )}
+
               {/* Sound Effects */}
               <View style={styles.groupRow}>
                 <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>

@@ -176,13 +176,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [showToast]);
 
-  const handleSelectTheme = (theme: AppTheme) => {
-    setDaytimeThemeKey(theme);
-    AsyncStorage.setItem(THEME_STORAGE_KEY, theme).catch(() => {});
+  const handleSelectTheme = (selectedTheme: AppTheme) => {
+    setDaytimeThemeKey(selectedTheme);
+    // If autoNightShift is active at night and user explicitly picks a theme,
+    // turn off autoNightShift so user's explicit theme takes immediate effect
+    if (autoNightShift && isNightTime && selectedTheme !== 'midnight') {
+      setAutoNightShift(false);
+      AsyncStorage.setItem(AUTO_NIGHT_STORAGE_KEY, 'false').catch(() => {});
+    }
+    AsyncStorage.setItem(THEME_STORAGE_KEY, selectedTheme).catch(() => {});
     showToast({
       type: 'info',
       title: 'Theme Changed',
-      message: `Switched to ${THEMES[theme].name} theme ${THEMES[theme].icon}`,
+      message: `Switched to ${THEMES[selectedTheme].name}`,
     });
   };
 

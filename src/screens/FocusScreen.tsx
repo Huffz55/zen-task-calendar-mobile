@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { ZenTimerView } from '../components/timer/ZenTimerView';
 import { AmbientSoundBar } from '../components/timer/AmbientSoundBar';
 import { ZenBreathingModal } from '../components/timer/ZenBreathingModal';
+import { FocusAnalyticsCard } from '../components/timer/FocusAnalyticsCard';
+import { ZenHeatmap } from '../components/timer/ZenHeatmap';
 import { DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
@@ -68,6 +70,7 @@ export function FocusScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: FocusScreenProps) {
+  const [showHistory, setShowHistory] = useState(false);
   const swipeHandlers = useSwipeTabNavigation('focus');
 
   return (
@@ -170,6 +173,51 @@ export function FocusScreen({
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
           </TouchableOpacity>
+        )}
+
+        {/* View Rhythm & Focus History Toggle */}
+        <TouchableOpacity
+          style={[styles.historyToggleBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+          onPress={() => {
+            hapticLight();
+            setShowHistory(prev => !prev);
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={styles.historyToggleLeft}>
+            <Ionicons
+              name="bar-chart-outline"
+              size={15}
+              color={showHistory ? theme.primary : theme.textDim}
+            />
+            <Text style={[styles.historyToggleText, { color: showHistory ? theme.primary : theme.text }]}>
+              {showHistory ? 'Hide Rhythm & Focus History' : 'View Rhythm & Focus History'}
+            </Text>
+          </View>
+          <Ionicons
+            name={showHistory ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={showHistory ? theme.primary : theme.textDim}
+          />
+        </TouchableOpacity>
+
+        {/* Expandable History Module */}
+        {showHistory && (
+          <View style={styles.historySection}>
+            <FocusAnalyticsCard
+              theme={theme}
+              totalFocusSeconds={focusStats.totalFocusSeconds}
+              totalSessionsCount={focusStats.totalSessionsCount}
+              todayFocusSeconds={focusStats.todayFocusSeconds}
+              weeklyDays={focusStats.weeklyDays}
+              maxDaySeconds={focusStats.maxDaySeconds}
+            />
+            {focusStats.heatmapDays && focusStats.heatmapDays.length > 0 && (
+              <View style={{ marginTop: 14 }}>
+                <ZenHeatmap theme={theme} days={focusStats.heatmapDays} />
+              </View>
+            )}
+          </View>
         )}
       </ScrollView>
 
@@ -282,6 +330,29 @@ const styles = StyleSheet.create({
   summaryDivider: {
     width: StyleSheet.hairlineWidth,
     height: 24,
+  },
+  historyToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 24,
+    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  historyToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyToggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historySection: {
+    marginTop: 2,
   },
 });
 

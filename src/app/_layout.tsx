@@ -84,6 +84,7 @@ function RootLayoutContent() {
         onToggleAutoNightShift={toggleAutoNightShift}
         onClose={() => setIsSettingsModalOpen(false)}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
         onShowToast={msg => showToast({ message: msg, type: 'info' })}

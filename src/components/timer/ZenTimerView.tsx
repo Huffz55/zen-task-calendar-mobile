@@ -95,14 +95,33 @@ export function ZenTimerView({
             },
           ]}
         >
-          {/* Subtle Progress Arc / Ring Indicator */}
-          <View style={styles.clockInner}>
-            <Text style={[styles.timeDigits, { color: theme.text }]}>
-              {timeFormatted}
-            </Text>
-            <Text style={[styles.timeSub, { color: theme.textDim }]}>
-              {isTimerRunning ? 'Deep Focus' : 'Ready'}
-            </Text>
+          {/* Inner hairline concentric ring for minimal luxury depth */}
+          <View
+            style={[
+              styles.innerConcentricRing,
+              {
+                borderColor: isTimerRunning
+                  ? (theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
+                  : theme.border,
+              },
+            ]}
+          >
+            <View style={styles.clockInner}>
+              <Text
+                style={[
+                  styles.timeDigits,
+                  {
+                    color: theme.text,
+                    fontVariant: ['tabular-nums'],
+                  },
+                ]}
+              >
+                {timeFormatted}
+              </Text>
+              <Text style={[styles.timeSub, { color: isTimerRunning ? theme.primary : theme.textDim }]}>
+                {isTimerRunning ? 'DEEP FOCUS' : 'READY'}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -235,25 +254,37 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 4,
+    padding: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  innerConcentricRing: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 200,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   clockInner: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   timeDigits: {
-    fontSize: 52,
+    fontSize: 58,
     fontWeight: '300',
-    letterSpacing: -1,
+    letterSpacing: 2,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   timeSub: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 4,
-    letterSpacing: 0.2,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   progressTrack: {
     width: 140,

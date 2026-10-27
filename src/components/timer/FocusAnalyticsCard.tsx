@@ -40,7 +40,7 @@ export function FocusAnalyticsCard({
           <Text style={[styles.title, { color: theme.text }]}>Weekly Focus Analytics</Text>
         </View>
         <Text style={[styles.badge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
-          {totalSessionsCount} Sessions 🧘
+          {totalSessionsCount} Sessions
         </Text>
       </View>
 
