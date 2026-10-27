@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { CustomList } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
@@ -37,10 +37,10 @@ export function ListsScreen({
   onOpenSyncModal,
 }: ListsScreenProps) {
   const [isAddListOpen, setIsAddListOpen] = useState(false);
-  const { panHandlers, containerStyle } = useSwipeTabNavigation('lists');
+  const swipeHandlers = useSwipeTabNavigation('lists');
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: theme.background }, containerStyle]} {...panHandlers}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       <Header
         theme={theme}
         currentStreak={currentStreak}
@@ -104,7 +104,7 @@ export function ListsScreen({
         onClose={() => setIsAddListOpen(false)}
         onAddList={onAddList}
       />
-    </Animated.View>
+    </View>
   );
 }
 

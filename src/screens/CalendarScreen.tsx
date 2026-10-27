@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { DailyTask, RecurrenceType, TaskTag } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
@@ -79,10 +79,10 @@ export function CalendarScreen({
     return matchesSearch && matchesTag;
   });
 
-  const { panHandlers, containerStyle } = useSwipeTabNavigation('calendar');
+  const swipeHandlers = useSwipeTabNavigation('calendar');
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: theme.background }, containerStyle]} {...panHandlers}>
+    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       <Header
         theme={theme}
         currentStreak={currentStreak}
@@ -213,7 +213,7 @@ export function CalendarScreen({
         onDeleteInstance={onDeleteInstance}
         onDeleteFuture={onDeleteFuture}
       />
-    </Animated.View>
+    </View>
   );
 }
 

@@ -53,6 +53,9 @@ export default function TabsLayout() {
           borderTopWidth: 0,
           elevation: 0,
         },
+        sceneStyle: {
+          backgroundColor: theme.background,
+        },
       }}
       tabBar={() => (
         <View style={{ backgroundColor: theme.background }}>

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Animated, PanResponder, PanResponderGestureState } from 'react-native';
+import { useMemo } from 'react';
+import { PanResponder, PanResponderGestureState } from 'react-native';
 import { router } from 'expo-router';
 import { MobileTab } from '../types';
 import { hapticLight } from './useHaptics';
@@ -13,133 +13,58 @@ const TAB_ROUTES: Record<MobileTab, string> = {
   focus: '/(tabs)/focus',
 };
 
-const navState = {
-  isNavigating: false,
-  currentTab: 'today' as MobileTab,
-  lastVisitedTab: 'today' as MobileTab,
-};
-
-export function setLastVisitedTab(tab: MobileTab) {
-  navState.lastVisitedTab = tab;
-}
-
 export function useSwipeTabNavigation(currentTab: MobileTab) {
-  const [dragX] = useState(() => new Animated.Value(0));
-  const [enterAnim] = useState(() => new Animated.Value(0));
-
-  const currentIdx = TABS.indexOf(currentTab);
-  const prevIdx = TABS.indexOf(navState.lastVisitedTab);
-  const direction = currentIdx >= prevIdx ? 1 : -1;
-  const isInitial = currentIdx === prevIdx;
-
-  useEffect(() => {
-    navState.currentTab = currentTab;
-    navState.isNavigating = false;
-    dragX.setValue(0);
-    enterAnim.setValue(0);
-
-    Animated.spring(enterAnim, {
-      toValue: 1,
-      damping: 24,
-      mass: 0.8,
-      stiffness: 170,
-      useNativeDriver: true,
-    }).start();
-
-    navState.lastVisitedTab = currentTab;
-  }, [currentTab, enterAnim, dragX]);
-
-  const [panResponder] = useState(() => {
+  const panResponder = useMemo(() => {
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState: PanResponderGestureState) => {
-        if (navState.isNavigating) return false;
-        // Dominant horizontal swipe check to prevent interference with vertical scrolling
         const isHorizontal =
-          Math.abs(gestureState.dx) > 30 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.6;
-        return isHorizontal;
-      },
-      onPanResponderMove: (_, gestureState: PanResponderGestureState) => {
-        if (navState.isNavigating) return;
-        // Soft rubber-band damping while finger drags across screen
-        dragX.setValue(gestureState.dx * 0.42);
+          Math.abs(gestureState.dx) > 35 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.8;
+
+        if (!isHorizontal) return false;
+
+        const currentIndex = TABS.indexOf(currentTab);
+
+        // On 'today' (index 0), you can ONLY swipe left (towards calendar). Ignore dragging right!
+        if (currentIndex === 0 && gestureState.dx > 0) {
+          return false;
+        }
+
+        // On 'focus' (last index), you can ONLY swipe right (towards lists). Ignore dragging left!
+        if (currentIndex === TABS.length - 1 && gestureState.dx < 0) {
+          return false;
+        }
+
+        return true;
       },
       onPanResponderRelease: (_, gestureState: PanResponderGestureState) => {
-        if (navState.isNavigating) return;
+        const isSwipeLeft = gestureState.dx < -50 || gestureState.vx < -0.35;
+        const isSwipeRight = gestureState.dx > 50 || gestureState.vx > 0.35;
 
-        const isSwipeLeft = gestureState.dx < -42 || gestureState.vx < -0.3;
-        const isSwipeRight = gestureState.dx > 42 || gestureState.vx > 0.3;
+        if (!isSwipeLeft && !isSwipeRight) return;
 
-        const activeTab = navState.currentTab;
-        const currentIndex = TABS.indexOf(activeTab);
+        const currentIndex = TABS.indexOf(currentTab);
         let targetTab: MobileTab | null = null;
 
         if (isSwipeLeft) {
-          // Finger dragged left -> move to the next tab to the right
+          // Swiped left (finger moves left -> go to tab on the right)
           if (currentIndex < TABS.length - 1) {
             targetTab = TABS[currentIndex + 1];
           }
         } else if (isSwipeRight) {
-          // Finger dragged right -> move to the previous tab to the left
+          // Swiped right (finger moves right -> go to tab on the left)
           if (currentIndex > 0) {
             targetTab = TABS[currentIndex - 1];
           }
         }
 
-        if (targetTab && targetTab !== activeTab) {
-          navState.isNavigating = true;
+        if (targetTab && targetTab !== currentTab) {
           hapticLight();
-
-          // Smooth glide off
-          Animated.timing(dragX, {
-            toValue: isSwipeLeft ? -80 : 80,
-            duration: 120,
-            useNativeDriver: true,
-          }).start(() => {
-            router.replace(TAB_ROUTES[targetTab]);
-          });
-        } else {
-          // Spring back softly to center
-          Animated.spring(dragX, {
-            toValue: 0,
-            friction: 7,
-            tension: 60,
-            useNativeDriver: true,
-          }).start();
+          router.replace(TAB_ROUTES[targetTab]);
         }
       },
-      onPanResponderTerminate: () => {
-        Animated.spring(dragX, {
-          toValue: 0,
-          friction: 7,
-          tension: 60,
-          useNativeDriver: true,
-        }).start();
-      },
     });
-  });
+  }, [currentTab]);
 
-  const initialSlideOffset = isInitial ? 0 : direction * 24;
-
-  const enterSlide = enterAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [initialSlideOffset, 0],
-  });
-
-  const enterOpacity = enterAnim.interpolate({
-    inputRange: [0, 0.4, 1],
-    outputRange: [isInitial ? 1 : 0.65, 0.88, 1],
-  });
-
-  const translateX = Animated.add(dragX, enterSlide);
-
-  return {
-    ...panResponder.panHandlers,
-    panHandlers: panResponder.panHandlers,
-    containerStyle: {
-      flex: 1,
-      opacity: enterOpacity,
-      transform: [{ translateX }],
-    },
-  };
+  return panResponder.panHandlers;
 }
