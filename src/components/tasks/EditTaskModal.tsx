@@ -327,7 +327,7 @@ export function EditTaskModal({
                 { color: title.trim() ? '#ffffff' : theme.textDim },
               ]}
             >
-              Save Changes 🌸
+              Save Changes
             </Text>
           </TouchableOpacity>
         </View>

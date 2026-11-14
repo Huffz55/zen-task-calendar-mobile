@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 
 import { AppTheme, AppToast, Task, CustomList, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
 import { THEMES, ThemeColors } from '../constants/colors';
-import { THEME_STORAGE_KEY } from '../services/storage/taskStorage';
+import { THEME_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
 import { defaultBackupService } from '../services/storage/backupService';
 
@@ -32,6 +32,7 @@ interface AppContextValue {
   setIsSyncModalOpen: (open: boolean) => void;
   handleExportBackup: () => Promise<void>;
   handleImportBackup: () => Promise<void>;
+  handleClearAllData: () => Promise<void>;
 
   // Focus Stats
   focusStats: {
@@ -67,7 +68,7 @@ interface AppContextValue {
   currentDayTasks: DailyTask[];
   currentStreak: number;
   overdueCount: number;
-  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => Task;
+  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean, isEvening?: boolean, isGhost?: boolean, isInbox?: boolean) => Task;
   deleteTask: (taskId: string) => void;
   deleteTaskInstance: (taskId: string, dateStr: string) => void;
   deleteTaskFuture: (taskId: string, dateStr: string) => void;
@@ -75,6 +76,14 @@ interface AppContextValue {
   toggleTaskCompletion: (taskId: string, dateStr: string) => void;
   editTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   togglePinTask: (taskId: string) => void;
+  toggleEveningTask: (taskId: string) => void;
+  toggleGhostTask: (taskId: string) => void;
+  moveToInbox: (taskId: string) => void;
+  triageTask: (taskId: string, decision: 'today' | 'someday' | 'delete') => void;
+  getInboxTasks: () => Task[];
+  inboxTasks: Task[];
+  isTriageModalOpen: boolean;
+  setIsTriageModalOpen: (open: boolean) => void;
   deferTaskToTomorrow: (taskId: string, currentDateStr: string) => void;
   duplicateTask: (taskId: string, dateStr: string) => Task | null;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
@@ -130,7 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<AppToast | null>(null);
 
   // Focus sessions and analytics engine
-  const { stats: focusStats, recordSession: recordFocusSession } = useFocusStats();
+  const { stats: focusStats, recordSession: recordFocusSession, clearAllSessions } = useFocusStats();
 
   // Load theme and auto night preferences from AsyncStorage
   useEffect(() => {
@@ -169,9 +178,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(AUTO_NIGHT_STORAGE_KEY, String(enabled)).catch(() => {});
     showToast({
       type: 'info',
-      title: enabled ? 'Auto Night Shift On 🌙' : 'Auto Night Shift Off',
+      title: enabled ? 'Auto Dark Mode On' : 'Auto Dark Mode Off',
       message: enabled
-        ? 'Theme will auto-switch to Midnight between 20:00 and 07:00'
+        ? 'Theme will switch to dark mode between 20:00 and 07:00'
         : 'App will stay on your selected theme',
     });
   }, [showToast]);
@@ -199,6 +208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     tasks,
     addTask,
+    clearAllTasks,
     deleteTask,
     deleteTaskInstance,
     deleteTaskFuture,
@@ -206,6 +216,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleTaskCompletion,
     editTask,
     togglePinTask,
+    toggleEveningTask,
+    toggleGhostTask,
+    moveToInbox,
+    triageTask,
+    getInboxTasks,
     deferTaskToTomorrow,
     duplicateTask,
     toggleSubtask,
@@ -225,6 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     lists,
     addList,
+    clearAllLists,
     deleteList,
     restoreList,
     addListItem,
@@ -236,6 +252,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFocusTask, setActiveFocusTask] = useState<{ id: string; title: string } | null>(null);
   const [isEveningReviewOpen, setIsEveningReviewOpen] = useState(false);
   const [isZenBreathingOpen, setIsZenBreathingOpen] = useState(false);
+  const [isTriageModalOpen, setIsTriageModalOpen] = useState(false);
+
+  const inboxTasks = tasks.filter(t => t.isInbox && !t.isArchived);
 
   const handleTimerComplete = useCallback((elapsedSeconds: number) => {
     recordFocusSession(elapsedSeconds, activeFocusTask?.id, activeFocusTask?.title);
@@ -244,8 +263,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const mins = Math.max(1, Math.round(elapsedSeconds / 60));
       showToast({
         type: 'success',
-        title: 'Focus Logged 🧘',
-        message: `${mins}m dedicated to "${activeFocusTask.title}" ✨`,
+        title: 'Focus Logged',
+        message: `${mins}m dedicated to "${activeFocusTask.title}"`,
       });
     }
     // Offer / trigger Zen Breathing break
@@ -269,7 +288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     router.replace('/(tabs)/focus');
     showToast({
       type: 'info',
-      title: 'Target Set 🎯',
+      title: 'Target Set',
       message: `Focusing on "${task.title}"`,
     });
   }, [showToast]);
@@ -359,7 +378,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showToast({
         type: 'info',
         title: 'Task Updated',
-        message: `"${newTitle}" updated successfully 🌸`,
+        message: `"${newTitle}" updated`,
       });
     },
     [editTask, showToast]
@@ -389,8 +408,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hapticSuccess();
       showToast({
         type: 'success',
-        title: 'Tasks Rolled Over!',
-        message: `${count} overdue task${count > 1 ? 's' : ''} moved to today 🌸`,
+        title: 'Tasks Rolled Over',
+        message: `${count} overdue task${count > 1 ? 's' : ''} moved to today`,
       });
     }
   }, [rolloverOverdueTasks, todayStr, showToast]);
@@ -402,7 +421,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         showToast({
           type: 'success',
           title: 'Backup Exported',
-          message: `${tasks.length} tasks and ${lists.length} lists prepared for export 🌸`,
+          message: `${tasks.length} tasks and ${lists.length} lists exported`,
         });
       }
     } catch {
@@ -429,7 +448,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showToast({
         type: 'success',
         title: 'Backup Restored',
-        message: `${imported.tasks.length} tasks and ${imported.lists.length} lists restored successfully 🌸`,
+        message: `${imported.tasks.length} tasks and ${imported.lists.length} lists restored`,
       });
       setIsSettingsModalOpen(false);
     } catch {
@@ -440,6 +459,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     }
   }, [restoreTask, restoreList, showToast]);
+
+  const handleClearAllData = useCallback(async () => {
+    try {
+      await clearAllWorkspaceData();
+      clearAllTasks();
+      clearAllLists();
+      clearAllSessions();
+      setActiveFocusTask(null);
+      await defaultNotificationService.cancelAll();
+      hapticWarning();
+      showToast({
+        type: 'info',
+        title: 'Data Cleared',
+        message: 'All local and synced data has been erased',
+      });
+    } catch {
+      showToast({
+        type: 'error',
+        title: 'Reset Error',
+        message: 'Could not erase all workspace data.',
+      });
+    }
+  }, [clearAllTasks, clearAllLists, clearAllSessions, showToast]);
 
   const getTaskCountForDate = useCallback(
     (dateStr: string) => {
@@ -464,6 +506,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setIsSyncModalOpen,
         handleExportBackup,
         handleImportBackup,
+        handleClearAllData,
         focusStats,
         recordFocusSession,
         activeFocusTask,
@@ -492,6 +535,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toggleTaskCompletion,
         editTask,
         togglePinTask,
+        toggleEveningTask,
+        toggleGhostTask,
+        moveToInbox,
+        triageTask,
+        getInboxTasks,
+        inboxTasks,
+        isTriageModalOpen,
+        setIsTriageModalOpen,
         deferTaskToTomorrow,
         duplicateTask,
         toggleSubtask,

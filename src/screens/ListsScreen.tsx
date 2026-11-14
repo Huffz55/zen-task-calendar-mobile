@@ -88,7 +88,9 @@ export function ListsScreen({
           ))
         ) : (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📝</Text>
+            <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
+              <Ionicons name="list-outline" size={26} color={theme.primary} />
+            </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>No lists yet</Text>
             <Text style={[styles.emptySubtitle, { color: theme.textDim }]}>
               You can create custom checklists for shopping, projects, or personal goals.
@@ -148,9 +150,13 @@ const styles = StyleSheet.create({
     paddingVertical: 70,
     paddingHorizontal: 20,
   },
-  emptyIcon: {
-    fontSize: 44,
-    marginBottom: 12,
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 17,

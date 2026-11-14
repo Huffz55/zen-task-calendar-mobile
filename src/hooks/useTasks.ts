@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Task, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
+import type { Task, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { differenceInDays, parseISO, isValid, subDays, addDays, format } from 'date-fns';
 import { ITaskStorage, defaultTaskStorage } from '../services/storage/taskStorage';
 import { springLayout } from '../utils/animations';
+import { getDailyTasksForDate } from '../utils/taskSchedule';
 
 function generateUniqueId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
@@ -48,7 +49,10 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    isEvening?: boolean,
+    isGhost?: boolean,
+    isInbox?: boolean
   ) => {
     const newTask: Task = {
       id: generateUniqueId(),
@@ -60,6 +64,9 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       subtasks: subtasks && subtasks.length > 0 ? subtasks : undefined,
       estimatedMinutes: estimatedMinutes && estimatedMinutes > 0 ? estimatedMinutes : undefined,
       isPinned: isPinned || undefined,
+      isEvening: isEvening || undefined,
+      isGhost: isGhost || undefined,
+      isInbox: isInbox || undefined,
     };
     springLayout();
     setTasks(prev => [newTask, ...prev]);
@@ -144,6 +151,56 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, isPinned: !t.isPinned };
+      }
+      return t;
+    }));
+  }, []);
+
+  const toggleEveningTask = useCallback((taskId: string) => {
+    springLayout();
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, isEvening: !t.isEvening };
+      }
+      return t;
+    }));
+  }, []);
+
+  const toggleGhostTask = useCallback((taskId: string) => {
+    springLayout();
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, isGhost: !t.isGhost };
+      }
+      return t;
+    }));
+  }, []);
+
+  const moveToInbox = useCallback((taskId: string) => {
+    springLayout();
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, isInbox: true };
+      }
+      return t;
+    }));
+  }, []);
+
+  const triageTask = useCallback((taskId: string, decision: 'today' | 'someday' | 'delete', targetDateStr?: string) => {
+    springLayout();
+    if (decision === 'delete') {
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      return;
+    }
+    const dateToSet = targetDateStr || format(new Date(), 'yyyy-MM-dd');
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        if (decision === 'today') {
+          return { ...t, isInbox: false, date: dateToSet };
+        }
+        if (decision === 'someday') {
+          return { ...t, isInbox: true };
+        }
       }
       return t;
     }));
@@ -255,53 +312,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   }, []);
 
   const getTasksForDate = useCallback((dateStr: string): DailyTask[] => {
-    const targetDate = parseISO(dateStr);
-    if (!isValid(targetDate)) return [];
-
-    const mapped: DailyTask[] = tasks.filter(task => {
-      if (task.isArchived) return false;
-      const startDate = parseISO(task.date);
-      if (!isValid(startDate)) return false;
-
-      if (dateStr < task.date) return false;
-      if (task.excludedDates && task.excludedDates.includes(dateStr)) return false;
-      if (task.endDate && dateStr > task.endDate) return false;
-
-      const diffDays = differenceInDays(targetDate, startDate);
-
-      if (task.recurrence === 'none') {
-        return dateStr === task.date;
-      } else if (task.recurrence === 'daily') {
-        return true;
-      } else if (task.recurrence === 'weekly') {
-        return diffDays % 7 === 0;
-      } else if (task.recurrence === 'biweekly') {
-        return diffDays % 14 === 0;
-      }
-      return false;
-    }).map(task => ({
-      id: `${task.id}-${dateStr}`,
-      taskId: task.id,
-      title: task.title,
-      isCompleted: (Array.isArray(task.completedDates) ? task.completedDates : []).includes(dateStr),
-      recurrence: task.recurrence,
-      tag: task.tag,
-      subtasks: task.subtasks,
-      focusedSeconds: task.focusedSeconds,
-      isPinned: task.isPinned,
-      estimatedMinutes: task.estimatedMinutes,
-      isArchived: task.isArchived,
-    }));
-
-    return mapped.sort((a, b) => {
-      if (a.isCompleted !== b.isCompleted) {
-        return a.isCompleted ? 1 : -1;
-      }
-      if (a.isPinned !== b.isPinned) {
-        return a.isPinned ? -1 : 1;
-      }
-      return 0;
-    });
+    return getDailyTasksForDate(tasks, dateStr);
   }, [tasks]);
 
   const autoArchiveNeglectedTasks = useCallback((currentDateStr: string): number => {
@@ -413,10 +424,20 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     return streak;
   }, [getTasksForDate]);
 
+  const getInboxTasks = useCallback((): Task[] => {
+    return tasks.filter(t => !t.isArchived && t.isInbox);
+  }, [tasks]);
+
+  const clearAllTasks = useCallback(() => {
+    springLayout();
+    setTasks([]);
+  }, []);
+
   return {
     tasks,
     isLoaded,
     addTask,
+    clearAllTasks,
     deleteTask,
     deleteTaskInstance,
     deleteTaskFuture,
@@ -424,6 +445,11 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     toggleTaskCompletion,
     editTask,
     togglePinTask,
+    toggleEveningTask,
+    toggleGhostTask,
+    moveToInbox,
+    triageTask,
+    getInboxTasks,
     deferTaskToTomorrow,
     duplicateTask,
     toggleSubtask,

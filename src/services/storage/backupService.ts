@@ -4,8 +4,59 @@ import * as DocumentPicker from 'expo-document-picker';
 import { format } from 'date-fns';
 import { Task, CustomList, BackupPayload } from '../../types';
 import { validateTask, validateCustomList } from '../validation/validator';
+import { generateICSContent, generateMarkdownContent } from '../../utils/zenExport';
 
 export class BackupService {
+  async exportICS(tasks: Task[]): Promise<boolean> {
+    try {
+      const icsStr = generateICSContent(tasks);
+      const filename = `zen_calendar_${format(new Date(), 'yyyyMMdd_HHmmss')}.ics`;
+      const file = new File(Paths.cache, filename);
+
+      file.create();
+      file.write(icsStr);
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'text/calendar',
+          dialogTitle: 'Export Zen Calendar (.ics)',
+          UTI: 'public.calendar',
+        });
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('Failed to export ICS', e);
+      throw e;
+    }
+  }
+
+  async exportMarkdown(tasks: Task[]): Promise<boolean> {
+    try {
+      const mdStr = generateMarkdownContent(tasks);
+      const filename = `zen_tasks_obsidian_${format(new Date(), 'yyyyMMdd_HHmmss')}.md`;
+      const file = new File(Paths.cache, filename);
+
+      file.create();
+      file.write(mdStr);
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'text/markdown',
+          dialogTitle: 'Export Obsidian Markdown (.md)',
+          UTI: 'net.daringfireball.markdown',
+        });
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('Failed to export Markdown', e);
+      throw e;
+    }
+  }
+
   async exportBackup(tasks: Task[], lists: CustomList[]): Promise<boolean> {
     try {
       const payload: BackupPayload = {

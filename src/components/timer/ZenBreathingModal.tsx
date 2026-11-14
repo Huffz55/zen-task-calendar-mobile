@@ -143,7 +143,7 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
           }}
           activeOpacity={0.8}
         >
-          <Text style={styles.finishBtnText}>Finish Break 🌸</Text>
+          <Text style={styles.finishBtnText}>Finish Break</Text>
         </TouchableOpacity>
       </View>
     </Modal>

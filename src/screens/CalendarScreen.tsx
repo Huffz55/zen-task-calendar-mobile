@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { DailyTask, RecurrenceType, TaskTag } from '../types';
+import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { CalendarGrid } from '../components/calendar/CalendarGrid';
@@ -22,8 +22,26 @@ interface CalendarScreenProps {
   getTasksForDate: (dateStr: string) => DailyTask[];
   getTaskCountForDate: (dateStr: string) => number;
   onToggleTask: (taskId: string) => void;
-  onAddTask: (title: string, dateStr: string, recurrence: RecurrenceType, tag?: TaskTag, subtasks?: any[]) => void;
-  onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: any[]) => void;
+  onAddTask: (
+    title: string,
+    dateStr: string,
+    recurrence: RecurrenceType,
+    tag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean,
+    isEvening?: boolean,
+    isGhost?: boolean,
+    isInbox?: boolean
+  ) => void;
+  onEditTask: (
+    taskId: string,
+    newTitle: string,
+    newTag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean
+  ) => void;
   onDeleteSingle: (taskId: string) => void;
   onDeleteInstance: (taskId: string, dateStr: string) => void;
   onDeleteFuture: (taskId: string, dateStr: string) => void;

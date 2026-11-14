@@ -75,7 +75,7 @@ export function AddListModal({ visible, theme, onClose, onAddList }: AddListModa
             disabled={!title.trim()}
           >
             <Text style={[styles.submitText, { color: title.trim() ? '#ffffff' : theme.textDim }]}>
-              Create List 📝
+              Create List
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { TodayScreen } from '../../screens/TodayScreen';
+import { ZenTriageModal } from '../../components/common/ZenTriageModal';
 
 export default function TodayRoute() {
   const {
@@ -19,6 +20,13 @@ export default function TodayRoute() {
     handleFutureDelete,
     handleEditTask,
     togglePinTask,
+    toggleEveningTask,
+    toggleGhostTask,
+    moveToInbox,
+    triageTask,
+    inboxTasks,
+    isTriageModalOpen,
+    setIsTriageModalOpen,
     deferTaskToTomorrow,
     duplicateTask,
     toggleSubtask,
@@ -34,49 +42,66 @@ export default function TodayRoute() {
   } = useApp();
 
   return (
-    <TodayScreen
-      theme={theme}
-      currentStreak={currentStreak}
-      tasks={currentDayTasks}
-      selectedDate={selectedDate}
-      onSelectDate={setSelectedDate}
-      getTaskCountForDate={getTaskCountForDate}
-      onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned) => {
-        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned);
-        showToast({
-          type: 'success',
-          title: 'Added',
-          message: `"${title}" added to your plan 🌸`,
-        });
-      }}
-      onEditTask={handleEditTask}
-      onTogglePin={togglePinTask}
-      onDeferTask={deferTaskToTomorrow}
-      onDuplicateTask={(taskId, dateStr) => {
-        const dup = duplicateTask(taskId, dateStr);
-        if (dup) {
+    <>
+      <TodayScreen
+        theme={theme}
+        currentStreak={currentStreak}
+        tasks={currentDayTasks}
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        getTaskCountForDate={getTaskCountForDate}
+        onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
+        onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox) => {
+          addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox);
           showToast({
             type: 'success',
-            title: 'Task Duplicated 📋',
-            message: `Created copy of "${dup.title.replace(' (Copy)', '')}"`,
+            title: isInbox ? 'Saved to Inbox' : 'Added',
+            message: isInbox ? `"${title}" added to triage queue` : `"${title}" added to your plan`,
           });
-        }
-      }}
-      onDeleteSingle={handleSingleDelete}
-      onDeleteInstance={handleInstanceDelete}
-      onDeleteFuture={handleFutureDelete}
-      onToggleSubtask={toggleSubtask}
-      onStartFocus={startTaskFocus}
-      onOpenThemeModal={() => setIsThemeModalOpen(true)}
-      onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-      onOpenSyncModal={() => setIsSyncModalOpen(true)}
-      isEveningReviewOpen={isEveningReviewOpen}
-      onOpenEveningReview={() => setIsEveningReviewOpen(true)}
-      onCloseEveningReview={() => setIsEveningReviewOpen(false)}
-      todayFocusSeconds={focusStats.todayFocusSeconds}
-      overdueCount={overdueCount}
-      onRolloverTasks={handleRollover}
-    />
+        }}
+        onEditTask={handleEditTask}
+        onTogglePin={togglePinTask}
+        onToggleEvening={toggleEveningTask}
+        onToggleGhost={toggleGhostTask}
+        onMoveToInbox={moveToInbox}
+        onOpenTriage={() => setIsTriageModalOpen(true)}
+        inboxCount={inboxTasks.length}
+        onDeferTask={deferTaskToTomorrow}
+        onDuplicateTask={(taskId, dateStr) => {
+          const dup = duplicateTask(taskId, dateStr);
+          if (dup) {
+            showToast({
+              type: 'success',
+              title: 'Task Duplicated',
+              message: `Created copy of "${dup.title.replace(' (Copy)', '')}"`,
+            });
+          }
+        }}
+        onDeleteSingle={handleSingleDelete}
+        onDeleteInstance={handleInstanceDelete}
+        onDeleteFuture={handleFutureDelete}
+        onToggleSubtask={toggleSubtask}
+        onStartFocus={startTaskFocus}
+        onOpenThemeModal={() => setIsThemeModalOpen(true)}
+        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        isEveningReviewOpen={isEveningReviewOpen}
+        onOpenEveningReview={() => setIsEveningReviewOpen(true)}
+        onCloseEveningReview={() => setIsEveningReviewOpen(false)}
+        todayFocusSeconds={focusStats.todayFocusSeconds}
+        overdueCount={overdueCount}
+        onRolloverTasks={handleRollover}
+      />
+      <ZenTriageModal
+        visible={isTriageModalOpen}
+        theme={theme}
+        inboxTasks={inboxTasks}
+        onTriageDecision={triageTask}
+        onQuickAddTask={(title) => {
+          addTask(title, selectedDateStr, 'none', undefined, undefined, undefined, false, false, false, true);
+        }}
+        onClose={() => setIsTriageModalOpen(false)}
+      />
+    </>
   );
 }

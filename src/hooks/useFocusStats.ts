@@ -139,10 +139,15 @@ export function useFocusStats() {
     };
   }, [sessions]);
 
+  const clearAllSessions = useCallback(() => {
+    setSessions([]);
+  }, []);
+
   return {
     sessions,
     isLoaded,
     recordSession,
+    clearAllSessions,
     stats,
   };
 }

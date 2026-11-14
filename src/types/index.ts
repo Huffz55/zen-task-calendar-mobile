@@ -24,8 +24,11 @@ export interface Task {
   subtasks?: Subtask[];
   focusedSeconds?: number; // total focus time logged to this task
   isPinned?: boolean; // One Big Thing / Focus of the Day
+  isEvening?: boolean; // This Evening distinction
+  isGhost?: boolean; // Ghost Block - tentative
+  isInbox?: boolean; // Triage / Quarantine inbox
   estimatedMinutes?: number; // Estimated duration in minutes
-  isArchived?: boolean; // Auto-archived to Zen Cemetery (Görev Mezarlığı)
+  isArchived?: boolean; // Auto-archived after 14 days of inactivity
   archivedAt?: string; // YYYY-MM-DD
   updatedAt?: number; // epoch ms for conflict resolution
 }
@@ -40,6 +43,9 @@ export interface DailyTask {
   subtasks?: Subtask[];
   focusedSeconds?: number;
   isPinned?: boolean;
+  isEvening?: boolean;
+  isGhost?: boolean;
+  isInbox?: boolean;
   estimatedMinutes?: number;
   isArchived?: boolean;
 }

@@ -9,14 +9,17 @@ import {
   Platform,
   ActivityIndicator,
   Switch,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeColors } from '../../constants/colors';
 import { Task, ZenMilestone } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
+import { hapticLight, hapticSuccess, setGlobalHapticsEnabled } from '../../hooks/useHaptics';
 import { defaultNotificationService } from '../../services/notifications/notificationService';
+import { defaultBackupService } from '../../services/storage/backupService';
 import { playZenChime, isSoundEffectsEnabled, setSoundEffectsEnabled, playBambooTap } from '../../services/audio/audioService';
+import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -35,6 +38,7 @@ interface SettingsModalProps {
   onOpenThemeModal?: () => void;
   onExportBackup: () => Promise<void>;
   onImportBackup: () => Promise<void>;
+  onClearAllData?: () => Promise<void>;
   onShowToast: (msg: string) => void;
 }
 
@@ -60,10 +64,13 @@ export function SettingsModal({
   onOpenThemeModal,
   onExportBackup,
   onImportBackup,
+  onClearAllData,
   onShowToast,
 }: SettingsModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(true);
   const [eveningWindDownEnabled, setEveningWindDownEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
@@ -81,42 +88,42 @@ export function SettingsModal({
         id: 'perfect_day',
         title: 'First Perfect Day',
         description: 'Complete all planned daily tasks',
-        icon: '🌸',
+        icon: 'checkmark-done-outline',
         unlocked: hasCompletedTask || currentStreak >= 1,
       },
       {
         id: 'streak_3',
         title: 'Mindful Momentum',
         description: 'Maintain a 3-day consistency streak',
-        icon: '🔥',
+        icon: 'flame-outline',
         unlocked: currentStreak >= 3,
       },
       {
         id: 'streak_7',
         title: 'Zen Master',
         description: 'Complete a full 7-day consistency streak',
-        icon: '⚡',
+        icon: 'flash-outline',
         unlocked: currentStreak >= 7,
       },
       {
         id: 'deep_focus',
         title: 'Deep Presence',
         description: 'Log 60+ minutes in Focus timer',
-        icon: '🧘',
+        icon: 'timer-outline',
         unlocked: totalFocusSeconds >= 3600,
       },
       {
         id: 'focus_of_day',
         title: 'One Big Thing',
         description: 'Pin a daily focus goal',
-        icon: '⭐',
+        icon: 'star-outline',
         unlocked: hasPinnedTask,
       },
       {
         id: 'checklist_pro',
         title: 'Checklist Pro',
         description: 'Break goals into checklist steps',
-        icon: '📋',
+        icon: 'list-outline',
         unlocked: hasSubtasks,
       },
     ];
@@ -132,7 +139,11 @@ export function SettingsModal({
       if (val !== null) setEveningWindDownEnabled(val === 'true');
     });
     AsyncStorage.getItem(SETTINGS_HAPTIC_KEY).then(val => {
-      if (val !== null) setHapticsEnabled(val === 'true');
+      if (val !== null) {
+        const enabled = val === 'true';
+        setHapticsEnabled(enabled);
+        setGlobalHapticsEnabled(enabled);
+      }
     });
     AsyncStorage.getItem(SETTINGS_CHIME_KEY).then(val => {
       if (val !== null) setChimeEnabled(val === 'true');
@@ -173,6 +184,7 @@ export function SettingsModal({
   };
 
   const handleToggleHaptics = async (enabled: boolean) => {
+    setGlobalHapticsEnabled(enabled);
     if (enabled) hapticLight();
     setHapticsEnabled(enabled);
     await AsyncStorage.setItem(SETTINGS_HAPTIC_KEY, String(enabled));
@@ -205,6 +217,51 @@ export function SettingsModal({
     } finally {
       setIsImporting(false);
     }
+  };
+
+  const handleExportICS = async () => {
+    hapticLight();
+    try {
+      await defaultBackupService.exportICS(tasks);
+      onShowToast('iCalendar (.ics) exported');
+    } catch {
+      onShowToast('Failed to export calendar');
+    }
+  };
+
+  const handleExportMarkdown = async () => {
+    hapticLight();
+    try {
+      await defaultBackupService.exportMarkdown(tasks);
+      onShowToast('Obsidian Markdown (.md) exported');
+    } catch {
+      onShowToast('Failed to export markdown');
+    }
+  };
+
+  const handleConfirmClearData = () => {
+    if (!onClearAllData || isClearingData) return;
+    hapticLight();
+    Alert.alert(
+      'Clear All Data?',
+      'This will permanently erase all tasks, checklists, focus logs, and synced workspace data.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: async () => {
+            setIsClearingData(true);
+            try {
+              await onClearAllData();
+              onClose();
+            } finally {
+              setIsClearingData(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -272,7 +329,11 @@ export function SettingsModal({
                   ]}
                 >
                   <View style={styles.milestoneTopRow}>
-                    <Text style={styles.milestoneIcon}>{m.icon}</Text>
+                    <Ionicons
+                      name={m.icon as keyof typeof Ionicons.glyphMap}
+                      size={18}
+                      color={m.unlocked ? theme.primary : theme.textDim}
+                    />
                     {m.unlocked ? (
                       <View style={[styles.unlockedPill, { backgroundColor: theme.primaryLight }]}>
                         <Ionicons name="checkmark-circle" size={10} color={theme.primary} />
@@ -314,7 +375,7 @@ export function SettingsModal({
                     <View style={styles.actionContent}>
                       <Text style={[styles.actionTitle, { color: theme.text }]}>Appearance</Text>
                       <Text style={[styles.actionDesc, { color: theme.textDim }]}>
-                        {theme.name} {theme.icon}
+                        {theme.name}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
@@ -527,6 +588,43 @@ export function SettingsModal({
                 </View>
                 <View style={styles.actionContent}>
                   <Text style={[styles.actionTitle, { color: theme.text }]}>Export Backup</Text>
+                  <Text style={[styles.actionDesc, { color: theme.textDim }]}>JSON snapshot of all tasks and lists</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+              </TouchableOpacity>
+
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
+              {/* Export ICS */}
+              <TouchableOpacity
+                style={styles.groupRow}
+                onPress={handleExportICS}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="calendar-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Export Calendar</Text>
+                  <Text style={[styles.actionDesc, { color: theme.textDim }]}>ICS file for Apple & Google Calendar</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+              </TouchableOpacity>
+
+              <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
+              {/* Export Markdown */}
+              <TouchableOpacity
+                style={styles.groupRow}
+                onPress={handleExportMarkdown}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="document-text-outline" size={18} color={theme.accent || theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Export Markdown</Text>
+                  <Text style={[styles.actionDesc, { color: theme.textDim }]}>Obsidian-ready daily notes and task lists</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
               </TouchableOpacity>
@@ -554,6 +652,57 @@ export function SettingsModal({
               </TouchableOpacity>
             </View>
 
+            {/* Section: Privacy & Data */}
+            <Text style={[styles.sectionTitle, { color: theme.textDim }]}>PRIVACY & DATA</Text>
+            <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <TouchableOpacity
+                style={styles.groupRow}
+                onPress={() => {
+                  hapticLight();
+                  setIsPrivacyOpen(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]}>Privacy Policy</Text>
+                  <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                    Local-first storage & anonymous sync details
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+              </TouchableOpacity>
+
+              {onClearAllData && (
+                <>
+                  <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+                  <TouchableOpacity
+                    style={styles.groupRow}
+                    onPress={handleConfirmClearData}
+                    disabled={isClearingData}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#450a0a' : '#fee2e2' }]}>
+                      {isClearingData ? (
+                        <ActivityIndicator size="small" color="#dc2626" />
+                      ) : (
+                        <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                      )}
+                    </View>
+                    <View style={styles.actionContent}>
+                      <Text style={[styles.actionTitle, { color: '#dc2626' }]}>Clear All Data</Text>
+                      <Text style={[styles.actionDesc, { color: theme.textDim }]}>
+                        Erase all local and synced workspace records
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
             {/* App Footer */}
             <View style={styles.footer}>
               <Text style={[styles.footerTitle, { color: theme.textDim }]}>Zen Task Calendar</Text>
@@ -562,6 +711,12 @@ export function SettingsModal({
           </ScrollView>
         </View>
       </View>
+
+      <PrivacyPolicyModal
+        visible={isPrivacyOpen}
+        theme={theme}
+        onClose={() => setIsPrivacyOpen(false)}
+      />
     </Modal>
   );
 }
@@ -691,9 +846,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
-  },
-  milestoneIcon: {
-    fontSize: 20,
   },
   unlockedPill: {
     flexDirection: 'row',

@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { Task, CustomList, SyncDocState } from '../../types';
 import { validateTask, validateCustomList } from '../validation/validator';
 import { db, ensureAuth } from '../firebase/firebaseClient';
 import { mergeItemsWithTombstones, cleanUndefined } from './syncEngine';
-import { getSyncKey, setSyncKey } from './syncKeyManager';
-import { defaultFocusStorage } from './focusStorage';
+import { getSyncKey, setSyncKey, generateSyncKey } from './syncKeyManager';
+import { defaultFocusStorage, FOCUS_SESSIONS_STORAGE_KEY } from './focusStorage';
 
 export const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
 export const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
@@ -83,6 +83,9 @@ export class MobileTaskStorage implements ITaskStorage {
       const currentIds = new Set(tasks.map(t => t.id));
       const newlyDeletedIds = prevTasks.filter(t => !currentIds.has(t.id)).map(t => t.id);
       const existingDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
+      if (!prevStored && tasks.length === 0 && existingDeletedIds.length === 0) {
+        return;
+      }
       const updatedDeletedIds = Array.from(new Set([...existingDeletedIds, ...newlyDeletedIds]));
       if (newlyDeletedIds.length > 0) {
         await saveDeletedIds(TASKS_DELETED_KEY, updatedDeletedIds);
@@ -219,6 +222,14 @@ export class MobileTaskStorage implements ITaskStorage {
     };
   }
 
+  cancelPendingPush(): void {
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer);
+      this.pushTimer = null;
+    }
+    this.lastPushedHash = '';
+  }
+
   async switchSyncKey(newKey: string): Promise<void> {
     await setSyncKey(newKey);
     if (this.currentUnsubscribe) {
@@ -270,6 +281,9 @@ export class MobileListStorage implements IListStorage {
       const currentIds = new Set(lists.map(l => l.id));
       const newlyDeletedIds = prevLists.filter(l => !currentIds.has(l.id)).map(l => l.id);
       const existingDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
+      if (!prevStored && lists.length === 0 && existingDeletedIds.length === 0) {
+        return;
+      }
       const updatedDeletedIds = Array.from(new Set([...existingDeletedIds, ...newlyDeletedIds]));
       if (newlyDeletedIds.length > 0) {
         await saveDeletedIds(LISTS_DELETED_KEY, updatedDeletedIds);
@@ -405,6 +419,14 @@ export class MobileListStorage implements IListStorage {
     };
   }
 
+  cancelPendingPush(): void {
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer);
+      this.pushTimer = null;
+    }
+    this.lastPushedHash = '';
+  }
+
   async switchSyncKey(newKey: string): Promise<void> {
     await setSyncKey(newKey);
     if (this.currentUnsubscribe) {
@@ -428,4 +450,33 @@ export async function switchGlobalSyncKey(newKey: string): Promise<boolean> {
   await (defaultListStorage as MobileListStorage).switchSyncKey(newKey);
   await defaultFocusStorage.switchSyncKey(newKey);
   return true;
+}
+
+export async function clearAllWorkspaceData(): Promise<void> {
+  (defaultTaskStorage as MobileTaskStorage).cancelPendingPush();
+  (defaultListStorage as MobileListStorage).cancelPendingPush();
+  defaultFocusStorage.cancelPendingPush();
+
+  try {
+    await ensureAuth();
+    const currentKey = await getSyncKey();
+    await Promise.allSettled([
+      deleteDoc(doc(db, 'workspaces', `${currentKey}_tasks`)),
+      deleteDoc(doc(db, 'workspaces', `${currentKey}_lists`)),
+      deleteDoc(doc(db, 'workspaces', `${currentKey}_focus`)),
+    ]);
+  } catch (err) {
+    console.warn('[Storage] Failed to clear remote workspace docs (continuing local wipe):', err);
+  }
+
+  await AsyncStorage.multiRemove([
+    TASKS_STORAGE_KEY,
+    LISTS_STORAGE_KEY,
+    TASKS_DELETED_KEY,
+    LISTS_DELETED_KEY,
+    FOCUS_SESSIONS_STORAGE_KEY,
+  ]);
+
+  const freshKey = generateSyncKey();
+  await switchGlobalSyncKey(freshKey);
 }

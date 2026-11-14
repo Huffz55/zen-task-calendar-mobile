@@ -31,9 +31,25 @@ interface TodayScreenProps {
   onSelectDate: (date: Date) => void;
   getTaskCountForDate: (dateStr: string) => number;
   onToggleTask: (taskId: string) => void;
-  onAddTask: (title: string, dateStr: string, recurrence: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
+  onAddTask: (
+    title: string,
+    dateStr: string,
+    recurrence: RecurrenceType,
+    tag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean,
+    isEvening?: boolean,
+    isGhost?: boolean,
+    isInbox?: boolean
+  ) => void;
   onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   onTogglePin?: (taskId: string) => void;
+  onToggleEvening?: (taskId: string) => void;
+  onToggleGhost?: (taskId: string) => void;
+  onMoveToInbox?: (taskId: string) => void;
+  onOpenTriage?: () => void;
+  inboxCount?: number;
   onDeferTask?: (taskId: string, currentDateStr: string) => void;
   onDuplicateTask?: (taskId: string, dateStr: string) => void;
   onDeleteSingle: (taskId: string) => void;
@@ -63,6 +79,11 @@ export function TodayScreen({
   onAddTask,
   onEditTask,
   onTogglePin,
+  onToggleEvening,
+  onToggleGhost,
+  onMoveToInbox,
+  onOpenTriage,
+  inboxCount = 0,
   onDeferTask,
   onDuplicateTask,
   onDeleteSingle,
@@ -138,6 +159,9 @@ export function TodayScreen({
     return matchesSearch && matchesTag;
   });
 
+  const dayTasks = filteredTasks.filter(t => !t.isEvening);
+  const eveningTasks = filteredTasks.filter(t => t.isEvening);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
       {/* Header */}
@@ -186,6 +210,29 @@ export function TodayScreen({
           </TouchableOpacity>
         )}
 
+        {/* Sunsama Inbox & Triage Banner */}
+        {inboxCount > 0 && isToday && (
+          <TouchableOpacity
+            style={[styles.triageBanner, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+            onPress={() => {
+              hapticLight();
+              if (onOpenTriage) onOpenTriage();
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.triageLeft}>
+              <Ionicons name="file-tray-full-outline" size={16} color="#059669" />
+              <Text style={[styles.triageText, { color: theme.text }]}>
+                {inboxCount} {inboxCount === 1 ? 'task in Inbox' : 'tasks in Inbox'}
+              </Text>
+            </View>
+            <View style={[styles.triagePill, { backgroundColor: '#dcfce7' }]}>
+              <Text style={styles.triagePillText}>Triage</Text>
+              <Ionicons name="arrow-forward" size={11} color="#059669" />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Progress Summary & Planned Time */}
         {totalTasks > 0 && (
           <View style={styles.summaryRow}>
@@ -222,21 +269,58 @@ export function TodayScreen({
         {/* Tasks List */}
         {totalTasks > 0 ? (
           filteredTasks.length > 0 ? (
-            filteredTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                theme={theme}
-                onToggle={handleToggle}
-                onDelete={t => setTaskToDelete(t)}
-                onEdit={t => setTaskToEdit(t)}
-                onTogglePin={onTogglePin}
-                onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
-                onDuplicateTask={onDuplicateTask ? () => onDuplicateTask(task.taskId, selectedDateStr) : undefined}
-                onToggleSubtask={onToggleSubtask}
-                onStartFocus={onStartFocus}
-              />
-            ))
+            <>
+              {dayTasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  theme={theme}
+                  onToggle={handleToggle}
+                  onDelete={t => setTaskToDelete(t)}
+                  onEdit={t => setTaskToEdit(t)}
+                  onTogglePin={onTogglePin}
+                  onToggleEvening={onToggleEvening}
+                  onToggleGhost={onToggleGhost}
+                  onMoveToInbox={onMoveToInbox}
+                  onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
+                  onDuplicateTask={onDuplicateTask ? () => onDuplicateTask(task.taskId, selectedDateStr) : undefined}
+                  onToggleSubtask={onToggleSubtask}
+                  onStartFocus={onStartFocus}
+                />
+              ))}
+
+              {eveningTasks.length > 0 && (
+                <View style={styles.eveningSection}>
+                  <View style={styles.eveningHeader}>
+                    <View style={styles.eveningTitleRow}>
+                      <Ionicons name="moon" size={14} color="#6366f1" />
+                      <Text style={[styles.eveningTitle, { color: theme.text }]}>This Evening</Text>
+                    </View>
+                    <View style={styles.eveningBadge}>
+                      <Text style={styles.eveningBadgeText}>After 6:00 PM</Text>
+                    </View>
+                  </View>
+                  {eveningTasks.map(task => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      theme={theme}
+                      onToggle={handleToggle}
+                      onDelete={t => setTaskToDelete(t)}
+                      onEdit={t => setTaskToEdit(t)}
+                      onTogglePin={onTogglePin}
+                      onToggleEvening={onToggleEvening}
+                      onToggleGhost={onToggleGhost}
+                      onMoveToInbox={onMoveToInbox}
+                      onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
+                      onDuplicateTask={onDuplicateTask ? () => onDuplicateTask(task.taskId, selectedDateStr) : undefined}
+                      onToggleSubtask={onToggleSubtask}
+                      onStartFocus={onStartFocus}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
           ) : (
             <View style={[styles.filterEmptyContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Ionicons name="search-outline" size={32} color={theme.textDim} style={{ marginBottom: 8 }} />
@@ -258,7 +342,9 @@ export function TodayScreen({
           )
         ) : (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🌸</Text>
+            <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
+              <Ionicons name="sparkles-outline" size={26} color={theme.primary} />
+            </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               Clear mind, peaceful day
             </Text>
@@ -413,9 +499,13 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 20,
   },
-  emptyIcon: {
-    fontSize: 42,
-    marginBottom: 12,
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 17,
@@ -485,5 +575,71 @@ const styles = StyleSheet.create({
   clearFilterText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  triageBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  triageLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  triageText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  triagePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  triagePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  eveningSection: {
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  eveningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  eveningTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  eveningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  eveningBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: '#eef2ff',
+  },
+  eveningBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6366f1',
   },
 });

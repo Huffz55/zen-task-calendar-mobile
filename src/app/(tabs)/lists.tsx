@@ -28,7 +28,7 @@ export default function ListsRoute() {
         showToast({
           type: 'success',
           title: 'List Created',
-          message: `"${title}" created 📝`,
+          message: `"${title}" created`,
         });
       }}
       onDeleteList={handleDeleteList}

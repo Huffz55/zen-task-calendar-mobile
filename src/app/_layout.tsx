@@ -23,6 +23,7 @@ function RootLayoutContent() {
     setIsSyncModalOpen,
     handleExportBackup,
     handleImportBackup,
+    handleClearAllData,
     tasks,
     lists,
     currentStreak,
@@ -87,6 +88,7 @@ function RootLayoutContent() {
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
+        onClearAllData={handleClearAllData}
         onShowToast={msg => showToast({ message: msg, type: 'info' })}
       />
     </View>

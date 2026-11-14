@@ -31,10 +31,10 @@ export function Header({
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'A calm morning ahead 🌸';
-    if (hour >= 12 && hour < 18) return 'A focused afternoon 🌸';
-    if (hour >= 18 && hour < 22) return 'Wind down & reflect 🌙';
-    return 'Time to rest 🌙';
+    if (hour >= 5 && hour < 12) return 'A calm morning ahead';
+    if (hour >= 12 && hour < 18) return 'A focused afternoon';
+    if (hour >= 18 && hour < 22) return 'Wind down & reflect';
+    return 'Time to rest';
   };
 
   return (
@@ -46,8 +46,9 @@ export function Header({
           </Text>
           {currentStreak > 0 && (
             <View style={[styles.streakBadge, { backgroundColor: theme.primaryLight }]}>
+              <Ionicons name="flame-outline" size={12} color={theme.primary} />
               <Text style={[styles.streakText, { color: theme.primary }]}>
-                🔥 {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
+                {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
               </Text>
             </View>
           )}
@@ -136,6 +137,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,

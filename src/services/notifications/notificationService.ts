@@ -108,13 +108,13 @@ export class MobileNotificationService implements INotificationService {
 
       const bodyText =
         taskCount > 0
-          ? `You have ${taskCount} task${taskCount > 1 ? 's' : ''} scheduled for today. Have a peaceful and productive day 🌸`
-          : 'A wonderful day to refresh your mind and embrace new goals 🌸';
+          ? `You have ${taskCount} task${taskCount > 1 ? 's' : ''} scheduled for today. Have a calm and productive day.`
+          : 'Your schedule is open today. Add your top priority when ready.';
 
       const id = await Notifications.scheduleNotificationAsync({
         identifier: 'daily-summary',
         content: {
-          title: 'Daily Zen Plan 🌸',
+          title: 'Daily Zen Plan',
           body: bodyText,
           sound: true,
           data: { type: 'daily-summary' },
@@ -145,13 +145,13 @@ export class MobileNotificationService implements INotificationService {
 
       const bodyText =
         pendingCount > 0
-          ? `Ready to wind down? 🌸 You have ${pendingCount} task${pendingCount > 1 ? 's' : ''} left today. Complete ${pendingCount > 1 ? 'them' : 'it'} or gently roll over to tomorrow.`
-          : 'Mindful day complete ✨ Take a deep breath, unwind, and rest well tonight 🌸';
+          ? `Ready to wind down? You have ${pendingCount} task${pendingCount > 1 ? 's' : ''} left today. Finish up or roll over to tomorrow.`
+          : 'All daily tasks complete. Unwind and rest well tonight.';
 
       const id = await Notifications.scheduleNotificationAsync({
         identifier: 'evening-winddown',
         content: {
-          title: 'Evening Wind-Down 🌙',
+          title: 'Evening Wind-Down',
           body: bodyText,
           sound: true,
           data: { type: 'evening-winddown' },
@@ -185,8 +185,8 @@ export class MobileNotificationService implements INotificationService {
       const id = await Notifications.scheduleNotificationAsync({
         identifier: 'zen-timer-end',
         content: {
-          title: 'Zen Focus Session Completed 🧘🌸',
-          body: `${sessionTitle} has ended. Take a mindful break to rest your mind.`,
+          title: 'Focus Session Complete',
+          body: `${sessionTitle} ended. Take a short break before your next block.`,
           sound: true,
           data: { type: 'focus-timer-complete' },
         },

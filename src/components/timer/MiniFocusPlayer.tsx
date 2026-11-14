@@ -72,7 +72,7 @@ export function MiniFocusPlayer({
             </Text>
             <Text style={[styles.dot, { color: theme.textDim }]}>•</Text>
             <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={1}>
-              {activeTaskTitle ? `🎯 ${activeTaskTitle}` : 'Zen Focus 🧘'}
+              {activeTaskTitle ? activeTaskTitle : 'Zen Focus'}
             </Text>
           </View>
 

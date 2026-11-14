@@ -23,8 +23,20 @@ export class MobileFocusStorage {
     return [];
   }
 
+  cancelPendingPush(): void {
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer);
+      this.pushTimer = null;
+    }
+    this.lastPushedHash = '';
+  }
+
   async saveSessions(sessions: FocusSession[]): Promise<void> {
     try {
+      const prevStored = await AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY);
+      if (!prevStored && sessions.length === 0) {
+        return;
+      }
       const serialized = JSON.stringify(sessions);
       await AsyncStorage.setItem(FOCUS_SESSIONS_STORAGE_KEY, serialized);
 

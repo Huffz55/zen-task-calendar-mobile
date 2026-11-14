@@ -30,7 +30,10 @@ interface AddTaskModalProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    isEvening?: boolean,
+    isGhost?: boolean,
+    isInbox?: boolean
   ) => void;
 }
 
@@ -46,6 +49,9 @@ export function AddTaskModal({
   const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(undefined);
   const [isPinned, setIsPinned] = useState(false);
+  const [isEvening, setIsEvening] = useState(false);
+  const [isGhost, setIsGhost] = useState(false);
+  const [isInbox, setIsInbox] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
   const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | null>(null);
@@ -73,12 +79,26 @@ export function AddTaskModal({
     if (!title.trim()) return;
     playWaterDrop();
     hapticSuccess();
-    onAddTask(title.trim(), selectedDateStr, recurrence, tag, subtasks, estimatedMinutes, isPinned);
+    onAddTask(
+      title.trim(),
+      selectedDateStr,
+      recurrence,
+      tag,
+      subtasks,
+      estimatedMinutes,
+      isPinned,
+      isEvening,
+      isGhost,
+      isInbox
+    );
     setTitle('');
     setTag(undefined);
     setRecurrence('none');
     setEstimatedMinutes(undefined);
     setIsPinned(false);
+    setIsEvening(false);
+    setIsGhost(false);
+    setIsInbox(false);
     setSubtasks([]);
     setNewSubtaskInput('');
     setActiveSection(null);
@@ -282,6 +302,75 @@ export function AddTaskModal({
                 ]}
               >
                 Steps{subtasks.length > 0 ? ` (${subtasks.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: isEvening ? (theme.isDark ? '#312e8155' : '#eef2ff') : theme.surfaceMuted,
+                  borderColor: isEvening ? '#6366f1' : theme.border,
+                },
+              ]}
+              onPress={() => {
+                hapticLight();
+                setIsEvening(prev => !prev);
+              }}
+            >
+              <Ionicons
+                name={isEvening ? 'moon' : 'moon-outline'}
+                size={13}
+                color={isEvening ? '#6366f1' : theme.textDim}
+              />
+              <Text style={[styles.optionPillText, { color: isEvening ? '#6366f1' : theme.textDim }]}>
+                Evening
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: isGhost ? theme.primaryLight : theme.surfaceMuted,
+                  borderColor: isGhost ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => {
+                hapticLight();
+                setIsGhost(prev => !prev);
+              }}
+            >
+              <Ionicons
+                name={isGhost ? 'cube' : 'cube-outline'}
+                size={13}
+                color={isGhost ? theme.primary : theme.textDim}
+              />
+              <Text style={[styles.optionPillText, { color: isGhost ? theme.primary : theme.textDim }]}>
+                Ghost
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionPill,
+                {
+                  backgroundColor: isInbox ? (theme.isDark ? '#0c4a6e55' : '#e0f2fe') : theme.surfaceMuted,
+                  borderColor: isInbox ? '#0284c7' : theme.border,
+                },
+              ]}
+              onPress={() => {
+                hapticLight();
+                setIsInbox(prev => !prev);
+              }}
+            >
+              <Ionicons
+                name={isInbox ? 'archive' : 'archive-outline'}
+                size={13}
+                color={isInbox ? '#0284c7' : theme.textDim}
+              />
+              <Text style={[styles.optionPillText, { color: isInbox ? '#0284c7' : theme.textDim }]}>
+                Inbox
               </Text>
             </TouchableOpacity>
           </View>

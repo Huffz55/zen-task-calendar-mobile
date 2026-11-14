@@ -107,10 +107,16 @@ export function useLists(storage: IListStorage = defaultListStorage) {
     }));
   }, []);
 
+  const clearAllLists = useCallback(() => {
+    springLayout();
+    setLists([]);
+  }, []);
+
   return {
     lists,
     isLoaded,
     addList,
+    clearAllLists,
     deleteList,
     restoreList,
     addListItem,

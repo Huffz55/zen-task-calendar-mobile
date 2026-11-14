@@ -93,7 +93,7 @@ export function FocusScreen({
         {activeFocusTask && (
           <View style={[styles.targetBanner, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
             <View style={styles.targetBannerLeft}>
-              <Text style={styles.targetEmoji}>🎯</Text>
+              <Ionicons name="locate-outline" size={20} color={theme.primary} />
               <View style={styles.targetTexts}>
                 <Text style={[styles.targetSubtitle, { color: theme.primary }]}>FOCUSING ON TARGET</Text>
                 <Text style={[styles.targetTitle, { color: theme.text }]} numberOfLines={1}>
@@ -257,9 +257,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flex: 1,
-  },
-  targetEmoji: {
-    fontSize: 20,
   },
   targetTexts: {
     flex: 1,
