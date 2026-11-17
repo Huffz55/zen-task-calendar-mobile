@@ -50,10 +50,11 @@ describe('mobile validator', () => {
     expect(validateTask({ id: '1', title: 'A', date: '2026-99-99' })).toBeNull();
   });
 
-  it('validates custom checklists and ignores invalid items', () => {
+  it('validates custom checklists, preserves folder, and ignores invalid items', () => {
     const list = validateCustomList({
       id: 'l-1',
       title: 'Groceries',
+      folder: '  Market  ',
       items: [
         { id: 'i1', text: 'Apples', completed: false },
         { id: 42, text: 'Invalid', completed: true },
@@ -64,6 +65,7 @@ describe('mobile validator', () => {
     expect(list).toEqual({
       id: 'l-1',
       title: 'Groceries',
+      folder: 'Market',
       items: [{ id: 'i1', text: 'Apples', completed: false }],
     });
   });

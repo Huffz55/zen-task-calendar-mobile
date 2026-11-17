@@ -42,11 +42,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
   };
 
   const isPlaying = activeSounds.length > 0;
-  const statusLabel = isPlaying
-    ? activeSounds.length === 1
-      ? 'Playing 🎵'
-      : `${activeSounds.length} Mixed 🎵`
-    : null;
+  const activeTrack = isPlaying ? AMBIENT_TRACKS[activeSounds[0]] : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -54,14 +50,11 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Ionicons name="headset-outline" size={17} color={theme.primary} />
-          <View>
-            <Text style={[styles.title, { color: theme.text }]}>Zen Ambient Mixer</Text>
-            <Text style={[styles.subtitle, { color: theme.textDim }]}>Layer sounds together</Text>
-          </View>
+          <Text style={[styles.title, { color: theme.text }]}>Ambient Sound</Text>
         </View>
-        {statusLabel && (
+        {activeTrack && (
           <View style={[styles.activePill, { backgroundColor: theme.primaryLight }]}>
-            <Text style={[styles.activePillText, { color: theme.primary }]}>{statusLabel}</Text>
+            <Text style={[styles.activePillText, { color: theme.primary }]}>{activeTrack.label}</Text>
           </View>
         )}
       </View>

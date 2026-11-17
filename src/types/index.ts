@@ -1,6 +1,14 @@
 export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'biweekly';
 
-export type TaskTag = 'work' | 'personal' | 'health' | 'ideas' | 'priority';
+export type BuiltinTaskTag = 'work' | 'personal' | 'health' | 'ideas' | 'priority';
+
+export type TaskTag = BuiltinTaskTag | (string & {});
+
+export interface CustomTag {
+  id: string;
+  label: string;
+  color: string;
+}
 
 export type AppTheme = 'sakura' | 'matcha' | 'nordic' | 'midnight';
 
@@ -23,9 +31,9 @@ export interface Task {
   endDate?: string; // YYYY-MM-DD when recurrence ends
   subtasks?: Subtask[];
   focusedSeconds?: number; // total focus time logged to this task
-  isPinned?: boolean; // One Big Thing / Focus of the Day
-  isEvening?: boolean; // This Evening distinction
-  isGhost?: boolean; // Ghost Block - tentative
+  isPinned?: boolean; // Focus of the Day
+  isEvening?: boolean; // Legacy field kept for sync compatibility
+  isGhost?: boolean; // Legacy field kept for sync compatibility
   isInbox?: boolean; // Triage / Quarantine inbox
   estimatedMinutes?: number; // Estimated duration in minutes
   isArchived?: boolean; // Auto-archived after 14 days of inactivity
@@ -59,6 +67,7 @@ export interface ListItem {
 export interface CustomList {
   id: string;
   title: string;
+  folder?: string;
   items: ListItem[];
   updatedAt?: number; // epoch ms for conflict resolution
 }

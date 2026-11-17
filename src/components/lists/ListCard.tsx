@@ -14,6 +14,7 @@ interface ListCardProps {
   onAddItem: (listId: string, text: string) => void;
   onDeleteItem: (listId: string, itemId: string) => void;
   onDeleteList: (listId: string) => void;
+  onMoveFolder?: (list: CustomList) => void;
 }
 
 export function ListCard({
@@ -23,6 +24,7 @@ export function ListCard({
   onAddItem,
   onDeleteItem,
   onDeleteList,
+  onMoveFolder,
 }: ListCardProps) {
   const [newItemText, setNewItemText] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
@@ -82,7 +84,9 @@ export function ListCard({
             size={18}
             color={theme.primary}
           />
-          <Text style={[styles.title, { color: theme.text }]}>{list.title}</Text>
+          <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
+            {list.title}
+          </Text>
           <View style={[styles.countBadge, { backgroundColor: theme.surfaceMuted }]}>
             <Text style={[styles.countText, { color: theme.textDim }]}>
               {completedCount}/{totalItems}
@@ -91,6 +95,19 @@ export function ListCard({
         </TouchableOpacity>
 
         <View style={styles.headerActions}>
+          {onMoveFolder && (
+            <TouchableOpacity
+              onPress={() => {
+                hapticLight();
+                onMoveFolder(list);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ padding: 4 }}
+            >
+              <Ionicons name="folder-outline" size={16} color={theme.textDim} />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             onPress={() => {
               hapticLight();
@@ -114,6 +131,15 @@ export function ListCard({
           </TouchableOpacity>
         </View>
       </View>
+
+      {list.folder && (
+        <View style={[styles.folderTagRow]}>
+          <View style={[styles.folderBadge, { backgroundColor: theme.primaryLight }]}>
+            <Ionicons name="folder-outline" size={10} color={theme.primary} />
+            <Text style={[styles.folderBadgeText, { color: theme.primary }]}>{list.folder}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Progress Bar */}
       {totalItems > 0 && (
@@ -225,21 +251,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 0,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flex: 1,
+    marginRight: 8,
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
+    flexShrink: 1,
   },
   countBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
+    flexShrink: 0,
+  },
+  folderTagRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+    marginLeft: 26,
+  },
+  folderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  folderBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   countText: {
     fontSize: 11,

@@ -9,11 +9,11 @@ const sfxBowlSource = require('../../../assets/sfx_bowl.wav');
 const sfxSwooshSource = require('../../../assets/sfx_swoosh.wav');
 
 const ambientSources = {
-  rain: require('../../../assets/ambient_rain.wav'),
-  waves: require('../../../assets/ambient_waves.wav'),
-  forest: require('../../../assets/ambient_forest.wav'),
-  wind: require('../../../assets/ambient_wind.wav'),
-  fire: require('../../../assets/ambient_fire.wav'),
+  rain: require('../../../assets/ambient_rain.m4a'),
+  waves: require('../../../assets/ambient_waves.m4a'),
+  forest: require('../../../assets/ambient_forest.m4a'),
+  wind: require('../../../assets/ambient_wind.m4a'),
+  fire: require('../../../assets/ambient_fire.m4a'),
 };
 
 export type AmbientSoundType = 'none' | 'rain' | 'waves' | 'forest' | 'wind' | 'fire';
@@ -170,6 +170,7 @@ export async function toggleAmbientSound(
     activeAmbientPlayers.delete(type);
     return false;
   } else {
+    stopAllAmbientSounds();
     try {
       const source = (ambientSources as Record<string, any>)[type];
       if (!source) return false;

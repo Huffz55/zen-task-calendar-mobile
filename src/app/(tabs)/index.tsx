@@ -20,15 +20,12 @@ export default function TodayRoute() {
     handleFutureDelete,
     handleEditTask,
     togglePinTask,
-    toggleEveningTask,
-    toggleGhostTask,
     moveToInbox,
     triageTask,
     inboxTasks,
     isTriageModalOpen,
     setIsTriageModalOpen,
     deferTaskToTomorrow,
-    duplicateTask,
     toggleSubtask,
     startTaskFocus,
     setIsThemeModalOpen,
@@ -61,22 +58,10 @@ export default function TodayRoute() {
         }}
         onEditTask={handleEditTask}
         onTogglePin={togglePinTask}
-        onToggleEvening={toggleEveningTask}
-        onToggleGhost={toggleGhostTask}
         onMoveToInbox={moveToInbox}
         onOpenTriage={() => setIsTriageModalOpen(true)}
         inboxCount={inboxTasks.length}
         onDeferTask={deferTaskToTomorrow}
-        onDuplicateTask={(taskId, dateStr) => {
-          const dup = duplicateTask(taskId, dateStr);
-          if (dup) {
-            showToast({
-              type: 'success',
-              title: 'Task Duplicated',
-              message: `Created copy of "${dup.title.replace(' (Copy)', '')}"`,
-            });
-          }
-        }}
         onDeleteSingle={handleSingleDelete}
         onDeleteInstance={handleInstanceDelete}
         onDeleteFuture={handleFutureDelete}

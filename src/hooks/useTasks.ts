@@ -108,7 +108,6 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   }, []);
 
   const toggleTaskCompletion = useCallback((taskId: string, dateStr: string) => {
-    springLayout();
     setTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const completedList = Array.isArray(task.completedDates) ? task.completedDates : [];

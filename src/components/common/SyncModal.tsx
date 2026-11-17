@@ -3,14 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
   ScrollView,
-  TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -20,6 +17,7 @@ import { AppToast } from '../../types';
 import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
 import { getSyncKey, isValidSyncKey, generateSyncKey } from '../../services/storage/syncKeyManager';
 import { switchGlobalSyncKey } from '../../services/storage/taskStorage';
+import { SwipeableBottomSheet } from './SwipeableBottomSheet';
 
 interface SyncModalProps {
   visible: boolean;
@@ -142,198 +140,176 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerTitleRow}>
-                <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
-                  <Ionicons name="cloud-outline" size={22} color={theme.primary} />
-                </View>
-                <View>
-                  <Text style={[styles.sheetTitle, { color: theme.text }]}>Cloud Sync</Text>
-                  <View style={styles.syncStatusRow}>
-                    <View style={styles.statusDotActive} />
-                    <Text style={[styles.subtitle, { color: theme.textDim }]}>
-                      Sync active
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  hapticLight();
-                  onClose();
-                }}
-                style={styles.closeBtn}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="close" size={20} color={theme.textDim} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* Section 1: Current Device Code */}
-              <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-                <View style={styles.sectionHeaderRow}>
-                  <Ionicons name="key-outline" size={15} color={theme.primary} />
-                  <Text style={[styles.sectionHeading, { color: theme.text }]}>
-                    CURRENT DEVICE KEY
-                  </Text>
-                </View>
-
-                <Text style={[styles.description, { color: theme.textDim }]}>
-                  Use this key on your other devices to sync data:
-                </Text>
-
-                <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                  <Text style={[styles.codeText, { color: theme.primary }]}>
-                    {currentKey || 'Loading...'}
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.copyBtn,
-                      { backgroundColor: copied ? '#ECFDF5' : theme.primaryLight },
-                    ]}
-                    onPress={handleCopy}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={copied ? 'checkmark' : 'copy-outline'}
-                      size={15}
-                      color={copied ? '#10B981' : theme.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.copyBtnText,
-                        { color: copied ? '#10B981' : theme.primary },
-                      ]}
-                    >
-                      {copied ? 'Copied' : 'Copy'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Generate New Key (Unlink) */}
-                {showUnlinkConfirm ? (
-                  <View style={styles.confirmBox}>
-                    <Text style={styles.confirmText}>
-                      Generate a new key? Synced devices using the current key will disconnect.
-                    </Text>
-                    <View style={styles.confirmActions}>
-                      <TouchableOpacity
-                        style={styles.cancelBtn}
-                        onPress={() => setShowUnlinkConfirm(false)}
-                      >
-                        <Text style={styles.cancelBtnText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.unlinkBtn}
-                        onPress={handleGenerateNewKey}
-                      >
-                        <Text style={styles.unlinkBtnText}>New Key</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.unlinkTrigger}
-                    onPress={() => {
-                      hapticLight();
-                      setShowUnlinkConfirm(true);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="sparkles-outline" size={13} color={theme.textDim} />
-                    <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
-                      Generate New Key
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Section 2: Connect to Another Device */}
-              <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border, marginTop: 14 }]}>
-                <View style={styles.sectionHeaderRow}>
-                  <Ionicons name="sync-outline" size={15} color={theme.accent || theme.primary} />
-                  <Text style={[styles.sectionHeading, { color: theme.text }]}>
-                    PAIR ANOTHER DEVICE
-                  </Text>
-                </View>
-
-                <Text style={[styles.description, { color: theme.textDim }]}>
-                  Enter the pairing key from your other device:
-                </Text>
-
-                <View style={styles.inputRow}>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: theme.surface,
-                        borderColor: errorMsg ? '#F43F5E' : theme.border,
-                        color: theme.text,
-                      },
-                    ]}
-                    value={inputKey}
-                    onChangeText={text => {
-                      setInputKey(text.toUpperCase());
-                      if (errorMsg) setErrorMsg('');
-                    }}
-                    placeholder="e.g. ZEN-7K9P-4X2M"
-                    placeholderTextColor={theme.textDim}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    maxLength={13}
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.connectBtn,
-                      {
-                        backgroundColor: theme.primary,
-                        opacity: isConnecting || !inputKey.trim() ? 0.6 : 1,
-                      },
-                    ]}
-                    onPress={handleConnect}
-                    disabled={isConnecting || !inputKey.trim()}
-                    activeOpacity={0.8}
-                  >
-                    {isConnecting ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.connectBtnText}>Connect</Text>
-                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                {errorMsg ? (
-                  <View style={styles.errorRow}>
-                    <Ionicons name="alert-circle-outline" size={14} color="#F43F5E" />
-                    <Text style={styles.errorText}>{errorMsg}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Security Badge */}
-              <View style={[styles.securityBadge, { borderTopColor: theme.border }]}>
-                <Ionicons name="shield-checkmark-outline" size={15} color="#10B981" />
-                <Text style={[styles.securityText, { color: theme.textDim }]}>
-                  Data is securely synced across paired devices.
-                </Text>
-              </View>
-            </ScrollView>
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="90%" useKeyboardAvoiding>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTitleRow}>
+          <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+            <Ionicons name="cloud-outline" size={22} color={theme.primary} />
           </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </Modal>
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>Cloud Sync</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            hapticLight();
+            onClose();
+          }}
+          style={styles.closeBtn}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={20} color={theme.textDim} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Section 1: Device Key */}
+        <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="key-outline" size={15} color={theme.primary} />
+            <Text style={[styles.sectionHeading, { color: theme.text }]}>
+              DEVICE KEY
+            </Text>
+          </View>
+
+          <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.codeText, { color: theme.primary }]}>
+              {currentKey || 'Loading...'}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.copyBtn,
+                { backgroundColor: copied ? '#ECFDF5' : theme.primaryLight },
+              ]}
+              onPress={handleCopy}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={copied ? 'checkmark' : 'copy-outline'}
+                size={15}
+                color={copied ? '#10B981' : theme.primary}
+              />
+              <Text
+                style={[
+                  styles.copyBtnText,
+                  { color: copied ? '#10B981' : theme.primary },
+                ]}
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Generate New Key */}
+          {showUnlinkConfirm ? (
+            <View
+              style={[
+                styles.confirmBox,
+                {
+                  backgroundColor: theme.isDark ? 'rgba(244, 63, 94, 0.14)' : '#FFF1F2',
+                  borderColor: theme.isDark ? 'rgba(244, 63, 94, 0.35)' : '#FECDD3',
+                },
+              ]}
+            >
+              <Text style={[styles.confirmText, { color: theme.isDark ? '#FDA4AF' : '#BE123C' }]}>
+                Generate a new key? Current paired devices will disconnect.
+              </Text>
+              <View style={styles.confirmActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.cancelBtn,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                  onPress={() => setShowUnlinkConfirm(false)}
+                >
+                  <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.unlinkBtn, { backgroundColor: theme.danger || '#E11D48' }]}
+                  onPress={handleGenerateNewKey}
+                >
+                  <Text style={styles.unlinkBtnText}>New Key</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.unlinkTrigger}
+              onPress={() => {
+                hapticLight();
+                setShowUnlinkConfirm(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={13} color={theme.textDim} />
+              <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
+                Generate New Key
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Section 2: Pair Another Device */}
+        <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border, marginTop: 14 }]}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="sync-outline" size={15} color={theme.accent || theme.primary} />
+            <Text style={[styles.sectionHeading, { color: theme.text }]}>
+              PAIR ANOTHER DEVICE
+            </Text>
+          </View>
+
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: errorMsg ? '#F43F5E' : theme.border,
+                  color: theme.text,
+                },
+              ]}
+              value={inputKey}
+              onChangeText={text => {
+                setInputKey(text.toUpperCase());
+                if (errorMsg) setErrorMsg('');
+              }}
+              placeholder="ZEN-XXXX-XXXX"
+              placeholderTextColor={theme.textDim}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={13}
+            />
+            <TouchableOpacity
+              style={[
+                styles.connectBtn,
+                {
+                  backgroundColor: theme.primary,
+                  opacity: isConnecting || !inputKey.trim() ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleConnect}
+              disabled={isConnecting || !inputKey.trim()}
+              activeOpacity={0.8}
+            >
+              {isConnecting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.connectBtnText}>Connect</Text>
+                  <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {errorMsg ? (
+            <View style={styles.errorRow}>
+              <Ionicons name="alert-circle-outline" size={14} color="#F43F5E" />
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </SwipeableBottomSheet>
   );
 }
 

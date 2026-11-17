@@ -38,17 +38,31 @@ export function useLists(storage: IListStorage = defaultListStorage) {
     }
   }, [storage]);
 
-  const addList = useCallback((title: string) => {
+  const addList = useCallback((title: string, folder?: string) => {
     const trimmed = title.trim();
     if (!trimmed) return;
+    const cleanFolder = folder?.trim();
     const newList: CustomList = {
       id: generateUniqueId(),
       title: trimmed,
+      ...(cleanFolder ? { folder: cleanFolder } : {}),
       items: [],
     };
     springLayout();
     setLists(prev => [...prev, newList]);
     return newList;
+  }, []);
+
+  const updateListFolder = useCallback((listId: string, folder?: string) => {
+    const cleanFolder = folder?.trim();
+    springLayout();
+    setLists(prev =>
+      prev.map(list =>
+        list.id === listId
+          ? { ...list, folder: cleanFolder || undefined }
+          : list
+      )
+    );
   }, []);
 
   const deleteList = useCallback((listId: string) => {
@@ -116,6 +130,7 @@ export function useLists(storage: IListStorage = defaultListStorage) {
     lists,
     isLoaded,
     addList,
+    updateListFolder,
     clearAllLists,
     deleteList,
     restoreList,

@@ -1,22 +1,22 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
 } from 'react-native';
-import { RecurrenceType, TaskTag, Subtask } from '../../types';
+import { isValid, parseISO } from 'date-fns';
+import { BuiltinTaskTag, RecurrenceType, TaskTag, Subtask } from '../../types';
 import { ThemeColors } from '../../constants/colors';
-import { TAGS } from '../../constants/tags';
+import { TAGS, CUSTOM_TAG_COLORS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { playWaterDrop, playBambooTap } from '../../services/audio/audioService';
 import { animateLayout, springLayout } from '../../utils/animations';
+import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { useApp } from '../../context/AppContext';
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -44,17 +44,25 @@ export function AddTaskModal({
   onClose,
   onAddTask,
 }: AddTaskModalProps) {
+  const { customTags, addCustomTag } = useApp();
   const [title, setTitle] = useState('');
   const [tag, setTag] = useState<TaskTag | undefined>(undefined);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState(CUSTOM_TAG_COLORS[0].color);
   const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(undefined);
   const [isPinned, setIsPinned] = useState(false);
-  const [isEvening, setIsEvening] = useState(false);
-  const [isGhost, setIsGhost] = useState(false);
   const [isInbox, setIsInbox] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
   const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | null>(null);
+
+  const formattedDate = useMemo(() => {
+    const parsed = parseISO(selectedDateStr);
+    if (!isValid(parsed)) return selectedDateStr;
+    return parsed.toLocaleDateString();
+  }, [selectedDateStr]);
 
   const handleAddSubtask = () => {
     const trimmed = newSubtaskInput.trim();
@@ -87,8 +95,8 @@ export function AddTaskModal({
       subtasks,
       estimatedMinutes,
       isPinned,
-      isEvening,
-      isGhost,
+      false,
+      false,
       isInbox
     );
     setTitle('');
@@ -96,8 +104,6 @@ export function AddTaskModal({
     setRecurrence('none');
     setEstimatedMinutes(undefined);
     setIsPinned(false);
-    setIsEvening(false);
-    setIsGhost(false);
     setIsInbox(false);
     setSubtasks([]);
     setNewSubtaskInput('');
@@ -110,7 +116,20 @@ export function AddTaskModal({
     onClose();
   };
 
-  const tagKeys = Object.keys(TAGS) as TaskTag[];
+  const handleCreateCustomTag = () => {
+    const createdId = addCustomTag(newTagName, newTagColor);
+    if (createdId) {
+      hapticSuccess();
+      setTag(createdId);
+      setNewTagName('');
+      setIsCreatingTag(false);
+    }
+  };
+
+  const tagKeys: TaskTag[] = [
+    ...(Object.keys(TAGS) as BuiltinTaskTag[]),
+    ...customTags.map(t => t.id),
+  ];
   const recurrenceOptions: { id: RecurrenceType; label: string }[] = [
     { id: 'none', label: 'Once' },
     { id: 'daily', label: 'Daily' },
@@ -128,22 +147,17 @@ export function AddTaskModal({
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
-      >
-        <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.sheetTitle, { color: theme.text }]}>Add New Task</Text>
-              <Text style={[styles.dateSubtitle, { color: theme.textDim }]}>{selectedDateStr}</Text>
-            </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={theme.textDim} />
-            </TouchableOpacity>
-          </View>
+    <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>Add New Task</Text>
+          <Text style={[styles.dateSubtitle, { color: theme.textDim }]}>{formattedDate}</Text>
+        </View>
+        <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+          <Ionicons name="close" size={20} color={theme.textDim} />
+        </TouchableOpacity>
+      </View>
 
           {/* Input */}
           <TextInput
@@ -191,7 +205,7 @@ export function AddTaskModal({
                   { color: activeSection === 'tag' || tag ? theme.primary : theme.textDim },
                 ]}
               >
-                {tag ? TAGS[tag].label : 'Tag'}
+                {tag ? resolveTagConfig(tag, customTags).label : 'Tag'}
               </Text>
             </TouchableOpacity>
 
@@ -309,52 +323,6 @@ export function AddTaskModal({
               style={[
                 styles.optionPill,
                 {
-                  backgroundColor: isEvening ? (theme.isDark ? '#312e8155' : '#eef2ff') : theme.surfaceMuted,
-                  borderColor: isEvening ? '#6366f1' : theme.border,
-                },
-              ]}
-              onPress={() => {
-                hapticLight();
-                setIsEvening(prev => !prev);
-              }}
-            >
-              <Ionicons
-                name={isEvening ? 'moon' : 'moon-outline'}
-                size={13}
-                color={isEvening ? '#6366f1' : theme.textDim}
-              />
-              <Text style={[styles.optionPillText, { color: isEvening ? '#6366f1' : theme.textDim }]}>
-                Evening
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.optionPill,
-                {
-                  backgroundColor: isGhost ? theme.primaryLight : theme.surfaceMuted,
-                  borderColor: isGhost ? theme.primary : theme.border,
-                },
-              ]}
-              onPress={() => {
-                hapticLight();
-                setIsGhost(prev => !prev);
-              }}
-            >
-              <Ionicons
-                name={isGhost ? 'cube' : 'cube-outline'}
-                size={13}
-                color={isGhost ? theme.primary : theme.textDim}
-              />
-              <Text style={[styles.optionPillText, { color: isGhost ? theme.primary : theme.textDim }]}>
-                Ghost
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.optionPill,
-                {
                   backgroundColor: isInbox ? (theme.isDark ? '#0c4a6e55' : '#e0f2fe') : theme.surfaceMuted,
                   borderColor: isInbox ? '#0284c7' : theme.border,
                 },
@@ -383,7 +351,7 @@ export function AddTaskModal({
                   <Text style={[styles.sectionLabel, { color: theme.textDim }]}>CHOOSE TAG</Text>
                   <View style={styles.chipsRow}>
                     {tagKeys.map(tKey => {
-                      const conf = TAGS[tKey];
+                      const conf = resolveTagConfig(tKey, customTags);
                       const isSelected = tag === tKey;
                       return (
                         <TouchableOpacity
@@ -415,7 +383,72 @@ export function AddTaskModal({
                         </TouchableOpacity>
                       );
                     })}
+                    <TouchableOpacity
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: isCreatingTag ? theme.primaryLight : theme.surfaceMuted,
+                          borderColor: isCreatingTag ? theme.primary : theme.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        hapticLight();
+                        setIsCreatingTag(prev => !prev);
+                      }}
+                    >
+                      <Text style={[styles.chipText, { color: theme.primary }]}>+ Tag</Text>
+                    </TouchableOpacity>
                   </View>
+
+                  {isCreatingTag && (
+                    <View style={styles.customTagBuilder}>
+                      <View style={styles.subtaskInputRow}>
+                        <TextInput
+                          style={[
+                            styles.subtaskTextInput,
+                            {
+                              backgroundColor: theme.surfaceMuted,
+                              borderColor: theme.border,
+                              color: theme.text,
+                            },
+                          ]}
+                          placeholder="Tag name"
+                          placeholderTextColor={theme.textDim}
+                          value={newTagName}
+                          onChangeText={setNewTagName}
+                          maxLength={24}
+                          returnKeyType="done"
+                          onSubmitEditing={handleCreateCustomTag}
+                        />
+                        <TouchableOpacity
+                          style={[
+                            styles.addSubtaskBtn,
+                            { backgroundColor: newTagName.trim() ? newTagColor : theme.surfaceMuted },
+                          ]}
+                          onPress={handleCreateCustomTag}
+                          disabled={!newTagName.trim()}
+                        >
+                          <Ionicons name="checkmark" size={18} color={newTagName.trim() ? '#ffffff' : theme.textDim} />
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.colorDotsRow}>
+                        {CUSTOM_TAG_COLORS.map(c => (
+                          <TouchableOpacity
+                            key={c.color}
+                            style={[
+                              styles.colorDot,
+                              { backgroundColor: c.color },
+                              newTagColor === c.color && { borderWidth: 2.5, borderColor: theme.text },
+                            ]}
+                            onPress={() => {
+                              hapticLight();
+                              setNewTagColor(c.color);
+                            }}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -506,7 +539,7 @@ export function AddTaskModal({
                           color: theme.text,
                         },
                       ]}
-                      placeholder="Add checklist step..."
+                      placeholder="Add checklist step"
                       placeholderTextColor={theme.textDim}
                       value={newSubtaskInput}
                       onChangeText={setNewSubtaskInput}
@@ -567,27 +600,11 @@ export function AddTaskModal({
               Add Task
             </Text>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </SwipeableBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    borderWidth: 1,
-    maxHeight: '85%',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -728,5 +745,18 @@ const styles = StyleSheet.create({
   },
   sectionBlock: {
     paddingVertical: 4,
+  },
+  customTagBuilder: {
+    marginTop: 10,
+  },
+  colorDotsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  colorDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
 });

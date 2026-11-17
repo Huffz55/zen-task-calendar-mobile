@@ -175,22 +175,21 @@ const styles = StyleSheet.create({
   },
   weekDaysRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     marginBottom: 8,
   },
   weekDayLabel: {
     fontSize: 11,
     fontWeight: '600',
-    width: 38,
+    width: '14.2857%',
     textAlign: 'center',
   },
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around',
+    justifyContent: 'flex-start',
   },
   dayCell: {
-    width: 38,
+    width: '14.2857%',
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',

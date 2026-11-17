@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'reac
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticMedium, hapticLight } from '../../hooks/useHaptics';
-import { playSingingBowl } from '../../services/audio/audioService';
 
 interface ZenTimerViewProps {
   timeLeft: number;
@@ -63,9 +62,6 @@ export function ZenTimerView({
 
   const handlePlayToggle = () => {
     hapticMedium();
-    if (!isTimerRunning) {
-      playSingingBowl();
-    }
     onToggleTimer();
   };
 

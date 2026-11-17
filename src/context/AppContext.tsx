@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { router } from 'expo-router';
 
-import { AppTheme, AppToast, Task, CustomList, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
+import { AppTheme, AppToast, Task, CustomList, CustomTag, BuiltinTaskTag, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
+import { TAGS, normalizeTagId } from '../constants/tags';
 import { THEMES, ThemeColors } from '../constants/colors';
 import { THEME_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
@@ -102,13 +103,19 @@ interface AppContextValue {
 
   // Lists Engine
   lists: CustomList[];
-  addList: (title: string) => CustomList | undefined;
+  addList: (title: string, folder?: string) => CustomList | undefined;
+  updateListFolder: (listId: string, folder?: string) => void;
   deleteList: (listId: string) => void;
   restoreList: (list: CustomList) => void;
   addListItem: (listId: string, text: string) => void;
   deleteListItem: (listId: string, itemId: string) => void;
   toggleListItem: (listId: string, itemId: string) => void;
   handleDeleteList: (listId: string) => void;
+
+  // Custom Tags Engine
+  customTags: CustomTag[];
+  addCustomTag: (label: string, color: string) => TaskTag | null;
+  deleteCustomTag: (id: string) => void;
 
   // Zen Focus Timer Engine
   timeLeft: number;
@@ -124,11 +131,13 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 const AUTO_NIGHT_STORAGE_KEY = '@noteapp_auto_night_shift';
+const CUSTOM_TAGS_STORAGE_KEY = '@noteapp_custom_tags';
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [daytimeThemeKey, setDaytimeThemeKey] = useState<AppTheme>('sakura');
   const [autoNightShift, setAutoNightShift] = useState(false);
+  const [customTags, setCustomTags] = useState<CustomTag[]>([]);
   const [isNightTime, setIsNightTime] = useState(() => {
     const h = new Date().getHours();
     return h >= 20 || h < 7;
@@ -152,6 +161,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (saved !== null) {
         setAutoNightShift(saved === 'true');
       }
+    });
+    AsyncStorage.getItem(CUSTOM_TAGS_STORAGE_KEY).then(saved => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setCustomTags(parsed);
+        } catch {
+          // Ignore malformed tags
+        }
+      }
+    });
+  }, []);
+
+  const addCustomTag = useCallback((label: string, color: string): TaskTag | null => {
+    const cleanLabel = label.trim().slice(0, 24);
+    const id = normalizeTagId(cleanLabel);
+    if (!cleanLabel || !id) return null;
+    if (id in TAGS) return id as BuiltinTaskTag;
+
+    setCustomTags(prev => {
+      const exists = prev.some(t => t.id === id);
+      const next = exists
+        ? prev.map(t => (t.id === id ? { ...t, label: cleanLabel, color } : t))
+        : [...prev, { id, label: cleanLabel, color }];
+      AsyncStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+    return id as TaskTag;
+  }, []);
+
+  const deleteCustomTag = useCallback((id: string) => {
+    setCustomTags(prev => {
+      const next = prev.filter(t => t.id !== id);
+      AsyncStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
     });
   }, []);
 
@@ -228,7 +272,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteSubtask,
     addTaskFocusTime,
     getTasksForDate,
-    autoArchiveNeglectedTasks,
     unarchiveTask,
     getArchivedTasks,
     rolloverOverdueTasks,
@@ -240,6 +283,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const {
     lists,
     addList,
+    updateListFolder,
     clearAllLists,
     deleteList,
     restoreList,
@@ -298,18 +342,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const currentDayTasks = getTasksForDate(selectedDateStr);
   const overdueCount = getOverdueTasksCount(todayStr);
 
-  // Sync morning daily summary and evening wind-down notifications
+  // Sync morning daily summary and evening wind-down notifications ONLY when enabled by user
   useEffect(() => {
-    const todayTasks = getTasksForDate(todayStr);
-    const pendingCount = todayTasks.filter(t => !t.isCompleted).length;
-    defaultNotificationService.scheduleDailySummary(9, 0, todayTasks.length).catch(() => {});
-    defaultNotificationService.scheduleEveningWindDown(20, 30, pendingCount).catch(() => {});
-  }, [getTasksForDate, todayStr, tasks]);
+    let active = true;
+    const syncNotifications = async () => {
+      try {
+        const pairs = await AsyncStorage.multiGet([
+          '@noteapp_setting_morning_summary',
+          '@noteapp_setting_evening_winddown',
+        ]);
+        if (!active) return;
 
-  // Silently auto-archive neglected tasks older than 14 days to reduce mental baggage
-  useEffect(() => {
-    autoArchiveNeglectedTasks(todayStr);
-  }, [todayStr, autoArchiveNeglectedTasks]);
+        const morningEnabled = pairs[0]?.[1] === 'true';
+        const eveningEnabled = pairs[1]?.[1] === 'true';
+        const todayTasks = getTasksForDate(todayStr);
+        const pendingCount = todayTasks.filter(t => !t.isCompleted).length;
+
+        if (morningEnabled) {
+          await defaultNotificationService.scheduleDailySummary(9, 0, todayTasks.length);
+        } else {
+          await defaultNotificationService.cancelNotification('daily-summary');
+        }
+
+        if (eveningEnabled) {
+          await defaultNotificationService.scheduleEveningWindDown(20, 30, pendingCount);
+        } else {
+          await defaultNotificationService.cancelNotification('evening-winddown');
+        }
+      } catch {
+        // Ignore storage read errors silently
+      }
+    };
+    syncNotifications();
+    return () => {
+      active = false;
+    };
+  }, [getTasksForDate, todayStr, tasks]);
 
   const handleSingleDelete = useCallback(
     (taskId: string) => {
@@ -560,12 +628,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getArchivedTasks,
         lists,
         addList,
+        updateListFolder,
         deleteList,
         restoreList,
         addListItem,
         deleteListItem,
         toggleListItem,
         handleDeleteList,
+        customTags,
+        addCustomTag,
+        deleteCustomTag,
         timeLeft,
         initialTime,
         isTimerRunning,

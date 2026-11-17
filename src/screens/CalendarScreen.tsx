@@ -80,14 +80,12 @@ export function CalendarScreen({
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const dayTasks = getTasksForDate(selectedDateStr);
 
-  const tagCounts = {
-    all: dayTasks.length,
-    work: dayTasks.filter(t => t.tag === 'work').length,
-    personal: dayTasks.filter(t => t.tag === 'personal').length,
-    health: dayTasks.filter(t => t.tag === 'health').length,
-    ideas: dayTasks.filter(t => t.tag === 'ideas').length,
-    priority: dayTasks.filter(t => t.tag === 'priority').length,
-  };
+  const tagCounts: Record<string, number> = { all: dayTasks.length };
+  for (const t of dayTasks) {
+    if (t.tag) {
+      tagCounts[t.tag] = (tagCounts[t.tag] || 0) + 1;
+    }
+  }
 
   const filteredTasks = dayTasks.filter(task => {
     const matchesSearch =

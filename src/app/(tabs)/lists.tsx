@@ -8,6 +8,7 @@ export default function ListsRoute() {
     currentStreak,
     lists,
     addList,
+    updateListFolder,
     handleDeleteList,
     addListItem,
     deleteListItem,
@@ -23,14 +24,15 @@ export default function ListsRoute() {
       theme={theme}
       currentStreak={currentStreak}
       lists={lists}
-      onAddList={title => {
-        addList(title);
+      onAddList={(title, folder) => {
+        addList(title, folder);
         showToast({
           type: 'success',
           title: 'List Created',
           message: `"${title}" created`,
         });
       }}
+      onUpdateListFolder={updateListFolder}
       onDeleteList={handleDeleteList}
       onAddItem={addListItem}
       onDeleteItem={deleteListItem}

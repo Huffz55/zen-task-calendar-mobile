@@ -1,9 +1,8 @@
-import { Task, CustomList, ListItem, RecurrenceType, TaskTag, Subtask } from '../../types';
+import type { Task, CustomList, ListItem, RecurrenceType, TaskTag, Subtask } from '../../types';
 import { parseISO, isValid } from 'date-fns';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_RECURRENCES: Set<RecurrenceType> = new Set(['none', 'daily', 'weekly', 'biweekly']);
-const VALID_TAGS: Set<TaskTag> = new Set(['work', 'personal', 'health', 'ideas', 'priority']);
 
 export function isValidDateString(str: unknown): str is string {
   if (typeof str !== 'string' || !DATE_REGEX.test(str)) return false;
@@ -37,8 +36,11 @@ export function validateTask(raw: unknown): Task | null {
   }
 
   let tag: TaskTag | undefined = undefined;
-  if (typeof candidate.tag === 'string' && VALID_TAGS.has(candidate.tag as TaskTag)) {
-    tag = candidate.tag as TaskTag;
+  if (typeof candidate.tag === 'string') {
+    const cleanTag = sanitizeText(candidate.tag, 32);
+    if (cleanTag) {
+      tag = cleanTag as TaskTag;
+    }
   }
 
   const completedDates: string[] = Array.isArray(candidate.completedDates)
@@ -113,6 +115,8 @@ export function validateCustomList(raw: unknown): CustomList | null {
   const title = sanitizeText(candidate.title, 200);
   if (!title) return null;
 
+  const folder = sanitizeText(candidate.folder, 60) || undefined;
+
   const rawItems = Array.isArray(candidate.items) ? candidate.items : [];
   const items: ListItem[] = [];
 
@@ -134,6 +138,7 @@ export function validateCustomList(raw: unknown): CustomList | null {
   return {
     id,
     title,
+    ...(folder ? { folder } : {}),
     items,
   };
 }

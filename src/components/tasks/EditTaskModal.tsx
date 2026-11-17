@@ -3,18 +3,17 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
 } from 'react-native';
-import { DailyTask, TaskTag, Subtask } from '../../types';
+import { BuiltinTaskTag, DailyTask, TaskTag, Subtask } from '../../types';
 import { ThemeColors } from '../../constants/colors';
-import { TAGS } from '../../constants/tags';
+import { TAGS, CUSTOM_TAG_COLORS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
+import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { useApp } from '../../context/AppContext';
 
 interface EditTaskModalProps {
   visible: boolean;
@@ -38,8 +37,12 @@ export function EditTaskModal({
   onClose,
   onSave,
 }: EditTaskModalProps) {
+  const { customTags, addCustomTag } = useApp();
   const [title, setTitle] = useState(task?.title || '');
   const [tag, setTag] = useState<TaskTag | undefined>(task?.tag);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState(CUSTOM_TAG_COLORS[0].color);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(task?.estimatedMinutes);
   const [isPinned, setIsPinned] = useState(task?.isPinned || false);
   const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks || []);
@@ -78,7 +81,20 @@ export function EditTaskModal({
     onClose();
   };
 
-  const tagKeys = Object.keys(TAGS) as TaskTag[];
+  const handleCreateCustomTag = () => {
+    const createdId = addCustomTag(newTagName, newTagColor);
+    if (createdId) {
+      hapticSuccess();
+      setTag(createdId);
+      setNewTagName('');
+      setIsCreatingTag(false);
+    }
+  };
+
+  const tagKeys: TaskTag[] = [
+    ...(Object.keys(TAGS) as BuiltinTaskTag[]),
+    ...customTags.map(t => t.id),
+  ];
 
   const durationOptions: { label: string; value: number | undefined }[] = [
     { label: 'None', value: undefined },
@@ -90,26 +106,21 @@ export function EditTaskModal({
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
-      >
-        <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.sheetTitle, { color: theme.text }]}>Edit Task</Text>
-              <Text style={[styles.dateSubtitle, { color: theme.textDim }]}>
-                {task?.recurrence && task.recurrence !== 'none'
-                  ? `Recurring Task (${task.recurrence})`
-                  : 'Single Task'}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={theme.textDim} />
-            </TouchableOpacity>
-          </View>
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>Edit Task</Text>
+          <Text style={[styles.dateSubtitle, { color: theme.textDim }]}>
+            {task?.recurrence && task.recurrence !== 'none'
+              ? `Recurring (${task.recurrence})`
+              : 'Single Task'}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <Ionicons name="close" size={20} color={theme.textDim} />
+        </TouchableOpacity>
+      </View>
 
           {/* Input */}
           <TextInput
@@ -159,7 +170,7 @@ export function EditTaskModal({
               </TouchableOpacity>
 
               {tagKeys.map(tKey => {
-                const conf = TAGS[tKey];
+                const conf = resolveTagConfig(tKey, customTags);
                 const isSelected = tag === tKey;
                 return (
                   <TouchableOpacity
@@ -193,7 +204,73 @@ export function EditTaskModal({
                   </TouchableOpacity>
                 );
               })}
+
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: isCreatingTag ? theme.primaryLight : theme.surfaceMuted,
+                    borderColor: isCreatingTag ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => {
+                  hapticLight();
+                  setIsCreatingTag(prev => !prev);
+                }}
+              >
+                <Text style={[styles.chipText, { color: theme.primary }]}>+ Tag</Text>
+              </TouchableOpacity>
             </View>
+
+            {isCreatingTag && (
+              <View style={styles.customTagBuilder}>
+                <View style={styles.subtaskInputRow}>
+                  <TextInput
+                    style={[
+                      styles.subtaskTextInput,
+                      {
+                        backgroundColor: theme.surfaceMuted,
+                        borderColor: theme.border,
+                        color: theme.text,
+                      },
+                    ]}
+                    placeholder="Tag name"
+                    placeholderTextColor={theme.textDim}
+                    value={newTagName}
+                    onChangeText={setNewTagName}
+                    maxLength={24}
+                    returnKeyType="done"
+                    onSubmitEditing={handleCreateCustomTag}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.addSubtaskBtn,
+                      { backgroundColor: newTagName.trim() ? newTagColor : theme.surfaceMuted },
+                    ]}
+                    onPress={handleCreateCustomTag}
+                    disabled={!newTagName.trim()}
+                  >
+                    <Ionicons name="checkmark" size={18} color={newTagName.trim() ? '#ffffff' : theme.textDim} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.colorDotsRow}>
+                  {CUSTOM_TAG_COLORS.map(c => (
+                    <TouchableOpacity
+                      key={c.color}
+                      style={[
+                        styles.colorDot,
+                        { backgroundColor: c.color },
+                        newTagColor === c.color && { borderWidth: 2.5, borderColor: theme.text },
+                      ]}
+                      onPress={() => {
+                        hapticLight();
+                        setNewTagColor(c.color);
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Estimated Duration */}
             <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>ESTIMATED TIME</Text>
@@ -250,10 +327,7 @@ export function EditTaskModal({
               />
               <View style={styles.pinToggleContent}>
                 <Text style={[styles.pinToggleTitle, { color: isPinned ? '#b45309' : theme.text }]}>
-                  Focus of the Day (One Big Thing)
-                </Text>
-                <Text style={[styles.pinToggleDesc, { color: theme.textDim }]}>
-                  Pin to top with gold badge as your highest priority goal.
+                  Focus of the Day
                 </Text>
               </View>
             </TouchableOpacity>
@@ -272,7 +346,7 @@ export function EditTaskModal({
                     color: theme.text,
                   },
                 ]}
-                placeholder="Add checklist step..."
+                placeholder="Add checklist step"
                 placeholderTextColor={theme.textDim}
                 value={newSubtaskInput}
                 onChangeText={setNewSubtaskInput}
@@ -330,27 +404,11 @@ export function EditTaskModal({
               Save Changes
             </Text>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </SwipeableBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    borderWidth: 1,
-    maxHeight: '85%',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -465,5 +523,18 @@ const styles = StyleSheet.create({
   subtaskChipText: {
     fontSize: 12,
     flex: 1,
+  },
+  customTagBuilder: {
+    marginTop: 10,
+  },
+  colorDotsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  colorDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
 });

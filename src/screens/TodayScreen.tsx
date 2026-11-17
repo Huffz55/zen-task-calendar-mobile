@@ -45,13 +45,10 @@ interface TodayScreenProps {
   ) => void;
   onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   onTogglePin?: (taskId: string) => void;
-  onToggleEvening?: (taskId: string) => void;
-  onToggleGhost?: (taskId: string) => void;
   onMoveToInbox?: (taskId: string) => void;
   onOpenTriage?: () => void;
   inboxCount?: number;
   onDeferTask?: (taskId: string, currentDateStr: string) => void;
-  onDuplicateTask?: (taskId: string, dateStr: string) => void;
   onDeleteSingle: (taskId: string) => void;
   onDeleteInstance: (taskId: string, dateStr: string) => void;
   onDeleteFuture: (taskId: string, dateStr: string) => void;
@@ -79,13 +76,10 @@ export function TodayScreen({
   onAddTask,
   onEditTask,
   onTogglePin,
-  onToggleEvening,
-  onToggleGhost,
   onMoveToInbox,
   onOpenTriage,
   inboxCount = 0,
   onDeferTask,
-  onDuplicateTask,
   onDeleteSingle,
   onDeleteInstance,
   onDeleteFuture,
@@ -142,14 +136,12 @@ export function TodayScreen({
     onSelectDate(date);
   };
 
-  const tagCounts = {
-    all: tasks.length,
-    work: tasks.filter(t => t.tag === 'work').length,
-    personal: tasks.filter(t => t.tag === 'personal').length,
-    health: tasks.filter(t => t.tag === 'health').length,
-    ideas: tasks.filter(t => t.tag === 'ideas').length,
-    priority: tasks.filter(t => t.tag === 'priority').length,
-  };
+  const tagCounts: Record<string, number> = { all: tasks.length };
+  for (const t of tasks) {
+    if (t.tag) {
+      tagCounts[t.tag] = (tagCounts[t.tag] || 0) + 1;
+    }
+  }
 
   const filteredTasks = tasks.filter(task => {
     const matchesSearch =
@@ -158,9 +150,6 @@ export function TodayScreen({
     const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
     return matchesSearch && matchesTag;
   });
-
-  const dayTasks = filteredTasks.filter(t => !t.isEvening);
-  const eveningTasks = filteredTasks.filter(t => t.isEvening);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
@@ -210,46 +199,55 @@ export function TodayScreen({
           </TouchableOpacity>
         )}
 
-        {/* Sunsama Inbox & Triage Banner */}
-        {inboxCount > 0 && isToday && (
-          <TouchableOpacity
-            style={[styles.triageBanner, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-            onPress={() => {
-              hapticLight();
-              if (onOpenTriage) onOpenTriage();
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.triageLeft}>
-              <Ionicons name="file-tray-full-outline" size={16} color="#059669" />
-              <Text style={[styles.triageText, { color: theme.text }]}>
-                {inboxCount} {inboxCount === 1 ? 'task in Inbox' : 'tasks in Inbox'}
-              </Text>
-            </View>
-            <View style={[styles.triagePill, { backgroundColor: '#dcfce7' }]}>
-              <Text style={styles.triagePillText}>Triage</Text>
-              <Ionicons name="arrow-forward" size={11} color="#059669" />
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Progress Summary & Planned Time */}
-        {totalTasks > 0 && (
+        {/* Progress Summary, Planned Time & Inbox Button */}
+        {(totalTasks > 0 || onOpenTriage) && (
           <View style={styles.summaryRow}>
             <View style={styles.summaryLeft}>
-              <Text style={[styles.summaryText, { color: theme.textDim }]}>
-                {completedTasks} of {totalTasks} completed
-              </Text>
+              {totalTasks > 0 && (
+                <Text style={[styles.summaryText, { color: theme.textDim }]}>
+                  {completedTasks} of {totalTasks} completed
+                </Text>
+              )}
               {plannedTotalStr && (
                 <Text style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
                   {plannedTotalStr}
                 </Text>
               )}
+              {totalTasks > 0 && completedTasks === totalTasks && (
+                <Text style={[styles.perfectBadge, { color: theme.success }]}>
+                  All done
+                </Text>
+              )}
             </View>
-            {completedTasks === totalTasks && (
-              <Text style={[styles.perfectBadge, { color: theme.success }]}>
-                All done today
-              </Text>
+            {onOpenTriage && (
+              <TouchableOpacity
+                style={[
+                  styles.inboxActionPill,
+                  {
+                    backgroundColor: inboxCount > 0 ? theme.primaryLight : theme.surfaceMuted,
+                    borderColor: inboxCount > 0 ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => {
+                  hapticLight();
+                  onOpenTriage();
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name="file-tray-full-outline"
+                  size={13}
+                  color={inboxCount > 0 ? theme.primary : theme.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.inboxActionText,
+                    { color: inboxCount > 0 ? theme.primary : theme.textMuted },
+                  ]}
+                >
+                  Inbox{inboxCount > 0 ? ` (${inboxCount})` : ''}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -270,7 +268,7 @@ export function TodayScreen({
         {totalTasks > 0 ? (
           filteredTasks.length > 0 ? (
             <>
-              {dayTasks.map(task => (
+              {filteredTasks.map(task => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -279,57 +277,19 @@ export function TodayScreen({
                   onDelete={t => setTaskToDelete(t)}
                   onEdit={t => setTaskToEdit(t)}
                   onTogglePin={onTogglePin}
-                  onToggleEvening={onToggleEvening}
-                  onToggleGhost={onToggleGhost}
                   onMoveToInbox={onMoveToInbox}
                   onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
-                  onDuplicateTask={onDuplicateTask ? () => onDuplicateTask(task.taskId, selectedDateStr) : undefined}
                   onToggleSubtask={onToggleSubtask}
                   onStartFocus={onStartFocus}
                 />
               ))}
-
-              {eveningTasks.length > 0 && (
-                <View style={styles.eveningSection}>
-                  <View style={styles.eveningHeader}>
-                    <View style={styles.eveningTitleRow}>
-                      <Ionicons name="moon" size={14} color="#6366f1" />
-                      <Text style={[styles.eveningTitle, { color: theme.text }]}>This Evening</Text>
-                    </View>
-                    <View style={styles.eveningBadge}>
-                      <Text style={styles.eveningBadgeText}>After 6:00 PM</Text>
-                    </View>
-                  </View>
-                  {eveningTasks.map(task => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      theme={theme}
-                      onToggle={handleToggle}
-                      onDelete={t => setTaskToDelete(t)}
-                      onEdit={t => setTaskToEdit(t)}
-                      onTogglePin={onTogglePin}
-                      onToggleEvening={onToggleEvening}
-                      onToggleGhost={onToggleGhost}
-                      onMoveToInbox={onMoveToInbox}
-                      onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
-                      onDuplicateTask={onDuplicateTask ? () => onDuplicateTask(task.taskId, selectedDateStr) : undefined}
-                      onToggleSubtask={onToggleSubtask}
-                      onStartFocus={onStartFocus}
-                    />
-                  ))}
-                </View>
-              )}
             </>
           ) : (
             <View style={[styles.filterEmptyContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Ionicons name="search-outline" size={32} color={theme.textDim} style={{ marginBottom: 8 }} />
-              <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>No matching tasks found</Text>
-              <Text style={[styles.filterEmptySubtitle, { color: theme.textDim }]}>
-                No tasks match your search or selected tag.
-              </Text>
+              <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>No matching tasks</Text>
               <TouchableOpacity
-                style={[styles.clearFilterBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border }]}
+                style={[styles.clearFilterBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 10 }]}
                 onPress={() => {
                   hapticLight();
                   setSearchQuery('');
@@ -346,13 +306,10 @@ export function TodayScreen({
               <Ionicons name="sparkles-outline" size={26} color={theme.primary} />
             </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              Clear mind, peaceful day
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textDim }]}>
-              No tasks planned for this day. Tap the plus button to add a new goal.
+              No tasks for today
             </Text>
             <TouchableOpacity
-              style={[styles.emptyAddBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border }]}
+              style={[styles.emptyAddBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 12 }]}
               onPress={() => {
                 hapticLight();
                 setIsAddModalOpen(true);
@@ -576,70 +533,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  triageBanner: {
+  inboxActionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  triageLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  triageText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  triagePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
+    borderWidth: 1,
   },
-  triagePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  eveningSection: {
-    marginTop: 18,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(99, 102, 241, 0.15)',
-  },
-  eveningHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    paddingHorizontal: 4,
-  },
-  eveningTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  eveningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  eveningBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: '#eef2ff',
-  },
-  eveningBadgeText: {
+  inboxActionText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#6366f1',
+    fontWeight: '700',
   },
 });

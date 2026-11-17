@@ -65,9 +65,6 @@ export function EveningReviewModal({
               <Ionicons name="moon-outline" size={22} color={theme.primary} />
             </View>
             <Text style={[styles.title, { color: theme.text }]}>Evening Review</Text>
-            <Text style={[styles.subtitle, { color: theme.textDim }]}>
-              A quiet moment to reflect on your day
-            </Text>
           </View>
 
           {/* KPI Summary Cards */}

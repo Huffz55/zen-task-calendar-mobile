@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { TaskTag } from '../../types';
+import { BuiltinTaskTag, TaskTag } from '../../types';
 import { ThemeColors } from '../../constants/colors';
-import { TAGS } from '../../constants/tags';
+import { TAGS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../../hooks/useHaptics';
+import { useApp } from '../../context/AppContext';
 
 interface TaskFilterBarProps {
   searchQuery: string;
@@ -19,14 +20,7 @@ interface TaskFilterBarProps {
   selectedTag: TaskTag | 'all';
   onSelectTag: (tag: TaskTag | 'all') => void;
   theme: ThemeColors;
-  counts?: {
-    all: number;
-    work: number;
-    personal: number;
-    health: number;
-    ideas: number;
-    priority: number;
-  };
+  counts?: Record<string, number>;
 }
 
 export function TaskFilterBar({
@@ -37,7 +31,15 @@ export function TaskFilterBar({
   theme,
   counts,
 }: TaskFilterBarProps) {
-  const tagKeys = Object.keys(TAGS) as TaskTag[];
+  const { customTags } = useApp();
+  const builtinKeys = Object.keys(TAGS) as BuiltinTaskTag[];
+  const extraTagKeys = Array.from(
+    new Set([
+      ...customTags.map(t => t.id),
+      ...Object.keys(counts || {}).filter(k => k !== 'all' && !(k in TAGS) && (counts?.[k] || 0) > 0),
+    ])
+  ) as TaskTag[];
+  const tagKeys: TaskTag[] = [...builtinKeys, ...extraTagKeys];
 
   return (
     <View style={styles.container}>
@@ -131,9 +133,9 @@ export function TaskFilterBar({
 
         {/* Individual Tag Chips */}
         {tagKeys.map(tKey => {
-          const conf = TAGS[tKey];
+          const conf = resolveTagConfig(tKey, customTags);
           const isSelected = selectedTag === tKey;
-          const tagCount = counts ? counts[tKey] : 0;
+          const tagCount = counts ? (counts[tKey] || 0) : 0;
 
           return (
             <TouchableOpacity
