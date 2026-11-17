@@ -1,56 +1,76 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { generateSyncKey, isValidSyncKey } from './syncKeyFormat';
+
+export { generateSyncKey, isValidSyncKey };
 
 export const SYNC_KEY_STORAGE = '@zen_sync_key';
-const CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const SECURE_SYNC_KEY = 'zen_sync_key_v1';
 
 let cachedSyncKey: string | null = null;
 
-/**
- * Generates an unambiguous, human-friendly pairing code: ZEN-XXXX-XXXX
- * Omits characters easily confused: 0/O, 1/I.
- */
-export function generateSyncKey(): string {
-  let part1 = '';
-  let part2 = '';
-  for (let i = 0; i < 4; i++) {
-    part1 += CHARS[Math.floor(Math.random() * CHARS.length)];
-    part2 += CHARS[Math.floor(Math.random() * CHARS.length)];
+async function writeToSecureStorage(value: string): Promise<boolean> {
+  try {
+    await SecureStore.setItemAsync(SECURE_SYNC_KEY, value, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
+    // Ensure plain AsyncStorage no longer holds the pairing key
+    await AsyncStorage.removeItem(SYNC_KEY_STORAGE).catch(() => {});
+    return true;
+  } catch {
+    return false;
   }
-  return `ZEN-${part1}-${part2}`;
+}
+
+async function readFromSecureStorage(): Promise<string | null> {
+  try {
+    const secured = await SecureStore.getItemAsync(SECURE_SYNC_KEY);
+    if (secured && isValidSyncKey(secured)) {
+      return secured.trim().toUpperCase();
+    }
+  } catch {
+    // Ignore when SecureStore is unavailable (e.g., web or test environment)
+  }
+  return null;
 }
 
 /**
- * Validates if a string adheres to the ZEN-XXXX-XXXX pairing format.
- */
-export function isValidSyncKey(key: string): boolean {
-  if (!key) return false;
-  const cleaned = key.trim().toUpperCase();
-  return /^ZEN-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(cleaned);
-}
-
-/**
- * Retrieves the currently active sync key or generates and persists a new one.
+ * Retrieves the currently active sync key from hardware-backed SecureStore
+ * (migrating any legacy AsyncStorage value) or generates and persists a new one.
  */
 export async function getSyncKey(): Promise<string> {
   if (cachedSyncKey && isValidSyncKey(cachedSyncKey)) {
     return cachedSyncKey;
   }
 
+  const fromSecure = await readFromSecureStorage();
+  if (fromSecure) {
+    cachedSyncKey = fromSecure;
+    // Remove any leftover legacy plaintext copy in AsyncStorage
+    await AsyncStorage.removeItem(SYNC_KEY_STORAGE).catch(() => {});
+    return fromSecure;
+  }
+
   try {
-    const existing = await AsyncStorage.getItem(SYNC_KEY_STORAGE);
-    if (existing && isValidSyncKey(existing)) {
-      cachedSyncKey = existing.trim().toUpperCase();
-      return cachedSyncKey;
+    const legacy = await AsyncStorage.getItem(SYNC_KEY_STORAGE);
+    if (legacy && isValidSyncKey(legacy)) {
+      const normalized = legacy.trim().toUpperCase();
+      await writeToSecureStorage(normalized);
+      cachedSyncKey = normalized;
+      return normalized;
     }
   } catch (err) {
     console.error('[SyncKeyManager] Failed to read sync key from AsyncStorage', err);
   }
 
   const generated = generateSyncKey();
-  try {
-    await AsyncStorage.setItem(SYNC_KEY_STORAGE, generated);
-  } catch (err) {
-    console.error('[SyncKeyManager] Failed to persist generated sync key', err);
+  const savedSecure = await writeToSecureStorage(generated);
+  if (!savedSecure) {
+    try {
+      await AsyncStorage.setItem(SYNC_KEY_STORAGE, generated);
+    } catch (err) {
+      console.error('[SyncKeyManager] Failed to persist generated sync key', err);
+    }
   }
   cachedSyncKey = generated;
   return generated;
@@ -64,13 +84,20 @@ export function getCachedSyncKey(): string | null {
 }
 
 /**
- * Persists a new sync key to AsyncStorage after format validation.
+ * Persists a new sync key after strict format validation.
  */
 export async function setSyncKey(newKey: string): Promise<boolean> {
-  const normalized = newKey.trim().toUpperCase();
+  const normalized = typeof newKey === 'string' ? newKey.trim().toUpperCase() : '';
   if (!isValidSyncKey(normalized)) {
     return false;
   }
+
+  const savedSecure = await writeToSecureStorage(normalized);
+  if (savedSecure) {
+    cachedSyncKey = normalized;
+    return true;
+  }
+
   try {
     await AsyncStorage.setItem(SYNC_KEY_STORAGE, normalized);
     cachedSyncKey = normalized;

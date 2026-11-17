@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidWorkspaceDocId(docId) {
+      return docId.matches('^ZEN-[A-Z0-9]{4}-[A-Z0-9]{4}_(tasks|lists|focus)$');
+    }
+
+    function isValidWorkspacePayload() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['items', 'updatedAt'])
+        && data.keys().hasOnly(['items', 'deletedIds', 'updatedAt'])
+        && data.items is list
+        && data.items.size() <= 3000
+        && (data.updatedAt is int || data.updatedAt is float)
+        && (!('deletedIds' in data) || (data.deletedIds is list && data.deletedIds.size() <= 2000));
+    }
+
+    match /workspaces/{workspaceDocId} {
+      // Prevent collection enumeration / scraping of sync keys
+      allow list: if false;
+
+      // Require Firebase Anonymous Auth and exact pairing-key document ID format
+      allow get: if request.auth != null && isValidWorkspaceDocId(workspaceDocId);
+
+      allow create, update: if request.auth != null
+        && isValidWorkspaceDocId(workspaceDocId)
+        && isValidWorkspacePayload();
+
+      allow delete: if request.auth != null && isValidWorkspaceDocId(workspaceDocId);
+    }
+
+    // Deny all other collections by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

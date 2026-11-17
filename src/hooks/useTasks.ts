@@ -4,10 +4,7 @@ import { differenceInDays, parseISO, isValid, subDays, addDays, format } from 'd
 import { ITaskStorage, defaultTaskStorage } from '../services/storage/taskStorage';
 import { springLayout } from '../utils/animations';
 import { getDailyTasksForDate } from '../utils/taskSchedule';
-
-function generateUniqueId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
-}
+import { generateSecureId as generateUniqueId } from '../utils/cryptoRandom';
 
 export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   const [tasks, setTasks] = useState<Task[]>([]);

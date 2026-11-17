@@ -1,5 +1,28 @@
 import { Task } from '../types';
 
+function stripControlChars(raw: string): string {
+  let out = '';
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i);
+    if (code >= 32 && code !== 127) {
+      out += raw[i];
+    } else {
+      out += ' ';
+    }
+  }
+  return out;
+}
+
+function sanitizeIcsValue(raw: string): string {
+  // Strip CR/LF/NUL to prevent iCalendar property/event injection (RFC 5545)
+  return stripControlChars(raw).replace(/[\\,;]/g, ' ');
+}
+
+function sanitizeMarkdownInline(raw: string): string {
+  // Strip line breaks and control chars so a single task cannot forge headings or blocks
+  return stripControlChars(raw).trim();
+}
+
 export function generateICSContent(tasks: Task[]): string {
   const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
   const now = new Date();
@@ -8,21 +31,22 @@ export function generateICSContent(tasks: Task[]): string {
   const events = tasks
     .filter(t => !t.isArchived)
     .map(t => {
-      const cleanDate = (t.date || '').replace(/-/g, '');
-      if (!cleanDate) return '';
+      const cleanDate = (t.date || '').replace(/[^0-9]/g, '');
+      if (!/^\d{8}$/.test(cleanDate)) return '';
       const isDone = Array.isArray(t.completedDates) && t.completedDates.length > 0;
       const status = isDone ? 'COMPLETED' : 'CONFIRMED';
-      const cleanTitle = (t.title || 'Untitled Task').replace(/[\\,;]/g, ' ');
+      const cleanUid = (t.id || 'task').replace(/[^A-Za-z0-9_.-]/g, '_');
+      const cleanTitle = sanitizeIcsValue(t.title || 'Untitled Task');
       const descParts = [];
-      if (t.tag) descParts.push(`Tag: ${t.tag}`);
-      if (t.estimatedMinutes) descParts.push(`Est: ${t.estimatedMinutes}m`);
+      if (t.tag) descParts.push(`Tag: ${sanitizeIcsValue(String(t.tag))}`);
+      if (t.estimatedMinutes) descParts.push(`Est: ${Math.floor(t.estimatedMinutes)}m`);
       if (t.isEvening) descParts.push('This Evening');
       if (t.isGhost) descParts.push('Ghost Block');
       const description = descParts.join(' | ');
 
       return [
         'BEGIN:VEVENT',
-        `UID:${t.id}@zen.app`,
+        `UID:${cleanUid}@zen.app`,
         `DTSTAMP:${dtstamp}`,
         `DTSTART;VALUE=DATE:${cleanDate}`,
         `SUMMARY:${cleanTitle}`,
@@ -76,11 +100,11 @@ export function generateMarkdownContent(tasks: Task[]): string {
       const isDone = Array.isArray(t.completedDates) && t.completedDates.includes(date);
       const mark = isDone ? 'x' : ' ';
       let meta = '';
-      if (t.tag) meta += ` #${t.tag}`;
-      if (t.estimatedMinutes) meta += ` (${t.estimatedMinutes}m)`;
+      if (t.tag) meta += ` #${sanitizeMarkdownInline(String(t.tag))}`;
+      if (t.estimatedMinutes) meta += ` (${Math.floor(t.estimatedMinutes)}m)`;
       if (t.isEvening) meta += ' [This Evening]';
       if (t.isGhost) meta += ' [Ghost]';
-      lines.push(`- [${mark}] ${t.title}${meta}`);
+      lines.push(`- [${mark}] ${sanitizeMarkdownInline(t.title || 'Untitled')}${meta}`);
     }
     lines.push('');
   }
@@ -89,9 +113,9 @@ export function generateMarkdownContent(tasks: Task[]): string {
     lines.push('## Inbox / Triage');
     for (const t of inboxTasks) {
       let meta = '';
-      if (t.tag) meta += ` #${t.tag}`;
-      if (t.estimatedMinutes) meta += ` (${t.estimatedMinutes}m)`;
-      lines.push(`- [ ] ${t.title}${meta}`);
+      if (t.tag) meta += ` #${sanitizeMarkdownInline(String(t.tag))}`;
+      if (t.estimatedMinutes) meta += ` (${Math.floor(t.estimatedMinutes)}m)`;
+      lines.push(`- [ ] ${sanitizeMarkdownInline(t.title || 'Untitled')}${meta}`);
     }
     lines.push('');
   }

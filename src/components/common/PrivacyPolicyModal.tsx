@@ -27,7 +27,7 @@ const SECTIONS = [
   {
     icon: 'cloud-outline' as const,
     title: 'Optional Cloud Sync',
-    body: 'Cross-device sync uses a randomly generated pairing key (ZEN-XXXX-XXXX) and anonymous Firebase authentication. No name, email, or password is required.',
+    body: 'Cross-device sync stores workspace data over HTTPS in Google Firebase Cloud Firestore using a randomly generated pairing key (ZEN-XXXX-XXXX) secured in hardware key storage and anonymous authentication. No name, email, or password is required.',
   },
   {
     icon: 'shield-checkmark-outline' as const,

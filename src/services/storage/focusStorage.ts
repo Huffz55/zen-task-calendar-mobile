@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { FocusSession } from '../../types';
 import { db, ensureAuth } from '../firebase/firebaseClient';
-import { getSyncKey } from './syncKeyManager';
+import { getSyncKey, isValidSyncKey } from './syncKeyManager';
+import { cleanUndefined } from './syncEngine';
+import { validateFocusSession, safeJsonParse, MAX_FOCUS_SESSIONS_LIMIT } from '../validation/validator';
 
 export const FOCUS_SESSIONS_STORAGE_KEY = '@noteapp_mobile_focus_sessions_v1';
 
@@ -17,8 +19,15 @@ export class MobileFocusStorage {
     try {
       const stored = await AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY);
       if (!stored) return [];
-      const raw = JSON.parse(stored);
-      if (Array.isArray(raw)) return raw;
+      const raw = safeJsonParse<unknown>(stored);
+      if (Array.isArray(raw)) {
+        const valid: FocusSession[] = [];
+        for (const item of raw.slice(0, MAX_FOCUS_SESSIONS_LIMIT)) {
+          const v = validateFocusSession(item);
+          if (v) valid.push(v);
+        }
+        return valid;
+      }
     } catch {}
     return [];
   }
@@ -37,7 +46,8 @@ export class MobileFocusStorage {
       if (!prevStored && sessions.length === 0) {
         return;
       }
-      const serialized = JSON.stringify(sessions);
+      const bounded = sessions.slice(0, MAX_FOCUS_SESSIONS_LIMIT);
+      const serialized = JSON.stringify(bounded);
       await AsyncStorage.setItem(FOCUS_SESSIONS_STORAGE_KEY, serialized);
 
       if (this.isApplyingRemoteUpdate || serialized === this.lastPushedHash) {
@@ -50,17 +60,18 @@ export class MobileFocusStorage {
         try {
           await ensureAuth();
           const syncKey = await getSyncKey();
+          if (!isValidSyncKey(syncKey)) return;
           const focusDocRef = doc(db, 'workspaces', `${syncKey}_focus`);
           await setDoc(focusDocRef, {
-            items: sessions,
+            items: cleanUndefined(bounded),
             updatedAt: Date.now(),
           });
         } catch (err) {
-          console.error('[SyncError Mobile Focus]: Failed to push to Firestore:', err);
+          if (__DEV__) console.error('[SyncError Mobile Focus]: Failed to push to Firestore:', err);
         }
       }, 150);
     } catch (e) {
-      console.error('[SyncError Mobile Focus]: saveSessions failed:', e);
+      if (__DEV__) console.error('[SyncError Mobile Focus]: saveSessions failed:', e);
     }
   }
 
@@ -72,6 +83,7 @@ export class MobileFocusStorage {
       .then(async () => {
         if (isCancelled) return;
         const syncKey = await getSyncKey();
+        if (!isValidSyncKey(syncKey)) return;
         const focusDocRef = doc(db, 'workspaces', `${syncKey}_focus`);
 
         this.currentUnsubscribe = onSnapshot(
@@ -79,14 +91,21 @@ export class MobileFocusStorage {
           async (snapshot) => {
             if (!snapshot.exists()) return;
             const data = snapshot.data();
-            const remoteItems: FocusSession[] = Array.isArray(data?.items) ? data.items : [];
+            const rawRemote: unknown[] = Array.isArray(data?.items) ? data.items : [];
+            const remoteItems: FocusSession[] = [];
+            for (const item of rawRemote.slice(0, MAX_FOCUS_SESSIONS_LIMIT)) {
+              const v = validateFocusSession(item);
+              if (v) remoteItems.push(v);
+            }
 
             const localItems = await this.loadSessions();
             const map = new Map<string, FocusSession>();
             for (const item of localItems) map.set(item.id, item);
             for (const item of remoteItems) map.set(item.id, item);
 
-            const merged = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+            const merged = Array.from(map.values())
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, MAX_FOCUS_SESSIONS_LIMIT);
             const serializedMerged = JSON.stringify(merged);
             const serializedLocal = JSON.stringify(localItems);
 
@@ -99,12 +118,12 @@ export class MobileFocusStorage {
             }
           },
           (err) => {
-            console.error('[SyncError Mobile Focus]: onSnapshot failed:', err);
+            if (__DEV__) console.error('[SyncError Mobile Focus]: onSnapshot failed:', err);
           }
         );
       })
       .catch((err) => {
-        console.error('[SyncError Mobile Focus]: ensureAuth failed:', err);
+        if (__DEV__) console.error('[SyncError Mobile Focus]: ensureAuth failed:', err);
       });
 
     return () => {

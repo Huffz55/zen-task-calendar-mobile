@@ -3,7 +3,14 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { format } from 'date-fns';
 import { Task, CustomList, BackupPayload } from '../../types';
-import { validateTask, validateCustomList } from '../validation/validator';
+import {
+  validateTask,
+  validateCustomList,
+  safeJsonParse,
+  MAX_BACKUP_BYTES,
+  MAX_TASKS_LIMIT,
+  MAX_LISTS_LIMIT,
+} from '../validation/validator';
 import { generateICSContent, generateMarkdownContent } from '../../utils/zenExport';
 
 export class BackupService {
@@ -13,7 +20,7 @@ export class BackupService {
       const filename = `zen_calendar_${format(new Date(), 'yyyyMMdd_HHmmss')}.ics`;
       const file = new File(Paths.cache, filename);
 
-      file.create();
+      file.create({ overwrite: true });
       file.write(icsStr);
 
       const isAvailable = await Sharing.isAvailableAsync();
@@ -27,7 +34,7 @@ export class BackupService {
       }
       return false;
     } catch (e) {
-      console.warn('Failed to export ICS', e);
+      if (__DEV__) console.warn('Failed to export ICS', e);
       throw e;
     }
   }
@@ -38,7 +45,7 @@ export class BackupService {
       const filename = `zen_tasks_obsidian_${format(new Date(), 'yyyyMMdd_HHmmss')}.md`;
       const file = new File(Paths.cache, filename);
 
-      file.create();
+      file.create({ overwrite: true });
       file.write(mdStr);
 
       const isAvailable = await Sharing.isAvailableAsync();
@@ -52,7 +59,7 @@ export class BackupService {
       }
       return false;
     } catch (e) {
-      console.warn('Failed to export Markdown', e);
+      if (__DEV__) console.warn('Failed to export Markdown', e);
       throw e;
     }
   }
@@ -70,7 +77,7 @@ export class BackupService {
       const filename = `zen_task_backup_${format(new Date(), 'yyyyMMdd_HHmmss')}.json`;
       const file = new File(Paths.cache, filename);
 
-      file.create();
+      file.create({ overwrite: true });
       file.write(jsonStr);
 
       const isAvailable = await Sharing.isAvailableAsync();
@@ -84,7 +91,7 @@ export class BackupService {
       }
       return false;
     } catch (e) {
-      console.warn('Failed to export backup', e);
+      if (__DEV__) console.warn('Failed to export backup', e);
       throw e;
     }
   }
@@ -101,28 +108,43 @@ export class BackupService {
       }
 
       const pickedAsset = res.assets[0];
+      if (typeof pickedAsset.size === 'number' && pickedAsset.size > MAX_BACKUP_BYTES) {
+        throw new Error('Backup file exceeds maximum allowed size (5 MB)');
+      }
+
       const file = new File(pickedAsset.uri);
       const rawText = await file.text();
-      const parsed: unknown = JSON.parse(rawText);
+      if (rawText.length > MAX_BACKUP_BYTES) {
+        throw new Error('Backup content exceeds maximum allowed size (5 MB)');
+      }
 
+      const parsed = safeJsonParse<unknown>(rawText, MAX_BACKUP_BYTES);
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('Invalid backup file format');
       }
 
-      const candidate = parsed as Record<string, unknown>;
-      const rawTasks = Array.isArray(candidate.tasks) ? candidate.tasks : [];
-      const rawLists = Array.isArray(candidate.lists) ? candidate.lists : [];
-
       const validTasks: Task[] = [];
-      for (const t of rawTasks) {
-        const validated = validateTask(t);
-        if (validated) validTasks.push(validated);
-      }
-
       const validLists: CustomList[] = [];
-      for (const l of rawLists) {
-        const validated = validateCustomList(l);
-        if (validated) validLists.push(validated);
+
+      if (Array.isArray(parsed)) {
+        for (const t of parsed.slice(0, MAX_TASKS_LIMIT)) {
+          const validated = validateTask(t);
+          if (validated) validTasks.push(validated);
+        }
+      } else {
+        const candidate = parsed as Record<string, unknown>;
+        const rawTasks = Array.isArray(candidate.tasks) ? candidate.tasks.slice(0, MAX_TASKS_LIMIT) : [];
+        const rawLists = Array.isArray(candidate.lists) ? candidate.lists.slice(0, MAX_LISTS_LIMIT) : [];
+
+        for (const t of rawTasks) {
+          const validated = validateTask(t);
+          if (validated) validTasks.push(validated);
+        }
+
+        for (const l of rawLists) {
+          const validated = validateCustomList(l);
+          if (validated) validLists.push(validated);
+        }
       }
 
       return {
@@ -130,7 +152,7 @@ export class BackupService {
         lists: validLists,
       };
     } catch (e) {
-      console.warn('Failed to import backup', e);
+      if (__DEV__) console.warn('Failed to import backup', e);
       throw e;
     }
   }

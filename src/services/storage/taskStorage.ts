@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { Task, CustomList, SyncDocState } from '../../types';
-import { validateTask, validateCustomList } from '../validation/validator';
+import {
+  validateTask,
+  validateCustomList,
+  sanitizeDeletedIds,
+  safeJsonParse,
+  MAX_TASKS_LIMIT,
+  MAX_LISTS_LIMIT,
+} from '../validation/validator';
 import { db, ensureAuth } from '../firebase/firebaseClient';
 import { mergeItemsWithTombstones, cleanUndefined } from './syncEngine';
-import { getSyncKey, setSyncKey, generateSyncKey } from './syncKeyManager';
+import { getSyncKey, setSyncKey, generateSyncKey, isValidSyncKey, SYNC_KEY_STORAGE } from './syncKeyManager';
 import { defaultFocusStorage, FOCUS_SESSIONS_STORAGE_KEY } from './focusStorage';
 
 export const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
@@ -12,6 +19,7 @@ export const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
 export const THEME_STORAGE_KEY = '@noteapp_mobile_theme_v1';
 export const TASKS_DELETED_KEY = '@noteapp_mobile_tasks_deleted_ids_v1';
 export const LISTS_DELETED_KEY = '@noteapp_mobile_lists_deleted_ids_v1';
+export const CUSTOM_TAGS_STORAGE_KEY = '@noteapp_custom_tags';
 
 export interface ITaskStorage {
   loadTasks(): Promise<Task[]>;
@@ -31,8 +39,8 @@ async function loadDeletedIds(key: string): Promise<string[]> {
   try {
     const raw = await AsyncStorage.getItem(key);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      const parsed = safeJsonParse<unknown>(raw);
+      return sanitizeDeletedIds(parsed);
     }
   } catch {}
   return [];
@@ -40,7 +48,7 @@ async function loadDeletedIds(key: string): Promise<string[]> {
 
 async function saveDeletedIds(key: string, ids: string[]): Promise<void> {
   try {
-    const capped = ids.slice(-1000);
+    const capped = sanitizeDeletedIds(ids, 1000);
     await AsyncStorage.setItem(key, JSON.stringify(capped));
   } catch {}
 }
@@ -56,10 +64,10 @@ export class MobileTaskStorage implements ITaskStorage {
     try {
       const stored = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
       if (!stored) return [];
-      const raw: unknown = JSON.parse(stored);
+      const raw = safeJsonParse<unknown>(stored);
       if (Array.isArray(raw)) {
         const validated: Task[] = [];
-        for (const item of raw) {
+        for (const item of raw.slice(0, MAX_TASKS_LIMIT)) {
           const v = validateTask(item);
           if (v) validated.push(v);
         }
@@ -67,33 +75,33 @@ export class MobileTaskStorage implements ITaskStorage {
       }
       return [];
     } catch (e) {
-      console.error('[SyncError Mobile Tasks] Failed to load tasks from AsyncStorage', e);
+      if (__DEV__) console.error('[SyncError Mobile Tasks] Failed to load tasks from AsyncStorage', e);
       return [];
     }
   }
 
   async saveTasks(tasks: Task[]): Promise<void> {
     try {
-      // 1. Previous tasks for diffing deletions & content changes
       const prevStored = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
-      const prevTasks: Task[] = prevStored ? JSON.parse(prevStored) : [];
+      const parsedPrev = prevStored ? safeJsonParse<unknown>(prevStored) : [];
+      const prevTasks: Task[] = Array.isArray(parsedPrev)
+        ? parsedPrev.map(validateTask).filter((t): t is Task => t !== null)
+        : [];
       const prevMap = new Map(prevTasks.map(t => [t.id, t]));
 
-      // 2. Track deleted IDs (Tombstones)
       const currentIds = new Set(tasks.map(t => t.id));
       const newlyDeletedIds = prevTasks.filter(t => !currentIds.has(t.id)).map(t => t.id);
       const existingDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
       if (!prevStored && tasks.length === 0 && existingDeletedIds.length === 0) {
         return;
       }
-      const updatedDeletedIds = Array.from(new Set([...existingDeletedIds, ...newlyDeletedIds]));
+      const updatedDeletedIds = sanitizeDeletedIds([...existingDeletedIds, ...newlyDeletedIds], 1000);
       if (newlyDeletedIds.length > 0) {
         await saveDeletedIds(TASKS_DELETED_KEY, updatedDeletedIds);
       }
 
-      // 3. Attach updatedAt timestamp to modified/new tasks
       const now = Date.now();
-      const tasksWithTimestamps: Task[] = tasks.map(t => {
+      const tasksWithTimestamps: Task[] = tasks.slice(0, MAX_TASKS_LIMIT).map(t => {
         const prev = prevMap.get(t.id);
         if (!prev || JSON.stringify(prev) !== JSON.stringify(t)) {
           return { ...t, updatedAt: now };
@@ -101,18 +109,15 @@ export class MobileTaskStorage implements ITaskStorage {
         return { ...t, updatedAt: t.updatedAt || now };
       });
 
-      // 4. Always save to AsyncStorage immediately (0ms local-first guarantee)
       const newSerialized = JSON.stringify(tasksWithTimestamps);
       await AsyncStorage.setItem(TASKS_STORAGE_KEY, newSerialized);
 
-      // 5. Infinite Echo Loop Protection
       if (this.isApplyingRemoteUpdate || newSerialized === this.lastPushedHash) {
         return;
       }
 
       this.lastPushedHash = newSerialized;
 
-      // 6. Push to Firestore (debounced 150ms to batch rapid UI actions)
       if (this.pushTimer) {
         clearTimeout(this.pushTimer);
       }
@@ -120,6 +125,7 @@ export class MobileTaskStorage implements ITaskStorage {
         try {
           await ensureAuth();
           const syncKey = await getSyncKey();
+          if (!isValidSyncKey(syncKey)) return;
           const taskDocRef = doc(db, 'workspaces', `${syncKey}_tasks`);
           const payload: SyncDocState<Task> = {
             items: cleanUndefined(tasksWithTimestamps),
@@ -127,13 +133,15 @@ export class MobileTaskStorage implements ITaskStorage {
             updatedAt: Date.now(),
           };
           await setDoc(taskDocRef, payload);
-          console.log(`[Sync Mobile] Successfully pushed tasks to ${taskDocRef.path} (count: ${tasksWithTimestamps.length})`);
+          if (__DEV__) {
+            console.log(`[Sync Mobile] Pushed tasks (count: ${tasksWithTimestamps.length})`);
+          }
         } catch (err) {
-          console.error('[SyncError Mobile Tasks]: Failed to push tasks to Firestore:', err);
+          if (__DEV__) console.error('[SyncError Mobile Tasks]: Failed to push tasks to Firestore:', err);
         }
       }, 150);
     } catch (e) {
-      console.error('[SyncError Mobile Tasks]: Failed in saveTasks', e);
+      if (__DEV__) console.error('[SyncError Mobile Tasks]: Failed in saveTasks', e);
     }
   }
 
@@ -145,6 +153,7 @@ export class MobileTaskStorage implements ITaskStorage {
       .then(async () => {
         if (isCancelled) return;
         const syncKey = await getSyncKey();
+        if (!isValidSyncKey(syncKey)) return;
         const taskDocRef = doc(db, 'workspaces', `${syncKey}_tasks`);
 
         const unsubscribeFirestore = onSnapshot(
@@ -154,60 +163,62 @@ export class MobileTaskStorage implements ITaskStorage {
               const localTasks = await this.loadTasks();
               const localDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
               if (localTasks.length > 0 || localDeletedIds.length > 0) {
-                console.log(`[Sync Mobile] Initializing empty cloud document ${taskDocRef.path} with local data...`);
                 const payload: SyncDocState<Task> = {
                   items: cleanUndefined(localTasks),
                   deletedIds: localDeletedIds,
                   updatedAt: Date.now(),
                 };
                 setDoc(taskDocRef, payload).catch(err => {
-                  console.error('[SyncError Mobile Tasks]: Failed to initialize empty tasks_state:', err);
+                  if (__DEV__) console.error('[SyncError Mobile Tasks]: Failed to initialize empty tasks_state:', err);
                 });
               }
               return;
             }
 
-            const data = snapshot.data() as SyncDocState<Task> | undefined;
+            const data = snapshot.data() as SyncDocState<unknown> | undefined;
             if (!data || !Array.isArray(data.items)) return;
 
-            // Load local state & tombstones
+            // Strictly validate & sanitize every remote record before storing/rendering
+            const validatedRemoteTasks: Task[] = [];
+            for (const rawItem of data.items.slice(0, MAX_TASKS_LIMIT)) {
+              const v = validateTask(rawItem);
+              if (v) validatedRemoteTasks.push(v);
+            }
+
             const localTasks = await this.loadTasks();
             const localDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
-            const remoteDeletedIds = Array.isArray(data.deletedIds) ? data.deletedIds : [];
+            const remoteDeletedIds = sanitizeDeletedIds(data.deletedIds);
             const combinedDeletedIds = new Set([...localDeletedIds, ...remoteDeletedIds]);
 
-            // Save combined tombstones
             await saveDeletedIds(TASKS_DELETED_KEY, Array.from(combinedDeletedIds));
 
-            // Merge with tombstones
-            const merged = mergeItemsWithTombstones(localTasks, data.items, combinedDeletedIds);
+            const merged = mergeItemsWithTombstones(localTasks, validatedRemoteTasks, combinedDeletedIds);
             const mergedSerialized = JSON.stringify(merged);
 
-            // If merged state is different from local, apply it
             if (mergedSerialized !== JSON.stringify(localTasks)) {
-              console.log(`[Sync Mobile] Received updated tasks from ${taskDocRef.path} (count: ${merged.length})`);
+              if (__DEV__) {
+                console.log(`[Sync Mobile] Received updated tasks (count: ${merged.length})`);
+              }
               this.isApplyingRemoteUpdate = true;
               this.lastPushedHash = mergedSerialized;
               await AsyncStorage.setItem(TASKS_STORAGE_KEY, mergedSerialized);
 
-              // Notify hook to update React state
               callback(merged);
 
-              // Reset echo guard
               setTimeout(() => {
                 this.isApplyingRemoteUpdate = false;
               }, 150);
             }
           },
           err => {
-            console.error('[SyncError Mobile Tasks]: onSnapshot listener error:', err);
+            if (__DEV__) console.error('[SyncError Mobile Tasks]: onSnapshot listener error:', err);
           }
         );
 
         this.currentUnsubscribe = unsubscribeFirestore;
       })
       .catch(err => {
-        console.error('[SyncError Mobile Tasks]: Failed to initialize task subscription:', err);
+        if (__DEV__) console.error('[SyncError Mobile Tasks]: Failed to initialize task subscription:', err);
       });
 
     return () => {
@@ -231,7 +242,8 @@ export class MobileTaskStorage implements ITaskStorage {
   }
 
   async switchSyncKey(newKey: string): Promise<void> {
-    await setSyncKey(newKey);
+    const ok = await setSyncKey(newKey);
+    if (!ok) return;
     if (this.currentUnsubscribe) {
       this.currentUnsubscribe();
       this.currentUnsubscribe = null;
@@ -254,10 +266,10 @@ export class MobileListStorage implements IListStorage {
     try {
       const stored = await AsyncStorage.getItem(LISTS_STORAGE_KEY);
       if (!stored) return [];
-      const raw: unknown = JSON.parse(stored);
+      const raw = safeJsonParse<unknown>(stored);
       if (Array.isArray(raw)) {
         const validated: CustomList[] = [];
-        for (const item of raw) {
+        for (const item of raw.slice(0, MAX_LISTS_LIMIT)) {
           const v = validateCustomList(item);
           if (v) validated.push(v);
         }
@@ -265,33 +277,33 @@ export class MobileListStorage implements IListStorage {
       }
       return [];
     } catch (e) {
-      console.error('[SyncError Mobile Lists] Failed to load lists from AsyncStorage', e);
+      if (__DEV__) console.error('[SyncError Mobile Lists] Failed to load lists from AsyncStorage', e);
       return [];
     }
   }
 
   async saveLists(lists: CustomList[]): Promise<void> {
     try {
-      // 1. Previous lists for diffing deletions
       const prevStored = await AsyncStorage.getItem(LISTS_STORAGE_KEY);
-      const prevLists: CustomList[] = prevStored ? JSON.parse(prevStored) : [];
+      const parsedPrev = prevStored ? safeJsonParse<unknown>(prevStored) : [];
+      const prevLists: CustomList[] = Array.isArray(parsedPrev)
+        ? parsedPrev.map(validateCustomList).filter((l): l is CustomList => l !== null)
+        : [];
       const prevMap = new Map(prevLists.map(l => [l.id, l]));
 
-      // 2. Track deleted list IDs
       const currentIds = new Set(lists.map(l => l.id));
       const newlyDeletedIds = prevLists.filter(l => !currentIds.has(l.id)).map(l => l.id);
       const existingDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
       if (!prevStored && lists.length === 0 && existingDeletedIds.length === 0) {
         return;
       }
-      const updatedDeletedIds = Array.from(new Set([...existingDeletedIds, ...newlyDeletedIds]));
+      const updatedDeletedIds = sanitizeDeletedIds([...existingDeletedIds, ...newlyDeletedIds], 1000);
       if (newlyDeletedIds.length > 0) {
         await saveDeletedIds(LISTS_DELETED_KEY, updatedDeletedIds);
       }
 
-      // 3. Attach updatedAt timestamp
       const now = Date.now();
-      const listsWithTimestamps: CustomList[] = lists.map(l => {
+      const listsWithTimestamps: CustomList[] = lists.slice(0, MAX_LISTS_LIMIT).map(l => {
         const prev = prevMap.get(l.id);
         if (!prev || JSON.stringify(prev) !== JSON.stringify(l)) {
           return { ...l, updatedAt: now };
@@ -299,18 +311,15 @@ export class MobileListStorage implements IListStorage {
         return { ...l, updatedAt: l.updatedAt || now };
       });
 
-      // 4. Save to AsyncStorage immediately
       const newSerialized = JSON.stringify(listsWithTimestamps);
       await AsyncStorage.setItem(LISTS_STORAGE_KEY, newSerialized);
 
-      // 5. Infinite Echo Loop Protection
       if (this.isApplyingRemoteUpdate || newSerialized === this.lastPushedHash) {
         return;
       }
 
       this.lastPushedHash = newSerialized;
 
-      // 6. Push to Firestore
       if (this.pushTimer) {
         clearTimeout(this.pushTimer);
       }
@@ -318,6 +327,7 @@ export class MobileListStorage implements IListStorage {
         try {
           await ensureAuth();
           const syncKey = await getSyncKey();
+          if (!isValidSyncKey(syncKey)) return;
           const listDocRef = doc(db, 'workspaces', `${syncKey}_lists`);
           const payload: SyncDocState<CustomList> = {
             items: cleanUndefined(listsWithTimestamps),
@@ -325,13 +335,15 @@ export class MobileListStorage implements IListStorage {
             updatedAt: Date.now(),
           };
           await setDoc(listDocRef, payload);
-          console.log(`[Sync Mobile] Successfully pushed lists to ${listDocRef.path} (count: ${listsWithTimestamps.length})`);
+          if (__DEV__) {
+            console.log(`[Sync Mobile] Pushed lists (count: ${listsWithTimestamps.length})`);
+          }
         } catch (err) {
-          console.error('[SyncError Mobile Lists]: Failed to push lists to Firestore:', err);
+          if (__DEV__) console.error('[SyncError Mobile Lists]: Failed to push lists to Firestore:', err);
         }
       }, 150);
     } catch (e) {
-      console.error('[SyncError Mobile Lists]: Failed in saveLists', e);
+      if (__DEV__) console.error('[SyncError Mobile Lists]: Failed in saveLists', e);
     }
   }
 
@@ -343,6 +355,7 @@ export class MobileListStorage implements IListStorage {
       .then(async () => {
         if (isCancelled) return;
         const syncKey = await getSyncKey();
+        if (!isValidSyncKey(syncKey)) return;
         const listDocRef = doc(db, 'workspaces', `${syncKey}_lists`);
 
         const unsubscribeFirestore = onSnapshot(
@@ -352,59 +365,61 @@ export class MobileListStorage implements IListStorage {
               const localLists = await this.loadLists();
               const localDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
               if (localLists.length > 0 || localDeletedIds.length > 0) {
-                console.log(`[Sync Mobile] Initializing empty cloud document ${listDocRef.path} with local data...`);
                 const payload: SyncDocState<CustomList> = {
                   items: cleanUndefined(localLists),
                   deletedIds: localDeletedIds,
                   updatedAt: Date.now(),
                 };
                 setDoc(listDocRef, payload).catch(err => {
-                  console.error('[SyncError Mobile Lists]: Failed to initialize empty lists_state:', err);
+                  if (__DEV__) console.error('[SyncError Mobile Lists]: Failed to initialize empty lists_state:', err);
                 });
               }
               return;
             }
 
-            const data = snapshot.data() as SyncDocState<CustomList> | undefined;
+            const data = snapshot.data() as SyncDocState<unknown> | undefined;
             if (!data || !Array.isArray(data.items)) return;
 
-            // Load local state & tombstones
+            const validatedRemoteLists: CustomList[] = [];
+            for (const rawItem of data.items.slice(0, MAX_LISTS_LIMIT)) {
+              const v = validateCustomList(rawItem);
+              if (v) validatedRemoteLists.push(v);
+            }
+
             const localLists = await this.loadLists();
             const localDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
-            const remoteDeletedIds = Array.isArray(data.deletedIds) ? data.deletedIds : [];
+            const remoteDeletedIds = sanitizeDeletedIds(data.deletedIds);
             const combinedDeletedIds = new Set([...localDeletedIds, ...remoteDeletedIds]);
 
-            // Save combined tombstones
             await saveDeletedIds(LISTS_DELETED_KEY, Array.from(combinedDeletedIds));
 
-            // Merge with tombstones
-            const merged = mergeItemsWithTombstones(localLists, data.items, combinedDeletedIds);
+            const merged = mergeItemsWithTombstones(localLists, validatedRemoteLists, combinedDeletedIds);
             const mergedSerialized = JSON.stringify(merged);
 
             if (mergedSerialized !== JSON.stringify(localLists)) {
-              console.log(`[Sync Mobile] Received updated lists from ${listDocRef.path} (count: ${merged.length})`);
+              if (__DEV__) {
+                console.log(`[Sync Mobile] Received updated lists (count: ${merged.length})`);
+              }
               this.isApplyingRemoteUpdate = true;
               this.lastPushedHash = mergedSerialized;
               await AsyncStorage.setItem(LISTS_STORAGE_KEY, mergedSerialized);
 
-              // Notify hook to update React state
               callback(merged);
 
-              // Reset echo guard
               setTimeout(() => {
                 this.isApplyingRemoteUpdate = false;
               }, 150);
             }
           },
           err => {
-            console.error('[SyncError Mobile Lists]: onSnapshot listener error:', err);
+            if (__DEV__) console.error('[SyncError Mobile Lists]: onSnapshot listener error:', err);
           }
         );
 
         this.currentUnsubscribe = unsubscribeFirestore;
       })
       .catch(err => {
-        console.error('[SyncError Mobile Lists]: Failed to initialize list subscription:', err);
+        if (__DEV__) console.error('[SyncError Mobile Lists]: Failed to initialize list subscription:', err);
       });
 
     return () => {
@@ -428,7 +443,8 @@ export class MobileListStorage implements IListStorage {
   }
 
   async switchSyncKey(newKey: string): Promise<void> {
-    await setSyncKey(newKey);
+    const ok = await setSyncKey(newKey);
+    if (!ok) return;
     if (this.currentUnsubscribe) {
       this.currentUnsubscribe();
       this.currentUnsubscribe = null;
@@ -460,13 +476,15 @@ export async function clearAllWorkspaceData(): Promise<void> {
   try {
     await ensureAuth();
     const currentKey = await getSyncKey();
-    await Promise.allSettled([
-      deleteDoc(doc(db, 'workspaces', `${currentKey}_tasks`)),
-      deleteDoc(doc(db, 'workspaces', `${currentKey}_lists`)),
-      deleteDoc(doc(db, 'workspaces', `${currentKey}_focus`)),
-    ]);
+    if (isValidSyncKey(currentKey)) {
+      await Promise.allSettled([
+        deleteDoc(doc(db, 'workspaces', `${currentKey}_tasks`)),
+        deleteDoc(doc(db, 'workspaces', `${currentKey}_lists`)),
+        deleteDoc(doc(db, 'workspaces', `${currentKey}_focus`)),
+      ]);
+    }
   } catch (err) {
-    console.warn('[Storage] Failed to clear remote workspace docs (continuing local wipe):', err);
+    if (__DEV__) console.warn('[Storage] Failed to clear remote workspace docs (continuing local wipe):', err);
   }
 
   await AsyncStorage.multiRemove([
@@ -475,6 +493,8 @@ export async function clearAllWorkspaceData(): Promise<void> {
     TASKS_DELETED_KEY,
     LISTS_DELETED_KEY,
     FOCUS_SESSIONS_STORAGE_KEY,
+    CUSTOM_TAGS_STORAGE_KEY,
+    SYNC_KEY_STORAGE,
   ]);
 
   const freshKey = generateSyncKey();

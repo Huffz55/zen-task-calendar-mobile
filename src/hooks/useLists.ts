@@ -2,10 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { CustomList, ListItem } from '../types';
 import { IListStorage, defaultListStorage } from '../services/storage/taskStorage';
 import { springLayout } from '../utils/animations';
-
-function generateUniqueId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
-}
+import { generateSecureId as generateUniqueId } from '../utils/cryptoRandom';
 
 export function useLists(storage: IListStorage = defaultListStorage) {
   const [lists, setLists] = useState<CustomList[]>([]);

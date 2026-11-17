@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { AppProvider, useApp } from '../context/AppContext';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Toast } from '../components/common/Toast';
 import { ThemeModal } from '../components/common/ThemeModal';
 import { SettingsModal } from '../components/common/SettingsModal';
@@ -97,11 +98,13 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AppProvider>
-        <RootLayoutContent />
-      </AppProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <AppProvider>
+          <RootLayoutContent />
+        </AppProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 

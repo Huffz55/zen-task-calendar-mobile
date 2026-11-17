@@ -39,9 +39,17 @@ export function mergeItemsWithTombstones<T extends { id: string; updatedAt?: num
   return Array.from(map.values());
 }
 
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /**
- * Strips undefined properties recursively so Firestore setDoc never rejects the payload.
+ * Strips undefined properties and prototype-pollution keys recursively so Firestore setDoc never rejects or leaks unsafe keys.
  */
 export function cleanUndefined<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj));
+  const serialized = JSON.stringify(obj);
+  return JSON.parse(serialized, (key, value) => {
+    if (FORBIDDEN_KEYS.has(key)) {
+      return undefined;
+    }
+    return value;
+  }) as T;
 }

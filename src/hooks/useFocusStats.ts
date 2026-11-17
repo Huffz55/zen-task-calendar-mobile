@@ -3,12 +3,9 @@ import { format, subDays } from 'date-fns';
 import { FocusSession } from '../types';
 
 import { defaultFocusStorage } from '../services/storage/focusStorage';
+import { generateSecureId as generateUniqueId } from '../utils/cryptoRandom';
 
 export const FOCUS_SESSIONS_STORAGE_KEY = '@noteapp_mobile_focus_sessions_v1';
-
-function generateUniqueId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
-}
 
 export interface DayFocusStat {
   dayName: string;

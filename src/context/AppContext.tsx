@@ -6,9 +6,10 @@ import { router } from 'expo-router';
 import { AppTheme, AppToast, Task, CustomList, CustomTag, BuiltinTaskTag, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
 import { TAGS, normalizeTagId } from '../constants/tags';
 import { THEMES, ThemeColors } from '../constants/colors';
-import { THEME_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
+import { THEME_STORAGE_KEY, CUSTOM_TAGS_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
 import { defaultBackupService } from '../services/storage/backupService';
+import { validateCustomTag, safeJsonParse, sanitizeText } from '../services/validation/validator';
 
 import { useTasks } from '../hooks/useTasks';
 import { useLists } from '../hooks/useLists';
@@ -131,7 +132,6 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 const AUTO_NIGHT_STORAGE_KEY = '@noteapp_auto_night_shift';
-const CUSTOM_TAGS_STORAGE_KEY = '@noteapp_custom_tags';
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -164,27 +164,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     AsyncStorage.getItem(CUSTOM_TAGS_STORAGE_KEY).then(saved => {
       if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setCustomTags(parsed);
-        } catch {
-          // Ignore malformed tags
+        const parsed = safeJsonParse<unknown>(saved);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.map(validateCustomTag).filter((t): t is CustomTag => t !== null).slice(0, 50);
+          setCustomTags(valid);
         }
       }
     });
   }, []);
 
   const addCustomTag = useCallback((label: string, color: string): TaskTag | null => {
-    const cleanLabel = label.trim().slice(0, 24);
+    const cleanLabel = sanitizeText(label, 24).replace(/[\r\n]/g, '');
     const id = normalizeTagId(cleanLabel);
+    const cleanColor = /^#[0-9a-fA-F]{6}$/.test(color.trim()) ? color.trim() : '#f43f5e';
     if (!cleanLabel || !id) return null;
     if (id in TAGS) return id as BuiltinTaskTag;
 
     setCustomTags(prev => {
       const exists = prev.some(t => t.id === id);
       const next = exists
-        ? prev.map(t => (t.id === id ? { ...t, label: cleanLabel, color } : t))
-        : [...prev, { id, label: cleanLabel, color }];
+        ? prev.map(t => (t.id === id ? { ...t, label: cleanLabel, color: cleanColor } : t))
+        : [...prev.slice(-49), { id, label: cleanLabel, color: cleanColor }];
       AsyncStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
@@ -534,6 +534,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearAllTasks();
       clearAllLists();
       clearAllSessions();
+      setCustomTags([]);
       setActiveFocusTask(null);
       await defaultNotificationService.cancelAll();
       hapticWarning();

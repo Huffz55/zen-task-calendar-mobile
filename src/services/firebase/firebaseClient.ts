@@ -52,7 +52,9 @@ export async function ensureAuth(): Promise<void> {
         authInitPromise = null;
       })
       .catch(err => {
-        console.error('[SyncError Auth Mobile]: Anonymous sign-in failed:', err);
+        if (__DEV__) {
+          console.error('[SyncError Auth Mobile]: Anonymous sign-in failed:', err?.code || 'unknown');
+        }
         authInitPromise = null;
         throw err;
       });
