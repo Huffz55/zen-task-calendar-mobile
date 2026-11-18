@@ -71,7 +71,7 @@ export function MiniFocusPlayer({
               {timeFormatted}
             </Text>
             <Text style={[styles.dot, { color: theme.textDim }]}>•</Text>
-            <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={1}>
+            <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
               {activeTaskTitle ? activeTaskTitle : 'Zen Focus'}
             </Text>
           </View>
@@ -110,12 +110,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     borderRadius: 16,
-    borderWidth: 1.2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
+    borderWidth: 1,
     gap: 10,
   },
   playBtn: {

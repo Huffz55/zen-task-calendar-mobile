@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { router } from 'expo-router';
@@ -118,7 +118,11 @@ interface AppContextValue {
   addCustomTag: (label: string, color: string) => TaskTag | null;
   deleteCustomTag: (id: string) => void;
 
-  // Zen Focus Timer Engine
+  // Zen Focus Timer Engine (boolean flag stays in AppContext; high-freq ticks live in TimerContext)
+  hasActiveTimerSession: boolean;
+}
+
+interface TimerContextValue {
   timeLeft: number;
   initialTime: number;
   isTimerRunning: boolean;
@@ -130,6 +134,7 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+const TimerContext = createContext<TimerContextValue | null>(null);
 
 const AUTO_NIGHT_STORAGE_KEY = '@noteapp_auto_night_shift';
 
@@ -229,7 +234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [showToast]);
 
-  const handleSelectTheme = (selectedTheme: AppTheme) => {
+  const handleSelectTheme = useCallback((selectedTheme: AppTheme) => {
     setDaytimeThemeKey(selectedTheme);
     // If autoNightShift is active at night and user explicitly picks a theme,
     // turn off autoNightShift so user's explicit theme takes immediate effect
@@ -243,7 +248,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       title: 'Theme Changed',
       message: `Switched to ${THEMES[selectedTheme].name}`,
     });
-  };
+  }, [autoNightShift, isNightTime, showToast]);
 
   const currentThemeKey: AppTheme = (autoNightShift && isNightTime) ? 'midnight' : daytimeThemeKey;
   const theme: ThemeColors = THEMES[currentThemeKey] || THEMES.sakura;
@@ -297,8 +302,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isEveningReviewOpen, setIsEveningReviewOpen] = useState(false);
   const [isZenBreathingOpen, setIsZenBreathingOpen] = useState(false);
   const [isTriageModalOpen, setIsTriageModalOpen] = useState(false);
+  const [hasActiveTimerSession, setHasActiveTimerSession] = useState(false);
 
-  const inboxTasks = tasks.filter(t => t.isInbox && !t.isArchived);
+  const inboxTasks = useMemo(
+    () => tasks.filter(t => t.isInbox && !t.isArchived),
+    [tasks]
+  );
 
   const handleTimerComplete = useCallback((elapsedSeconds: number) => {
     recordFocusSession(elapsedSeconds, activeFocusTask?.id, activeFocusTask?.title);
@@ -315,21 +324,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsZenBreathingOpen(true);
   }, [recordFocusSession, activeFocusTask, addTaskFocusTime, showToast]);
 
-  // Zen Focus Timer Engine (auto-records completed sessions to analytics)
-  const {
-    timeLeft,
-    initialTime,
-    isTimerRunning,
-    toggleTimer,
-    resetTimer,
-    adjustTime,
-    setTimerMinutes,
-    finishEarlySession,
-  } = useZenTimer(25, handleTimerComplete);
-
   const startTaskFocus = useCallback((task: { id: string; title: string }) => {
     setActiveFocusTask(task);
-    router.replace('/(tabs)/focus');
+    router.navigate('/(tabs)/focus');
     showToast({
       type: 'info',
       title: 'Target Set',
@@ -339,13 +336,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-  const currentDayTasks = getTasksForDate(selectedDateStr);
-  const overdueCount = getOverdueTasksCount(todayStr);
+  const currentDayTasks = useMemo(
+    () => getTasksForDate(selectedDateStr),
+    [getTasksForDate, selectedDateStr]
+  );
+  const overdueCount = useMemo(
+    () => getOverdueTasksCount(todayStr),
+    [getOverdueTasksCount, todayStr]
+  );
 
-  // Sync morning daily summary and evening wind-down notifications ONLY when enabled by user
+  const todayTasksSnapshot = useMemo(() => {
+    const todayList = getTasksForDate(todayStr);
+    return {
+      total: todayList.length,
+      pending: todayList.filter(t => !t.isCompleted).length,
+    };
+  }, [getTasksForDate, todayStr]);
+
+  // Debounced sync for daily notifications when today's task counts actually change
   useEffect(() => {
     let active = true;
-    const syncNotifications = async () => {
+    const timer = setTimeout(async () => {
       try {
         const pairs = await AsyncStorage.multiGet([
           '@noteapp_setting_morning_summary',
@@ -355,29 +366,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const morningEnabled = pairs[0]?.[1] === 'true';
         const eveningEnabled = pairs[1]?.[1] === 'true';
-        const todayTasks = getTasksForDate(todayStr);
-        const pendingCount = todayTasks.filter(t => !t.isCompleted).length;
 
         if (morningEnabled) {
-          await defaultNotificationService.scheduleDailySummary(9, 0, todayTasks.length);
+          await defaultNotificationService.scheduleDailySummary(9, 0, todayTasksSnapshot.total);
         } else {
           await defaultNotificationService.cancelNotification('daily-summary');
         }
 
         if (eveningEnabled) {
-          await defaultNotificationService.scheduleEveningWindDown(20, 30, pendingCount);
+          await defaultNotificationService.scheduleEveningWindDown(20, 30, todayTasksSnapshot.pending);
         } else {
           await defaultNotificationService.cancelNotification('evening-winddown');
         }
       } catch {
         // Ignore storage read errors silently
       }
-    };
-    syncNotifications();
+    }, 450);
+
     return () => {
       active = false;
+      clearTimeout(timer);
     };
-  }, [getTasksForDate, todayStr, tasks]);
+  }, [todayTasksSnapshot]);
 
   const handleSingleDelete = useCallback(
     (taskId: string) => {
@@ -559,105 +569,236 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [getTasksForDate]
   );
 
+  const appValue = useMemo<AppContextValue>(
+    () => ({
+      theme,
+      currentThemeKey,
+      setTheme: handleSelectTheme,
+      isThemeModalOpen,
+      setIsThemeModalOpen,
+      autoNightShift,
+      toggleAutoNightShift,
+      isSettingsModalOpen,
+      setIsSettingsModalOpen,
+      isSyncModalOpen,
+      setIsSyncModalOpen,
+      handleExportBackup,
+      handleImportBackup,
+      handleClearAllData,
+      focusStats,
+      recordFocusSession,
+      activeFocusTask,
+      setActiveFocusTask,
+      startTaskFocus,
+      isEveningReviewOpen,
+      setIsEveningReviewOpen,
+      isZenBreathingOpen,
+      setIsZenBreathingOpen,
+      toast,
+      showToast,
+      dismissToast,
+      selectedDate,
+      setSelectedDate,
+      selectedDateStr,
+      todayStr,
+      tasks,
+      currentDayTasks,
+      currentStreak,
+      overdueCount,
+      addTask,
+      deleteTask,
+      deleteTaskInstance,
+      deleteTaskFuture,
+      restoreTask,
+      toggleTaskCompletion,
+      editTask,
+      togglePinTask,
+      toggleEveningTask,
+      toggleGhostTask,
+      moveToInbox,
+      triageTask,
+      getInboxTasks,
+      inboxTasks,
+      isTriageModalOpen,
+      setIsTriageModalOpen,
+      deferTaskToTomorrow,
+      duplicateTask,
+      toggleSubtask,
+      addSubtask,
+      deleteSubtask,
+      addTaskFocusTime,
+      getTasksForDate,
+      getTaskCountForDate,
+      handleSingleDelete,
+      handleInstanceDelete,
+      handleFutureDelete,
+      handleEditTask,
+      handleRollover,
+      unarchiveTask,
+      getArchivedTasks,
+      lists,
+      addList,
+      updateListFolder,
+      deleteList,
+      restoreList,
+      addListItem,
+      deleteListItem,
+      toggleListItem,
+      handleDeleteList,
+      customTags,
+      addCustomTag,
+      deleteCustomTag,
+      hasActiveTimerSession,
+    }),
+    [
+      theme,
+      currentThemeKey,
+      handleSelectTheme,
+      isThemeModalOpen,
+      autoNightShift,
+      toggleAutoNightShift,
+      isSettingsModalOpen,
+      isSyncModalOpen,
+      handleExportBackup,
+      handleImportBackup,
+      handleClearAllData,
+      focusStats,
+      recordFocusSession,
+      activeFocusTask,
+      startTaskFocus,
+      isEveningReviewOpen,
+      isZenBreathingOpen,
+      toast,
+      showToast,
+      dismissToast,
+      selectedDate,
+      selectedDateStr,
+      todayStr,
+      tasks,
+      currentDayTasks,
+      currentStreak,
+      overdueCount,
+      addTask,
+      deleteTask,
+      deleteTaskInstance,
+      deleteTaskFuture,
+      restoreTask,
+      toggleTaskCompletion,
+      editTask,
+      togglePinTask,
+      toggleEveningTask,
+      toggleGhostTask,
+      moveToInbox,
+      triageTask,
+      getInboxTasks,
+      inboxTasks,
+      isTriageModalOpen,
+      deferTaskToTomorrow,
+      duplicateTask,
+      toggleSubtask,
+      addSubtask,
+      deleteSubtask,
+      addTaskFocusTime,
+      getTasksForDate,
+      getTaskCountForDate,
+      handleSingleDelete,
+      handleInstanceDelete,
+      handleFutureDelete,
+      handleEditTask,
+      handleRollover,
+      unarchiveTask,
+      getArchivedTasks,
+      lists,
+      addList,
+      updateListFolder,
+      deleteList,
+      restoreList,
+      addListItem,
+      deleteListItem,
+      toggleListItem,
+      handleDeleteList,
+      customTags,
+      addCustomTag,
+      deleteCustomTag,
+      hasActiveTimerSession,
+    ]
+  );
+
   return (
-    <AppContext.Provider
-      value={{
-        theme,
-        currentThemeKey,
-        setTheme: handleSelectTheme,
-        isThemeModalOpen,
-        setIsThemeModalOpen,
-        autoNightShift,
-        toggleAutoNightShift,
-        isSettingsModalOpen,
-        setIsSettingsModalOpen,
-        isSyncModalOpen,
-        setIsSyncModalOpen,
-        handleExportBackup,
-        handleImportBackup,
-        handleClearAllData,
-        focusStats,
-        recordFocusSession,
-        activeFocusTask,
-        setActiveFocusTask,
-        startTaskFocus,
-        isEveningReviewOpen,
-        setIsEveningReviewOpen,
-        isZenBreathingOpen,
-        setIsZenBreathingOpen,
-        toast,
-        showToast,
-        dismissToast,
-        selectedDate,
-        setSelectedDate,
-        selectedDateStr,
-        todayStr,
-        tasks,
-        currentDayTasks,
-        currentStreak,
-        overdueCount,
-        addTask,
-        deleteTask,
-        deleteTaskInstance,
-        deleteTaskFuture,
-        restoreTask,
-        toggleTaskCompletion,
-        editTask,
-        togglePinTask,
-        toggleEveningTask,
-        toggleGhostTask,
-        moveToInbox,
-        triageTask,
-        getInboxTasks,
-        inboxTasks,
-        isTriageModalOpen,
-        setIsTriageModalOpen,
-        deferTaskToTomorrow,
-        duplicateTask,
-        toggleSubtask,
-        addSubtask,
-        deleteSubtask,
-        addTaskFocusTime,
-        getTasksForDate,
-        getTaskCountForDate,
-        handleSingleDelete,
-        handleInstanceDelete,
-        handleFutureDelete,
-        handleEditTask,
-        handleRollover,
-        unarchiveTask,
-        getArchivedTasks,
-        lists,
-        addList,
-        updateListFolder,
-        deleteList,
-        restoreList,
-        addListItem,
-        deleteListItem,
-        toggleListItem,
-        handleDeleteList,
-        customTags,
-        addCustomTag,
-        deleteCustomTag,
-        timeLeft,
-        initialTime,
-        isTimerRunning,
-        toggleTimer,
-        resetTimer,
-        adjustTime,
-        setTimerMinutes,
-        finishEarlySession,
-      }}
-    >
-      {children}
+    <AppContext.Provider value={appValue}>
+      <TimerProvider
+        onTimerComplete={handleTimerComplete}
+        onActiveSessionChange={setHasActiveTimerSession}
+      >
+        {children}
+      </TimerProvider>
     </AppContext.Provider>
   );
+}
+
+function TimerProvider({
+  onTimerComplete,
+  onActiveSessionChange,
+  children,
+}: {
+  onTimerComplete: (durationSeconds: number) => void;
+  onActiveSessionChange: (active: boolean) => void;
+  children: ReactNode;
+}) {
+  const {
+    timeLeft,
+    initialTime,
+    isTimerRunning,
+    toggleTimer,
+    resetTimer,
+    adjustTime,
+    setTimerMinutes,
+    finishEarlySession,
+  } = useZenTimer(25, onTimerComplete);
+
+  const hasActive = isTimerRunning || (timeLeft < initialTime && timeLeft > 0);
+  useEffect(() => {
+    onActiveSessionChange(hasActive);
+  }, [hasActive, onActiveSessionChange]);
+
+  const value = useMemo<TimerContextValue>(
+    () => ({
+      timeLeft,
+      initialTime,
+      isTimerRunning,
+      toggleTimer,
+      resetTimer,
+      adjustTime,
+      setTimerMinutes,
+      finishEarlySession,
+    }),
+    [
+      timeLeft,
+      initialTime,
+      isTimerRunning,
+      toggleTimer,
+      resetTimer,
+      adjustTime,
+      setTimerMinutes,
+      finishEarlySession,
+    ]
+  );
+
+  return <TimerContext.Provider value={value}>{children}</TimerContext.Provider>;
 }
 
 export function useApp(): AppContextValue {
   const context = useContext(AppContext);
   if (!context) {
     throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+}
+
+export function useTimer(): TimerContextValue {
+  const context = useContext(TimerContext);
+  if (!context) {
+    throw new Error('useTimer must be used within an AppProvider');
   }
   return context;
 }

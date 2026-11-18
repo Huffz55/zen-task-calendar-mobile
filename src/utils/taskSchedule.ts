@@ -1,4 +1,4 @@
-import { differenceInDays, isValid, parseISO } from 'date-fns';
+import { differenceInDays, format, isValid, parseISO, subDays } from 'date-fns';
 import type { DailyTask, Task } from '../types';
 
 /**
@@ -65,4 +65,102 @@ export function getDailyTasksForDate(tasks: Task[], dateStr: string): DailyTask[
     }
     return 0;
   });
+}
+
+interface ParsedStreakTask {
+  date: string;
+  startDate: Date;
+  endDate?: string;
+  recurrence: Task['recurrence'];
+  completedSet: Set<string>;
+  excludedSet: Set<string> | null;
+}
+
+/**
+ * Computes consecutive perfect days ending today or yesterday without
+ * allocating or sorting task arrays per day across the 365-day window.
+ */
+export function computeCurrentStreak(tasks: Task[], today: Date = new Date()): number {
+  const nonRecurringByDate = new Map<string, ParsedStreakTask[]>();
+  const recurringTasks: ParsedStreakTask[] = [];
+
+  for (const task of tasks) {
+    if (!task || task.isArchived || task.isInbox || !task.date || typeof task.date !== 'string') {
+      continue;
+    }
+    const startDate = parseISO(task.date);
+    if (!isValid(startDate)) continue;
+
+    const entry: ParsedStreakTask = {
+      date: task.date,
+      startDate,
+      endDate: task.endDate,
+      recurrence: task.recurrence,
+      completedSet: new Set(Array.isArray(task.completedDates) ? task.completedDates : []),
+      excludedSet: task.excludedDates && task.excludedDates.length > 0 ? new Set(task.excludedDates) : null,
+    };
+
+    if (task.recurrence === 'none') {
+      const bucket = nonRecurringByDate.get(task.date);
+      if (bucket) bucket.push(entry);
+      else nonRecurringByDate.set(task.date, [entry]);
+    } else if (
+      task.recurrence === 'daily' ||
+      task.recurrence === 'weekly' ||
+      task.recurrence === 'biweekly'
+    ) {
+      recurringTasks.push(entry);
+    }
+  }
+
+  const isDayPerfect = (dateObj: Date, dateStr: string): boolean => {
+    let activeCount = 0;
+    let completedCount = 0;
+
+    const singleTasks = nonRecurringByDate.get(dateStr);
+    if (singleTasks) {
+      for (const t of singleTasks) {
+        if (t.excludedSet?.has(dateStr)) continue;
+        if (t.endDate && dateStr > t.endDate) continue;
+        activeCount++;
+        if (t.completedSet.has(dateStr)) completedCount++;
+      }
+    }
+
+    for (const t of recurringTasks) {
+      if (dateStr < t.date) continue;
+      if (t.excludedSet?.has(dateStr)) continue;
+      if (t.endDate && dateStr > t.endDate) continue;
+
+      if (t.recurrence === 'weekly' || t.recurrence === 'biweekly') {
+        const diffDays = differenceInDays(dateObj, t.startDate);
+        const mod = t.recurrence === 'weekly' ? 7 : 14;
+        if (diffDays % mod !== 0) continue;
+      }
+
+      activeCount++;
+      if (t.completedSet.has(dateStr)) completedCount++;
+    }
+
+    return activeCount > 0 && completedCount === activeCount;
+  };
+
+  let streak = 0;
+  const todayStr = format(today, 'yyyy-MM-dd');
+  if (isDayPerfect(today, todayStr)) {
+    streak++;
+  }
+
+  let checkDate = subDays(today, 1);
+  for (let i = 0; i < 365; i++) {
+    const dateStr = format(checkDate, 'yyyy-MM-dd');
+    if (isDayPerfect(checkDate, dateStr)) {
+      streak++;
+      checkDate = subDays(checkDate, 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
 }

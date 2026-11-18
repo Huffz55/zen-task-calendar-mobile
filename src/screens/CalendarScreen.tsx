@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  BackHandler,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
@@ -12,6 +21,7 @@ import { TaskFilterBar } from '../components/tasks/TaskFilterBar';
 import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
+import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface CalendarScreenProps {
@@ -78,27 +88,64 @@ export function CalendarScreen({
   const [selectedTag, setSelectedTag] = useState<TaskTag | 'all'>('all');
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-  const dayTasks = getTasksForDate(selectedDateStr);
+  const dayTasks = useMemo(() => getTasksForDate(selectedDateStr), [getTasksForDate, selectedDateStr]);
 
-  const tagCounts: Record<string, number> = { all: dayTasks.length };
-  for (const t of dayTasks) {
-    if (t.tag) {
-      tagCounts[t.tag] = (tagCounts[t.tag] || 0) + 1;
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: dayTasks.length };
+    for (const t of dayTasks) {
+      if (t.tag) {
+        counts[t.tag] = (counts[t.tag] || 0) + 1;
+      }
     }
-  }
+    return counts;
+  }, [dayTasks]);
 
-  const filteredTasks = dayTasks.filter(task => {
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      task.title.toLowerCase().includes(searchQuery.toLowerCase().trim());
-    const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
-    return matchesSearch && matchesTag;
-  });
+  const filteredTasks = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return dayTasks.filter(task => {
+      const matchesSearch = q === '' || task.title.toLowerCase().includes(q);
+      const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
+      return matchesSearch && matchesTag;
+    });
+  }, [dayTasks, searchQuery, selectedTag]);
+
+  const handleSelectDateSmooth = useCallback(
+    (date: Date) => {
+      animateLayout();
+      onSelectDate(date);
+    },
+    [onSelectDate]
+  );
+
+  const handleDeleteRequest = useCallback((t: DailyTask) => {
+    setTaskToDelete(t);
+  }, []);
+
+  const handleEditRequest = useCallback((t: DailyTask) => {
+    setTaskToEdit(t);
+  }, []);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (searchQuery.trim() !== '' || selectedTag !== 'all') {
+        animateLayout();
+        setSearchQuery('');
+        setSelectedTag('all');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [searchQuery, selectedTag]);
 
   const swipeHandlers = useSwipeTabNavigation('calendar');
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      {...swipeHandlers}
+    >
       <Header
         theme={theme}
         currentStreak={currentStreak}
@@ -111,23 +158,25 @@ export function CalendarScreen({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
       >
         {/* Month Calendar Grid */}
         <CalendarGrid
           selectedDate={selectedDate}
-          onSelectDate={onSelectDate}
+          onSelectDate={handleSelectDateSmooth}
           getTaskCountForDate={getTaskCountForDate}
           theme={theme}
         />
 
         {/* Selected Day Agenda Header */}
         <View style={styles.agendaHeader}>
-          <View>
-            <Text style={[styles.agendaTitle, { color: theme.text }]}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={[styles.agendaTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
               {format(selectedDate, 'EEEE, MMMM d')}
             </Text>
-            <Text style={[styles.agendaSubtitle, { color: theme.textDim }]}>
+            <Text style={[styles.agendaSubtitle, { color: theme.textDim }]} numberOfLines={1}>
               {dayTasks.length} {dayTasks.length === 1 ? 'task' : 'tasks'} planned
             </Text>
           </View>
@@ -138,6 +187,7 @@ export function CalendarScreen({
               hapticLight();
               setIsAddModalOpen(true);
             }}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
             <Ionicons name="add" size={16} color={theme.primary} />
             <Text style={[styles.addBtnText, { color: theme.primary }]}>Add</Text>
@@ -168,8 +218,8 @@ export function CalendarScreen({
                   task={task}
                   theme={theme}
                   onToggle={onToggleTask}
-                  onDelete={t => setTaskToDelete(t)}
-                  onEdit={t => setTaskToEdit(t)}
+                  onDelete={handleDeleteRequest}
+                  onEdit={handleEditRequest}
                   onToggleSubtask={onToggleSubtask}
                   onStartFocus={onStartFocus}
                 />
@@ -182,6 +232,7 @@ export function CalendarScreen({
                   style={[styles.clearBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border }]}
                   onPress={() => {
                     hapticLight();
+                    animateLayout();
                     setSearchQuery('');
                     setSelectedTag('all');
                   }}
@@ -229,7 +280,7 @@ export function CalendarScreen({
         onDeleteInstance={onDeleteInstance}
         onDeleteFuture={onDeleteFuture}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -239,7 +290,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 10,
-    paddingBottom: 110,
+    paddingBottom: 32,
   },
   agendaHeader: {
     flexDirection: 'row',
@@ -256,6 +307,7 @@ const styles = StyleSheet.create({
   agendaSubtitle: {
     fontSize: 12,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
   addBtn: {
     flexDirection: 'row',

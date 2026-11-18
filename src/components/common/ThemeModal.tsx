@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AppTheme } from '../../types';
 import { THEMES, ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticSelection } from '../../hooks/useHaptics';
+import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
 import { SwipeableBottomSheet } from './SwipeableBottomSheet';
 
 interface ThemeModalProps {
@@ -26,8 +26,19 @@ export function ThemeModal({
   return (
     <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%">
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Color Palette</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+          Color Palette
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            hapticLight();
+            onClose();
+          }}
+          style={styles.closeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close theme picker"
+        >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
       </View>
@@ -50,11 +61,21 @@ export function ThemeModal({
                 onSelectTheme(key);
                 onClose();
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`${item.name} theme`}
             >
               <View style={styles.optionLeft}>
                 <Text style={styles.optionIcon}>{item.icon}</Text>
-                <Text style={[styles.optionName, { color: theme.text }]}>{item.name}</Text>
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={[styles.optionName, { color: theme.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={[styles.optionSubtitle, { color: theme.textDim }]} numberOfLines={1}>
+                    {item.subtitle}
+                  </Text>
+                </View>
               </View>
 
               {isSelected ? (
@@ -99,6 +120,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    marginRight: 10,
   },
   optionIcon: {
     fontSize: 22,
@@ -106,6 +129,10 @@ const styles = StyleSheet.create({
   optionName: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  optionSubtitle: {
+    fontSize: 11,
+    marginTop: 1,
   },
   colorPreviewDot: {
     width: 18,

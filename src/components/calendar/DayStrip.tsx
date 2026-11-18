@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { format, addDays, subDays } from 'date-fns';
+import { format, addDays, subDays, parseISO } from 'date-fns';
 import { ThemeColors } from '../../constants/colors';
-import { hapticLight } from '../../hooks/useHaptics';
+import { hapticSelection } from '../../hooks/useHaptics';
 
 interface DayStripProps {
   selectedDate: Date;
@@ -11,34 +11,56 @@ interface DayStripProps {
   theme: ThemeColors;
 }
 
+const DAY_CARD_STRIDE = 58; // width (50) + gap (8)
+
 export function DayStrip({
   selectedDate,
   onSelectDate,
   getTaskCountForDate,
   theme,
 }: DayStripProps) {
-  // Generate 14 days centered around today (-3 to +10 days)
-  const today = new Date();
-  const days = Array.from({ length: 14 }).map((_, i) => addDays(subDays(today, 3), i));
+  const scrollRef = useRef<ScrollView | null>(null);
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
   const selectedStr = format(selectedDate, 'yyyy-MM-dd');
-  const todayStr = format(today, 'yyyy-MM-dd');
+
+  // Generate 14 days centered around today (-3 to +10 days)
+  const days = useMemo(() => {
+    const base = parseISO(todayStr);
+    return Array.from({ length: 14 }, (_, i) => {
+      const date = addDays(subDays(base, 3), i);
+      return {
+        date,
+        dateStr: format(date, 'yyyy-MM-dd'),
+        dayOfWeek: format(date, 'EEE'),
+        dayNum: format(date, 'd'),
+      };
+    });
+  }, [todayStr]);
+
+  useEffect(() => {
+    const index = days.findIndex(d => d.dateStr === selectedStr);
+    if (index >= 0 && scrollRef.current) {
+      const targetX = Math.max(0, (index - 2) * DAY_CARD_STRIDE);
+      scrollRef.current.scrollTo({ x: targetX, animated: true });
+    }
+  }, [days, selectedStr]);
 
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {days.map((date, idx) => {
-          const dateStr = format(date, 'yyyy-MM-dd');
-          const isSelected = dateStr === selectedStr;
-          const isToday = dateStr === todayStr;
-          const taskCount = getTaskCountForDate(dateStr);
+        {days.map(item => {
+          const isSelected = item.dateStr === selectedStr;
+          const isToday = item.dateStr === todayStr;
+          const taskCount = getTaskCountForDate(item.dateStr);
 
           return (
             <TouchableOpacity
-              key={idx}
+              key={item.dateStr}
               style={[
                 styles.dayCard,
                 {
@@ -50,15 +72,18 @@ export function DayStrip({
                   borderColor: isSelected
                     ? theme.primary
                     : isToday
-                    ? theme.border
+                    ? theme.accent || theme.border
                     : theme.border,
                 },
               ]}
               onPress={() => {
-                hapticLight();
-                onSelectDate(date);
+                hapticSelection();
+                onSelectDate(item.date);
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.dayOfWeek} ${item.dayNum}`}
+              accessibilityState={{ selected: isSelected }}
             >
               <Text
                 style={[
@@ -66,7 +91,7 @@ export function DayStrip({
                   { color: isSelected ? '#ffffff' : theme.textDim },
                 ]}
               >
-                {format(date, 'EEE')}
+                {item.dayOfWeek}
               </Text>
               <Text
                 style={[
@@ -74,7 +99,7 @@ export function DayStrip({
                   { color: isSelected ? '#ffffff' : theme.text },
                 ]}
               >
-                {format(date, 'd')}
+                {item.dayNum}
               </Text>
 
               {/* Task Indicator Dot */}
@@ -107,7 +132,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 8,
   },
   dayCard: {
@@ -129,6 +154,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginVertical: 2,
+    fontVariant: ['tabular-nums'],
   },
   dotContainer: {
     height: 6,

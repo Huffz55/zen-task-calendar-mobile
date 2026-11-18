@@ -1,8 +1,12 @@
+import type { ComponentProps } from 'react';
+import type { Ionicons } from '@expo/vector-icons';
 import type { BuiltinTaskTag, CustomTag, TaskTag } from '../types';
+
+export type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export interface TagConfig {
   label: string;
-  icon: string;
+  icon: IoniconName;
   color: string;
   bgLight: string;
   bgDark: string;

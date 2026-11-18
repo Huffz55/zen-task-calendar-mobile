@@ -23,6 +23,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.zentask.mobile",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS",

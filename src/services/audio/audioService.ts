@@ -1,5 +1,16 @@
-import { createAudioPlayer, AudioPlayer } from 'expo-audio';
+import type { ComponentProps } from 'react';
+import type { Ionicons } from '@expo/vector-icons';
+import { Asset } from 'expo-asset';
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createAmbientPlaybackEngine,
+  type AmbientTrackId,
+  type PlayableAmbientTrackId,
+  type PlayableAudioSource,
+} from './ambientPlaybackEngine';
+
+export type AudioIconName = ComponentProps<typeof Ionicons>['name'];
 
 // Local high quality synthesized ambient tracks and 432 Hz chime
 const zenChimeSource = require('../../../assets/zen_chime.wav');
@@ -8,7 +19,7 @@ const sfxWaterSource = require('../../../assets/sfx_water.wav');
 const sfxBowlSource = require('../../../assets/sfx_bowl.wav');
 const sfxSwooshSource = require('../../../assets/sfx_swoosh.wav');
 
-const ambientSources = {
+const ambientSources: Record<PlayableAmbientTrackId, PlayableAudioSource> = {
   rain: require('../../../assets/ambient_rain.m4a'),
   waves: require('../../../assets/ambient_waves.m4a'),
   forest: require('../../../assets/ambient_forest.m4a'),
@@ -16,12 +27,12 @@ const ambientSources = {
   fire: require('../../../assets/ambient_fire.m4a'),
 };
 
-export type AmbientSoundType = 'none' | 'rain' | 'waves' | 'forest' | 'wind' | 'fire';
+export type AmbientSoundType = AmbientTrackId;
 
 export interface AmbientTrackConfig {
   id: AmbientSoundType;
   label: string;
-  icon: string;
+  icon: AudioIconName;
 }
 
 export const AMBIENT_TRACKS: Record<AmbientSoundType, AmbientTrackConfig> = {
@@ -57,9 +68,45 @@ export const AMBIENT_TRACKS: Record<AmbientSoundType, AmbientTrackConfig> = {
   },
 };
 
+async function resolvePlayableSource(moduleSource: PlayableAudioSource): Promise<PlayableAudioSource> {
+  if (typeof moduleSource !== 'number') {
+    return moduleSource;
+  }
+  try {
+    const asset = Asset.fromModule(moduleSource);
+    if (!asset.localUri) {
+      await asset.downloadAsync();
+    }
+    if (
+      asset.localUri &&
+      (asset.localUri.startsWith('file://') ||
+        asset.localUri.startsWith('asset://') ||
+        asset.localUri.startsWith('content://') ||
+        asset.localUri.startsWith('/'))
+    ) {
+      return { uri: asset.localUri, name: asset.name };
+    }
+  } catch (e) {
+    console.warn('Failed to pre-download audio asset, using module source directly:', e);
+  }
+  return moduleSource;
+}
+
+const ambientEngine = createAmbientPlaybackEngine({
+  sources: ambientSources,
+  createPlayer: createAudioPlayer,
+  configureAudioMode: () =>
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      shouldRouteThroughEarpiece: false,
+      interruptionMode: 'mixWithOthers',
+      allowsBackgroundRecording: false,
+    }),
+  resolveSource: resolvePlayableSource,
+});
+
 let chimePlayer: AudioPlayer | null = null;
-const activeAmbientPlayers = new Map<AmbientSoundType, AudioPlayer>();
-let currentVolume = 0.4;
 
 const sfxPlayers: Record<string, AudioPlayer | null> = {
   bamboo: null,
@@ -88,19 +135,23 @@ export async function setSoundEffectsEnabled(enabled: boolean): Promise<void> {
 async function playSfx(name: 'bamboo' | 'water' | 'bowl' | 'swoosh', volume = 0.8): Promise<void> {
   if (!sfxEnabled) return;
   try {
+    await ambientEngine.ensureAudioModeConfigured();
     let player = sfxPlayers[name];
     if (!player) {
-      const srcMap = {
+      const srcMap: Record<'bamboo' | 'water' | 'bowl' | 'swoosh', PlayableAudioSource> = {
         bamboo: sfxBambooSource,
         water: sfxWaterSource,
         bowl: sfxBowlSource,
         swoosh: sfxSwooshSource,
       };
-      player = createAudioPlayer(srcMap[name]);
+      const source = await resolvePlayableSource(srcMap[name]);
+      player = createAudioPlayer(source);
       sfxPlayers[name] = player;
     }
     player.volume = volume;
-    player.seekTo(0);
+    try {
+      await player.seekTo(0);
+    } catch {}
     player.play();
   } catch (e) {
     console.warn(`Failed to play sfx ${name}`, e);
@@ -129,11 +180,15 @@ export async function playSoftSwoosh(): Promise<void> {
 
 export async function playZenChime(): Promise<void> {
   try {
+    await ambientEngine.ensureAudioModeConfigured();
     if (!chimePlayer) {
-      chimePlayer = createAudioPlayer(zenChimeSource);
+      const source = await resolvePlayableSource(zenChimeSource);
+      chimePlayer = createAudioPlayer(source);
     }
     chimePlayer.volume = 1.0;
-    chimePlayer.seekTo(0);
+    try {
+      await chimePlayer.seekTo(0);
+    } catch {}
     chimePlayer.play();
   } catch (e) {
     console.warn('Failed to play zen chime', e);
@@ -141,104 +196,47 @@ export async function playZenChime(): Promise<void> {
 }
 
 export function getActiveAmbientSounds(): AmbientSoundType[] {
-  return Array.from(activeAmbientPlayers.keys());
+  return ambientEngine.getActiveSounds();
 }
 
 export function isAmbientTrackActive(type: AmbientSoundType): boolean {
-  return activeAmbientPlayers.has(type);
+  return ambientEngine.isTrackActive(type);
 }
 
 export async function toggleAmbientSound(
   type: AmbientSoundType,
-  volume = currentVolume
+  volume = ambientEngine.getVolume()
 ): Promise<boolean> {
-  if (type === 'none') {
-    stopAllAmbientSounds();
-    return false;
-  }
-
-  currentVolume = volume;
-
-  if (activeAmbientPlayers.has(type)) {
-    const player = activeAmbientPlayers.get(type);
-    if (player) {
-      try {
-        player.pause();
-        player.release();
-      } catch {}
-    }
-    activeAmbientPlayers.delete(type);
-    return false;
-  } else {
-    stopAllAmbientSounds();
-    try {
-      const source = (ambientSources as Record<string, any>)[type];
-      if (!source) return false;
-
-      const player = createAudioPlayer(source);
-      player.loop = true;
-      player.volume = currentVolume;
-      player.play();
-      activeAmbientPlayers.set(type, player);
-      return true;
-    } catch (e) {
-      console.warn(`Failed to play ambient sound: ${type}`, e);
-      return false;
-    }
-  }
+  return ambientEngine.toggle(type, volume);
 }
 
 export async function playAmbientSound(
   type: AmbientSoundType,
-  volume = currentVolume
+  volume = ambientEngine.getVolume()
 ): Promise<void> {
   if (type === 'none') {
-    stopAllAmbientSounds();
+    ambientEngine.stopAll();
     return;
   }
-  await toggleAmbientSound(type, volume);
+  await ambientEngine.toggle(type, volume);
 }
 
 export function stopAmbientSound(type?: AmbientSoundType): void {
-  if (!type || type === 'none') {
-    stopAllAmbientSounds();
-    return;
-  }
-
-  const player = activeAmbientPlayers.get(type);
-  if (player) {
-    try {
-      player.pause();
-      player.release();
-    } catch {}
-    activeAmbientPlayers.delete(type);
-  }
+  ambientEngine.stop(type);
 }
 
 export function stopAllAmbientSounds(): void {
-  for (const player of activeAmbientPlayers.values()) {
-    try {
-      player.pause();
-      player.release();
-    } catch {}
-  }
-  activeAmbientPlayers.clear();
+  ambientEngine.stopAll();
 }
 
 export function setAmbientVolume(vol: number): void {
-  currentVolume = Math.max(0, Math.min(1, vol));
-  for (const player of activeAmbientPlayers.values()) {
-    try {
-      player.volume = currentVolume;
-    } catch {}
-  }
+  ambientEngine.setVolume(vol);
 }
 
 export function getActiveAmbientSound(): AmbientSoundType {
-  const keys = Array.from(activeAmbientPlayers.keys());
-  return keys.length > 0 ? keys[keys.length - 1] : 'none';
+  return ambientEngine.getActiveSound();
 }
 
 export function getAmbientVolume(): number {
-  return currentVolume;
+  return ambientEngine.getVolume();
 }

@@ -5,14 +5,14 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
 } from 'react-native';
 import { BuiltinTaskTag, DailyTask, TaskTag, Subtask } from '../../types';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { TAGS, CUSTOM_TAG_COLORS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
-import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
+import { animateLayout, springLayout } from '../../utils/animations';
+import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
 import { useApp } from '../../context/AppContext';
 
 interface EditTaskModalProps {
@@ -37,31 +37,42 @@ export function EditTaskModal({
   onClose,
   onSave,
 }: EditTaskModalProps) {
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
+      {visible && task && (
+        <EditTaskForm key={task.taskId} task={task} theme={theme} onClose={onClose} onSave={onSave} />
+      )}
+    </SwipeableBottomSheet>
+  );
+}
+
+function EditTaskForm({
+  task,
+  theme,
+  onClose,
+  onSave,
+}: {
+  task: DailyTask;
+  theme: ThemeColors;
+  onClose: () => void;
+  onSave: EditTaskModalProps['onSave'];
+}) {
   const { customTags, addCustomTag } = useApp();
-  const [title, setTitle] = useState(task?.title || '');
-  const [tag, setTag] = useState<TaskTag | undefined>(task?.tag);
+  const [title, setTitle] = useState(task.title);
+  const [tag, setTag] = useState<TaskTag | undefined>(task.tag);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(CUSTOM_TAG_COLORS[0].color);
-  const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(task?.estimatedMinutes);
-  const [isPinned, setIsPinned] = useState(task?.isPinned || false);
-  const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks || []);
+  const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(task.estimatedMinutes);
+  const [isPinned, setIsPinned] = useState(task.isPinned || false);
+  const [subtasks, setSubtasks] = useState<Subtask[]>(() => (task.subtasks ? [...task.subtasks] : []));
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
-  const [prevTask, setPrevTask] = useState(task);
-
-  if (task !== prevTask) {
-    setPrevTask(task);
-    setTitle(task ? task.title : '');
-    setTag(task ? task.tag : undefined);
-    setEstimatedMinutes(task?.estimatedMinutes);
-    setIsPinned(task?.isPinned || false);
-    setSubtasks(task?.subtasks ? [...task.subtasks] : []);
-  }
 
   const handleAddSubtask = () => {
     const trimmed = newSubtaskInput.trim();
     if (!trimmed) return;
     hapticLight();
+    springLayout();
     setSubtasks(prev => [
       ...prev,
       { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, title: trimmed, isCompleted: false },
@@ -71,6 +82,7 @@ export function EditTaskModal({
 
   const handleRemoveSubtask = (id: string) => {
     hapticLight();
+    springLayout();
     setSubtasks(prev => prev.filter(s => s.id !== id));
   };
 
@@ -106,236 +118,136 @@ export function EditTaskModal({
   ];
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
+    <>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>Edit Task</Text>
-          <Text style={[styles.dateSubtitle, { color: theme.textDim }]}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
+            Edit Task
+          </Text>
+          <Text style={[styles.dateSubtitle, { color: theme.textDim }]} numberOfLines={1}>
             {task?.recurrence && task.recurrence !== 'none'
               ? `Recurring (${task.recurrence})`
               : 'Single Task'}
           </Text>
         </View>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            hapticLight();
+            onClose();
+          }}
+          style={styles.closeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close edit task"
+        >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
       </View>
 
-          {/* Input */}
-          <TextInput
+      <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        {/* Input */}
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.surfaceMuted,
+              color: theme.text,
+              borderColor: theme.border,
+            },
+          ]}
+          placeholder="Task title..."
+          placeholderTextColor={theme.textDim}
+          value={title}
+          onChangeText={setTitle}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleSave}
+        />
+
+        {/* Tag Selector */}
+        <Text style={[styles.sectionLabel, { color: theme.textDim }]}>TAG</Text>
+        <View style={styles.chipsRow}>
+          {/* None Tag Option */}
+          <TouchableOpacity
             style={[
-              styles.input,
+              styles.chip,
               {
-                backgroundColor: theme.surfaceMuted,
-                color: theme.text,
-                borderColor: theme.border,
+                backgroundColor: tag === undefined ? theme.primary : theme.surfaceMuted,
+                borderColor: tag === undefined ? theme.primary : theme.border,
               },
             ]}
-            placeholder="Task title..."
-            placeholderTextColor={theme.textDim}
-            value={title}
-            onChangeText={setTitle}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-          />
+            onPress={() => {
+              hapticSelection();
+              setTag(undefined);
+            }}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                { color: tag === undefined ? '#ffffff' : theme.textMuted },
+              ]}
+            >
+              No Tag
+            </Text>
+          </TouchableOpacity>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Tag Selector */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim }]}>TAG</Text>
-            <View style={styles.chipsRow}>
-              {/* None Tag Option */}
+          {tagKeys.map(tKey => {
+            const conf = resolveTagConfig(tKey, customTags);
+            const isSelected = tag === tKey;
+            return (
               <TouchableOpacity
+                key={tKey}
                 style={[
                   styles.chip,
                   {
-                    backgroundColor: tag === undefined ? theme.primary : theme.surfaceMuted,
-                    borderColor: tag === undefined ? theme.primary : theme.border,
+                    backgroundColor: isSelected ? conf.color : theme.surfaceMuted,
+                    borderColor: isSelected ? conf.color : theme.border,
                   },
                 ]}
                 onPress={() => {
-                  hapticLight();
-                  setTag(undefined);
+                  hapticSelection();
+                  setTag(isSelected ? undefined : tKey);
                 }}
               >
+                <Ionicons
+                  name={conf.icon}
+                  size={13}
+                  color={isSelected ? '#ffffff' : conf.color}
+                  style={{ marginRight: 4 }}
+                />
                 <Text
                   style={[
                     styles.chipText,
-                    { color: tag === undefined ? '#ffffff' : theme.textMuted },
+                    { color: isSelected ? '#ffffff' : theme.textMuted },
                   ]}
                 >
-                  No Tag
+                  {conf.label}
                 </Text>
               </TouchableOpacity>
+            );
+          })}
 
-              {tagKeys.map(tKey => {
-                const conf = resolveTagConfig(tKey, customTags);
-                const isSelected = tag === tKey;
-                return (
-                  <TouchableOpacity
-                    key={tKey}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isSelected ? conf.color : theme.surfaceMuted,
-                        borderColor: isSelected ? conf.color : theme.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      hapticLight();
-                      setTag(isSelected ? undefined : tKey);
-                    }}
-                  >
-                    <Ionicons
-                      name={conf.icon as any}
-                      size={13}
-                      color={isSelected ? '#ffffff' : conf.color}
-                      style={{ marginRight: 4 }}
-                    />
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: isSelected ? '#ffffff' : theme.textMuted },
-                      ]}
-                    >
-                      {conf.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              {
+                backgroundColor: isCreatingTag ? theme.primaryLight : theme.surfaceMuted,
+                borderColor: isCreatingTag ? theme.primary : theme.border,
+              },
+            ]}
+            onPress={() => {
+              hapticLight();
+              animateLayout();
+              setIsCreatingTag(prev => !prev);
+            }}
+          >
+            <Text style={[styles.chipText, { color: theme.primary }]}>+ Tag</Text>
+          </TouchableOpacity>
+        </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: isCreatingTag ? theme.primaryLight : theme.surfaceMuted,
-                    borderColor: isCreatingTag ? theme.primary : theme.border,
-                  },
-                ]}
-                onPress={() => {
-                  hapticLight();
-                  setIsCreatingTag(prev => !prev);
-                }}
-              >
-                <Text style={[styles.chipText, { color: theme.primary }]}>+ Tag</Text>
-              </TouchableOpacity>
-            </View>
-
-            {isCreatingTag && (
-              <View style={styles.customTagBuilder}>
-                <View style={styles.subtaskInputRow}>
-                  <TextInput
-                    style={[
-                      styles.subtaskTextInput,
-                      {
-                        backgroundColor: theme.surfaceMuted,
-                        borderColor: theme.border,
-                        color: theme.text,
-                      },
-                    ]}
-                    placeholder="Tag name"
-                    placeholderTextColor={theme.textDim}
-                    value={newTagName}
-                    onChangeText={setNewTagName}
-                    maxLength={24}
-                    returnKeyType="done"
-                    onSubmitEditing={handleCreateCustomTag}
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.addSubtaskBtn,
-                      { backgroundColor: newTagName.trim() ? newTagColor : theme.surfaceMuted },
-                    ]}
-                    onPress={handleCreateCustomTag}
-                    disabled={!newTagName.trim()}
-                  >
-                    <Ionicons name="checkmark" size={18} color={newTagName.trim() ? '#ffffff' : theme.textDim} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.colorDotsRow}>
-                  {CUSTOM_TAG_COLORS.map(c => (
-                    <TouchableOpacity
-                      key={c.color}
-                      style={[
-                        styles.colorDot,
-                        { backgroundColor: c.color },
-                        newTagColor === c.color && { borderWidth: 2.5, borderColor: theme.text },
-                      ]}
-                      onPress={() => {
-                        hapticLight();
-                        setNewTagColor(c.color);
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Estimated Duration */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>ESTIMATED TIME</Text>
-            <View style={styles.chipsRow}>
-              {durationOptions.map(opt => {
-                const isSelected = estimatedMinutes === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.label}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
-                        borderColor: isSelected ? theme.primary : theme.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      hapticLight();
-                      setEstimatedMinutes(opt.value);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: isSelected ? '#ffffff' : theme.textMuted },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Pin as Focus of the Day Toggle */}
-            <TouchableOpacity
-              style={[
-                styles.pinToggleCard,
-                {
-                  backgroundColor: isPinned ? (theme.isDark ? '#78350f33' : '#fef3c7') : theme.surfaceMuted,
-                  borderColor: isPinned ? '#f59e0b' : theme.border,
-                },
-              ]}
-              onPress={() => {
-                hapticLight();
-                setIsPinned(!isPinned);
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={isPinned ? 'star' : 'star-outline'}
-                size={22}
-                color={isPinned ? '#f59e0b' : theme.textDim}
-              />
-              <View style={styles.pinToggleContent}>
-                <Text style={[styles.pinToggleTitle, { color: isPinned ? '#b45309' : theme.text }]}>
-                  Focus of the Day
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Subtasks Builder */}
-            <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>
-              SUBTASKS ({subtasks.length})
-            </Text>
+        {isCreatingTag && (
+          <View style={styles.customTagBuilder}>
             <View style={styles.subtaskInputRow}>
               <TextInput
                 style={[
@@ -346,65 +258,181 @@ export function EditTaskModal({
                     color: theme.text,
                   },
                 ]}
-                placeholder="Add checklist step"
+                placeholder="Tag name"
                 placeholderTextColor={theme.textDim}
-                value={newSubtaskInput}
-                onChangeText={setNewSubtaskInput}
-                onSubmitEditing={handleAddSubtask}
+                value={newTagName}
+                onChangeText={setNewTagName}
+                maxLength={24}
                 returnKeyType="done"
+                onSubmitEditing={handleCreateCustomTag}
               />
               <TouchableOpacity
-                style={[styles.addSubtaskBtn, { backgroundColor: theme.primary }]}
-                onPress={handleAddSubtask}
+                style={[
+                  styles.addSubtaskBtn,
+                  { backgroundColor: newTagName.trim() ? newTagColor : theme.surfaceMuted },
+                ]}
+                onPress={handleCreateCustomTag}
+                disabled={!newTagName.trim()}
               >
-                <Ionicons name="add" size={20} color="#ffffff" />
+                <Ionicons name="checkmark" size={18} color={newTagName.trim() ? '#ffffff' : theme.textDim} />
               </TouchableOpacity>
             </View>
+            <View style={styles.colorDotsRow}>
+              {CUSTOM_TAG_COLORS.map(c => (
+                <TouchableOpacity
+                  key={c.color}
+                  style={[
+                    styles.colorDot,
+                    { backgroundColor: c.color },
+                    newTagColor === c.color && { borderWidth: 2.5, borderColor: theme.text },
+                  ]}
+                  onPress={() => {
+                    hapticSelection();
+                    setNewTagColor(c.color);
+                  }}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                />
+              ))}
+            </View>
+          </View>
+        )}
 
-            {subtasks.length > 0 && (
-              <View style={styles.subtaskChipsList}>
-                {subtasks.map(s => (
-                  <View
-                    key={s.id}
-                    style={[
-                      styles.subtaskChip,
-                      { backgroundColor: theme.surfaceMuted, borderColor: theme.border },
-                    ]}
-                  >
-                    <Text style={[styles.subtaskChipText, { color: theme.text }]} numberOfLines={1}>
-                      • {s.title}
-                    </Text>
-                    <TouchableOpacity onPress={() => handleRemoveSubtask(s.id)}>
-                      <Ionicons name="close-circle" size={16} color={theme.textDim} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-          </ScrollView>
+        {/* Estimated Duration */}
+        <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>ESTIMATED TIME</Text>
+        <View style={styles.chipsRow}>
+          {durationOptions.map(opt => {
+            const isSelected = estimatedMinutes === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.label}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => {
+                  hapticSelection();
+                  setEstimatedMinutes(opt.value);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: isSelected ? '#ffffff' : theme.textMuted },
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
+        {/* Pin as Focus of the Day Toggle */}
+        <TouchableOpacity
+          style={[
+            styles.pinToggleCard,
+            {
+              backgroundColor: isPinned ? withAlpha(theme.warning, theme.isDark ? 0.18 : 0.14) : theme.surfaceMuted,
+              borderColor: isPinned ? theme.warning : theme.border,
+            },
+          ]}
+          onPress={() => {
+            hapticSelection();
+            setIsPinned(!isPinned);
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={isPinned ? 'star' : 'star-outline'}
+            size={22}
+            color={isPinned ? theme.warning : theme.textDim}
+          />
+          <View style={styles.pinToggleContent}>
+            <Text style={[styles.pinToggleTitle, { color: isPinned ? theme.warning : theme.text }]}>
+              Focus of the Day
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Subtasks Builder */}
+        <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>
+          SUBTASKS ({subtasks.length})
+        </Text>
+        <View style={styles.subtaskInputRow}>
+          <TextInput
             style={[
-              styles.submitBtn,
+              styles.subtaskTextInput,
               {
-                backgroundColor: title.trim() ? theme.primary : theme.surfaceMuted,
-                opacity: title.trim() ? 1 : 0.6,
+                backgroundColor: theme.surfaceMuted,
+                borderColor: theme.border,
+                color: theme.text,
               },
             ]}
-            onPress={handleSave}
-            disabled={!title.trim()}
+            placeholder="Add checklist step"
+            placeholderTextColor={theme.textDim}
+            value={newSubtaskInput}
+            onChangeText={setNewSubtaskInput}
+            onSubmitEditing={handleAddSubtask}
+            returnKeyType="done"
+          />
+          <TouchableOpacity
+            style={[styles.addSubtaskBtn, { backgroundColor: theme.primary }]}
+            onPress={handleAddSubtask}
           >
-            <Text
-              style={[
-                styles.submitText,
-                { color: title.trim() ? '#ffffff' : theme.textDim },
-              ]}
-            >
-              Save Changes
-            </Text>
+            <Ionicons name="add" size={20} color="#ffffff" />
           </TouchableOpacity>
-    </SwipeableBottomSheet>
+        </View>
+
+        {subtasks.length > 0 && (
+          <View style={styles.subtaskChipsList}>
+            {subtasks.map(s => (
+              <View
+                key={s.id}
+                style={[
+                  styles.subtaskChip,
+                  { backgroundColor: theme.surfaceMuted, borderColor: theme.border },
+                ]}
+              >
+                <Text style={[styles.subtaskChipText, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+                  • {s.title}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleRemoveSubtask(s.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close-circle" size={16} color={theme.textDim} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[
+            styles.submitBtn,
+            {
+              backgroundColor: title.trim() ? theme.primary : theme.surfaceMuted,
+              opacity: title.trim() ? 1 : 0.6,
+            },
+          ]}
+          onPress={handleSave}
+          disabled={!title.trim()}
+        >
+          <Text
+            style={[
+              styles.submitText,
+              { color: title.trim() ? '#ffffff' : theme.textDim },
+            ]}
+          >
+            Save Changes
+          </Text>
+        </TouchableOpacity>
+      </BottomSheetScrollView>
+    </>
   );
 }
 
@@ -438,6 +466,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
     marginBottom: 8,
+    fontVariant: ['tabular-nums'],
   },
   chipsRow: {
     flexDirection: 'row',

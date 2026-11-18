@@ -11,21 +11,23 @@ import {
   getAmbientVolume,
 } from '../../services/audio/audioService';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight } from '../../hooks/useHaptics';
+import { hapticSelection } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
 
 interface AmbientSoundBarProps {
   theme: ThemeColors;
   isTimerRunning: boolean;
 }
 
-export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps) {
+export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
   const [activeSounds, setActiveSounds] = useState<AmbientSoundType[]>(() => getActiveAmbientSounds());
   const [volume, setVolumeState] = useState<number>(getAmbientVolume());
 
   const soundKeys: AmbientSoundType[] = ['none', 'rain', 'waves', 'forest', 'wind', 'fire'];
 
   const handleSelect = async (sound: AmbientSoundType) => {
-    hapticLight();
+    hapticSelection();
+    animateLayout();
     if (sound === 'none') {
       stopAllAmbientSounds();
       setActiveSounds([]);
@@ -36,7 +38,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
   };
 
   const handleVolumeChange = (newVol: number) => {
-    hapticLight();
+    hapticSelection();
     setVolumeState(newVol);
     setAmbientVolume(newVol);
   };
@@ -89,7 +91,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
               activeOpacity={0.75}
             >
               <Ionicons
-                name={config.icon as any}
+                name={config.icon}
                 size={14}
                 color={isSelected && key !== 'none' ? '#ffffff' : theme.textMuted}
                 style={{ marginRight: 5 }}
@@ -103,7 +105,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
                 {config.label}
               </Text>
               {isSelected && key !== 'none' && (
-                <Text style={{ color: '#ffffff', fontSize: 10, marginLeft: 4, fontWeight: '700' }}>✓</Text>
+                <Ionicons name="checkmark" size={12} color="#ffffff" style={{ marginLeft: 4 }} />
               )}
             </TouchableOpacity>
           );
@@ -112,7 +114,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
 
       {/* Volume Controls (Only visible when a sound is active) */}
       {isPlaying && (
-        <View style={styles.volumeRow}>
+        <View style={[styles.volumeRow, { borderTopColor: theme.border }]}>
           <Ionicons name="volume-low-outline" size={16} color={theme.textDim} />
           <View style={styles.volumePresets}>
             {[0.25, 0.5, 0.75, 1.0].map(v => {
@@ -150,7 +152,7 @@ export function AmbientSoundBar({ theme, isTimerRunning }: AmbientSoundBarProps)
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginTop: 16,
     padding: 16,
     borderRadius: 20,
@@ -170,10 +172,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 10,
-    marginTop: 1,
   },
   activePill: {
     paddingHorizontal: 8,
@@ -208,7 +206,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(150,150,150,0.2)',
   },
   volumePresets: {
     flexDirection: 'row',
@@ -223,5 +220,6 @@ const styles = StyleSheet.create({
   volBtnText: {
     fontSize: 11,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
 });

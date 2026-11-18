@@ -10,6 +10,7 @@ import { ZenHeatmap } from '../components/timer/ZenHeatmap';
 import { DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
+import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface FocusScreenProps {
@@ -96,7 +97,7 @@ export function FocusScreen({
               <Ionicons name="locate-outline" size={20} color={theme.primary} />
               <View style={styles.targetTexts}>
                 <Text style={[styles.targetSubtitle, { color: theme.primary }]}>FOCUSING ON TARGET</Text>
-                <Text style={[styles.targetTitle, { color: theme.text }]} numberOfLines={1}>
+                <Text style={[styles.targetTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
                   {activeFocusTask.title}
                 </Text>
               </View>
@@ -105,9 +106,13 @@ export function FocusScreen({
               <TouchableOpacity
                 onPress={() => {
                   hapticLight();
+                  animateLayout();
                   onClearActiveFocusTask();
                 }}
                 style={styles.targetClearBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Clear focus target"
               >
                 <Ionicons name="close-circle" size={20} color={theme.primary} />
               </TouchableOpacity>
@@ -162,13 +167,17 @@ export function FocusScreen({
               hapticLight();
               onOpenZenBreathing();
             }}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
             <View style={styles.breathingShortcutLeft}>
               <Ionicons name="leaf-outline" size={17} color={theme.primary} />
-              <View>
-                <Text style={[styles.breathingTitle, { color: theme.text }]}>Box Breathing</Text>
-                <Text style={[styles.breathingSubtitle, { color: theme.textDim }]}>A 3-minute mindful pause</Text>
+              <View style={styles.breathingTexts}>
+                <Text style={[styles.breathingTitle, { color: theme.text }]} numberOfLines={1}>
+                  Box Breathing
+                </Text>
+                <Text style={[styles.breathingSubtitle, { color: theme.textDim }]} numberOfLines={1}>
+                  A 3-minute mindful pause
+                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
@@ -180,9 +189,10 @@ export function FocusScreen({
           style={[styles.historyToggleBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
           onPress={() => {
             hapticLight();
+            animateLayout();
             setShowHistory(prev => !prev);
           }}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
           <View style={styles.historyToggleLeft}>
             <Ionicons
@@ -190,7 +200,10 @@ export function FocusScreen({
               size={15}
               color={showHistory ? theme.primary : theme.textDim}
             />
-            <Text style={[styles.historyToggleText, { color: showHistory ? theme.primary : theme.text }]}>
+            <Text
+              style={[styles.historyToggleText, { color: showHistory ? theme.primary : theme.text }]}
+              numberOfLines={1}
+            >
               {showHistory ? 'Hide Rhythm & Focus History' : 'View Rhythm & Focus History'}
             </Text>
           </View>
@@ -239,13 +252,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 10,
-    paddingBottom: 110,
+    paddingBottom: 36,
   },
   targetBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginBottom: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -279,7 +292,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginTop: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -290,6 +303,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    marginRight: 10,
+  },
+  breathingTexts: {
+    flex: 1,
   },
   breathingTitle: {
     fontSize: 13,
@@ -303,7 +321,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginTop: 10,
     marginBottom: 14,
     paddingVertical: 14,
@@ -319,6 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 2,
+    fontVariant: ['tabular-nums'],
   },
   summaryLabel: {
     fontSize: 11,
@@ -332,7 +351,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginTop: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -343,6 +362,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    marginRight: 10,
   },
   historyToggleText: {
     fontSize: 12,

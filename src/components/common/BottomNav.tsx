@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MobileTab } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSelection } from '../../hooks/useHaptics';
+import { PRESS_SPRING_CONFIG } from '../../utils/animations';
 
 interface BottomNavProps {
   activeTab: MobileTab;
@@ -41,21 +43,31 @@ function NavTabButton({
   useEffect(() => {
     if (isActive) {
       Animated.sequence([
-        Animated.timing(scale, { toValue: 1.12, duration: 90, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, friction: 4.5, tension: 70, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.08, duration: 80, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
       ]).start();
     } else {
       scale.setValue(1);
     }
   }, [isActive, scale]);
 
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.94, ...PRESS_SPRING_CONFIG }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, ...PRESS_SPRING_CONFIG }).start();
+  };
+
   return (
-    <TouchableOpacity
+    <Pressable
       style={styles.tabItem}
       onPress={onPress}
-      activeOpacity={0.75}
-      accessibilityRole="button"
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      accessibilityRole="tab"
       accessibilityLabel={item.label}
+      accessibilityState={{ selected: isActive }}
     >
       <Animated.View
         style={[
@@ -78,16 +90,29 @@ function NavTabButton({
             fontWeight: isActive ? '700' : '500',
           },
         ]}
+        numberOfLines={1}
       >
         {item.label}
       </Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 export function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
+  const insets = useSafeAreaInsets();
+  const safeBottomPadding = Math.max(insets.bottom, 10);
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.tabBar, borderTopColor: theme.tabBarBorder }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.tabBar,
+          borderTopColor: theme.tabBarBorder,
+          paddingBottom: safeBottomPadding,
+        },
+      ]}
+    >
       {NAV_ITEMS.map(item => {
         const isActive = activeTab === item.id;
         return (
@@ -114,14 +139,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingBottom: 22,
+    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    minHeight: 48,
   },
   iconContainer: {
     paddingHorizontal: 16,

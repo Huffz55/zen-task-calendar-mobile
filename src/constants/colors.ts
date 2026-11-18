@@ -118,3 +118,19 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     tabBarBorder: '#2e293f',
   },
 };
+
+/**
+ * Converts a 6-digit hex color to an rgba() string with bounded opacity.
+ * Keeps derived tinted badges/heatmap steps faithful to all 4 themes.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) {
+    return hex;
+  }
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  const clamped = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+}

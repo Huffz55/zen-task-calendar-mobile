@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 
 import { AppProvider, useApp } from '../context/AppContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -36,23 +37,52 @@ function RootLayoutContent() {
     toast,
     showToast,
     dismissToast,
+    hasActiveTimerSession,
   } = useApp();
+  const pathname = usePathname();
+
+  // Keep native Android/iOS root window background aligned with active theme
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(theme.background).catch(() => {});
+  }, [theme.background]);
+
+  const archivedTasks = useMemo(
+    () => (isSettingsModalOpen ? getArchivedTasks() : []),
+    [isSettingsModalOpen, getArchivedTasks]
+  );
+
+  const isMiniPlayerVisible = hasActiveTimerSession && !pathname.includes('/focus') && !pathname.includes('/list/');
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
-      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} animated />
 
       <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: theme.background },
+          animation: 'ios_from_right',
+          gestureEnabled: true,
         }}
       >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen
+          name="list/[id]"
+          options={{
+            headerShown: false,
+            animation: 'ios_from_right',
+            gestureEnabled: true,
+          }}
+        />
       </Stack>
 
       {/* Floating Toast Notification */}
-      <Toast toast={toast} onDismiss={dismissToast} theme={theme} />
+      <Toast
+        toast={toast}
+        onDismiss={dismissToast}
+        theme={theme}
+        hasMiniPlayer={isMiniPlayerVisible}
+      />
 
       {/* Color Palette Theme Modal */}
       <ThemeModal
@@ -80,7 +110,7 @@ function RootLayoutContent() {
         currentStreak={currentStreak}
         totalFocusSeconds={focusStats.totalFocusSeconds}
         tasks={tasks}
-        archivedTasks={getArchivedTasks()}
+        archivedTasks={archivedTasks}
         onUnarchiveTask={unarchiveTask}
         autoNightShift={autoNightShift}
         onToggleAutoNightShift={toggleAutoNightShift}

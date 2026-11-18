@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { HeatmapDay } from '../../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight } from '../../hooks/useHaptics';
+import { hapticSelection } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
 
 interface ZenHeatmapProps {
   theme: ThemeColors;
@@ -39,7 +40,7 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
       case 2:
         return theme.primaryLight;
       case 1:
-        return theme.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(244,114,182,0.25)';
+        return withAlpha(theme.primary, theme.isDark ? 0.18 : 0.22);
       default:
         return theme.surfaceMuted;
     }
@@ -72,7 +73,7 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matrixScroll}>
         <View style={styles.matrixGrid}>
           {columns.map((col, colIdx) => (
-            <View key={colIdx} style={styles.column}>
+            <View key={col[0]?.dateStr ?? `col-${colIdx}`} style={styles.column}>
               {col.map((day) => {
                 const isSelected = selectedDay?.dateStr === day.dateStr;
                 return (
@@ -91,10 +92,12 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
                       },
                     ]}
                     onPress={() => {
-                      hapticLight();
+                      hapticSelection();
+                      animateLayout();
                       setSelectedDay(isSelected ? null : day);
                     }}
-                    activeOpacity={0.7}
+                    activeOpacity={0.75}
+                    hitSlop={{ top: 3, bottom: 3, left: 3, right: 3 }}
                   />
                 );
               })}
@@ -119,7 +122,7 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginTop: 16,
     padding: 16,
     borderRadius: 20,
@@ -158,10 +161,12 @@ const styles = StyleSheet.create({
   tooltipDate: {
     fontSize: 11,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   tooltipValue: {
     fontSize: 11,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   matrixScroll: {
     paddingVertical: 4,

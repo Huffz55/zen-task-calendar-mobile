@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,16 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
-  ScrollView,
   Keyboard,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { AppToast } from '../../types';
 import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
 import { getSyncKey, isValidSyncKey, generateSyncKey } from '../../services/storage/syncKeyManager';
 import { switchGlobalSyncKey } from '../../services/storage/taskStorage';
-import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 
 interface SyncModalProps {
   visible: boolean;
@@ -33,6 +32,13 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   const [errorMsg, setErrorMsg] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -51,13 +57,18 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
     };
   }, [visible]);
 
+  const scheduleResetCopied = () => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleCopy = async () => {
     if (!currentKey) return;
     try {
       await Clipboard.setStringAsync(currentKey);
       hapticSuccess();
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      scheduleResetCopied();
       onShowToast({
         type: 'info',
         title: 'Copied',
@@ -65,7 +76,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
       });
     } catch {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      scheduleResetCopied();
     }
   };
 
@@ -156,12 +167,15 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           }}
           style={styles.closeBtn}
           activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close cloud sync"
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {/* Section 1: Device Key */}
         <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
           <View style={styles.sectionHeaderRow}>
@@ -172,26 +186,31 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           </View>
 
           <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.codeText, { color: theme.primary }]}>
+            <Text style={[styles.codeText, { color: theme.primary }]} numberOfLines={1} ellipsizeMode="middle">
               {currentKey || 'Loading...'}
             </Text>
             <TouchableOpacity
               style={[
                 styles.copyBtn,
-                { backgroundColor: copied ? '#ECFDF5' : theme.primaryLight },
+                {
+                  backgroundColor: copied
+                    ? withAlpha(theme.success, theme.isDark ? 0.2 : 0.14)
+                    : theme.primaryLight,
+                },
               ]}
               onPress={handleCopy}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               <Ionicons
                 name={copied ? 'checkmark' : 'copy-outline'}
                 size={15}
-                color={copied ? '#10B981' : theme.primary}
+                color={copied ? theme.success : theme.primary}
               />
               <Text
                 style={[
                   styles.copyBtnText,
-                  { color: copied ? '#10B981' : theme.primary },
+                  { color: copied ? theme.success : theme.primary },
                 ]}
               >
                 {copied ? 'Copied' : 'Copy'}
@@ -205,12 +224,12 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               style={[
                 styles.confirmBox,
                 {
-                  backgroundColor: theme.isDark ? 'rgba(244, 63, 94, 0.14)' : '#FFF1F2',
-                  borderColor: theme.isDark ? 'rgba(244, 63, 94, 0.35)' : '#FECDD3',
+                  backgroundColor: withAlpha(theme.danger, theme.isDark ? 0.16 : 0.09),
+                  borderColor: withAlpha(theme.danger, 0.35),
                 },
               ]}
             >
-              <Text style={[styles.confirmText, { color: theme.isDark ? '#FDA4AF' : '#BE123C' }]}>
+              <Text style={[styles.confirmText, { color: theme.danger }]}>
                 Generate a new key? Current paired devices will disconnect.
               </Text>
               <View style={styles.confirmActions}>
@@ -219,12 +238,15 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                     styles.cancelBtn,
                     { backgroundColor: theme.surface, borderColor: theme.border },
                   ]}
-                  onPress={() => setShowUnlinkConfirm(false)}
+                  onPress={() => {
+                    hapticLight();
+                    setShowUnlinkConfirm(false);
+                  }}
                 >
                   <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.unlinkBtn, { backgroundColor: theme.danger || '#E11D48' }]}
+                  style={[styles.unlinkBtn, { backgroundColor: theme.danger }]}
                   onPress={handleGenerateNewKey}
                 >
                   <Text style={styles.unlinkBtnText}>New Key</Text>
@@ -239,6 +261,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 setShowUnlinkConfirm(true);
               }}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               <Ionicons name="refresh-outline" size={13} color={theme.textDim} />
               <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
@@ -263,7 +286,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 styles.input,
                 {
                   backgroundColor: theme.surface,
-                  borderColor: errorMsg ? '#F43F5E' : theme.border,
+                  borderColor: errorMsg ? theme.danger : theme.border,
                   color: theme.text,
                 },
               ]}
@@ -303,31 +326,17 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
 
           {errorMsg ? (
             <View style={styles.errorRow}>
-              <Ionicons name="alert-circle-outline" size={14} color="#F43F5E" />
-              <Text style={styles.errorText}>{errorMsg}</Text>
+              <Ionicons name="alert-circle-outline" size={14} color={theme.danger} />
+              <Text style={[styles.errorText, { color: theme.danger }]}>{errorMsg}</Text>
             </View>
           ) : null}
         </View>
-      </ScrollView>
+      </BottomSheetScrollView>
     </SwipeableBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 38 : 24,
-    borderWidth: 1,
-    maxHeight: '90%',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -350,21 +359,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  syncStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-  },
-  statusDotActive: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  subtitle: {
-    fontSize: 12,
-  },
   closeBtn: {
     padding: 6,
   },
@@ -377,17 +371,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   sectionHeading: {
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
-  },
-  description: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 12,
   },
   codeBox: {
     flexDirection: 'row',
@@ -397,12 +386,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
+    gap: 8,
   },
   codeText: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 15,
     fontWeight: '700',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    letterSpacing: 2,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 1.5,
   },
   copyBtn: {
     flexDirection: 'row',
@@ -432,13 +424,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 12,
     borderRadius: 14,
-    backgroundColor: '#FFF1F2',
     borderWidth: 1,
-    borderColor: '#FECDD3',
   },
   confirmText: {
     fontSize: 11,
-    color: '#BE123C',
     fontWeight: '500',
     marginBottom: 8,
     lineHeight: 15,
@@ -452,20 +441,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   cancelBtnText: {
     fontSize: 11,
-    color: '#475569',
     fontWeight: '600',
   },
   unlinkBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#E11D48',
   },
   unlinkBtnText: {
     fontSize: 11,
@@ -508,22 +493,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   errorText: {
-    color: '#F43F5E',
     fontSize: 11,
     fontWeight: '500',
     flex: 1,
-  },
-  securityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 18,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  securityText: {
-    fontSize: 11,
-    flex: 1,
-    lineHeight: 15,
   },
 });

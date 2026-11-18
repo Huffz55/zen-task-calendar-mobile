@@ -11,7 +11,8 @@ import { BuiltinTaskTag, TaskTag } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { TAGS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight } from '../../hooks/useHaptics';
+import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
 import { useApp } from '../../context/AppContext';
 
 interface TaskFilterBarProps {
@@ -61,15 +62,17 @@ export function TaskFilterBar({
           value={searchQuery}
           onChangeText={onSearchChange}
           returnKeyType="search"
-          clearButtonMode="while-editing"
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity
             onPress={() => {
               hapticLight();
+              animateLayout();
               onSearchChange('');
             }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
           >
             <Ionicons name="close-circle" size={16} color={theme.textDim} />
           </TouchableOpacity>
@@ -80,6 +83,7 @@ export function TaskFilterBar({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.chipsScroll}
       >
         {/* 'All' Chip */}
@@ -94,16 +98,20 @@ export function TaskFilterBar({
             },
           ]}
           onPress={() => {
-            hapticLight();
+            hapticSelection();
+            animateLayout();
             onSelectTag('all');
           }}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityState={{ selected: selectedTag === 'all' }}
         >
           <Text
             style={[
               styles.chipText,
               { color: selectedTag === 'all' ? '#ffffff' : theme.textMuted },
             ]}
+            numberOfLines={1}
           >
             All
           </Text>
@@ -148,13 +156,16 @@ export function TaskFilterBar({
                 },
               ]}
               onPress={() => {
-                hapticLight();
+                hapticSelection();
+                animateLayout();
                 onSelectTag(isSelected ? 'all' : tKey);
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
             >
               <Ionicons
-                name={conf.icon as any}
+                name={conf.icon}
                 size={12}
                 color={isSelected ? '#ffffff' : conf.color}
                 style={{ marginRight: 4 }}
@@ -164,6 +175,7 @@ export function TaskFilterBar({
                   styles.chipText,
                   { color: isSelected ? '#ffffff' : theme.textMuted },
                 ]}
+                numberOfLines={1}
               >
                 {conf.label}
               </Text>
@@ -243,5 +255,6 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
 });

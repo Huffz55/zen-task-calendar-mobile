@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated } from 'react-native';
 import { CustomList } from '../../types';
 import { ThemeColors } from '../../constants/colors';
@@ -17,7 +17,7 @@ interface ListCardProps {
   onMoveFolder?: (list: CustomList) => void;
 }
 
-export function ListCard({
+export const ListCard = memo(function ListCard({
   list,
   theme,
   onToggleItem,
@@ -33,14 +33,14 @@ export function ListCard({
   const completedCount = list.items.filter(i => i.completed).length;
   const progress = totalItems > 0 ? completedCount / totalItems : 0;
 
-  const [enterAnim] = useState(() => new Animated.Value(0));
+  const enterAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.spring(enterAnim, {
       toValue: 1,
-      damping: 20,
-      mass: 0.8,
-      stiffness: 160,
+      damping: 22,
+      mass: 0.75,
+      stiffness: 200,
       useNativeDriver: true,
     }).start();
   }, [enterAnim]);
@@ -74,17 +74,19 @@ export function ListCard({
         <TouchableOpacity
           style={styles.titleRow}
           onPress={() => {
+            hapticLight();
             animateLayout();
             setIsExpanded(!isExpanded);
           }}
           activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
         >
           <Ionicons
             name={isExpanded ? 'chevron-down' : 'chevron-forward'}
             size={18}
             color={theme.primary}
           />
-          <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
+          <Text style={[styles.title, { color: theme.text }]} numberOfLines={2} ellipsizeMode="tail">
             {list.title}
           </Text>
           <View style={[styles.countBadge, { backgroundColor: theme.surfaceMuted }]}>
@@ -136,7 +138,9 @@ export function ListCard({
         <View style={[styles.folderTagRow]}>
           <View style={[styles.folderBadge, { backgroundColor: theme.primaryLight }]}>
             <Ionicons name="folder-outline" size={10} color={theme.primary} />
-            <Text style={[styles.folderBadgeText, { color: theme.primary }]}>{list.folder}</Text>
+            <Text style={[styles.folderBadgeText, { color: theme.primary }]} numberOfLines={1} ellipsizeMode="tail">
+              {list.folder}
+            </Text>
           </View>
         </View>
       )}
@@ -174,6 +178,10 @@ export function ListCard({
                   onToggleItem(list.id, item.id);
                 }}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: item.completed }}
+                accessibilityLabel={item.text}
               >
                 {item.completed && <Ionicons name="checkmark" size={12} color="#ffffff" />}
               </TouchableOpacity>
@@ -195,7 +203,9 @@ export function ListCard({
                   hapticLight();
                   onDeleteItem(list.id, item.id);
                 }}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${item.text}`}
               >
                 <Ionicons name="close" size={16} color={theme.textDim} />
               </TouchableOpacity>
@@ -233,7 +243,7 @@ export function ListCard({
       )}
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -291,6 +301,7 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 11,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   progressBarBg: {
     height: 4,

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSuccess, hapticLight } from '../../hooks/useHaptics';
@@ -38,15 +38,46 @@ export function EveningReviewModal({
   overdueCount,
   onRollover,
 }: EveningReviewModalProps) {
+  const [scaleAnim] = useState(() => new Animated.Value(0.94));
+
+  useEffect(() => {
+    if (isOpen) {
+      scaleAnim.setValue(0.94);
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        damping: 18,
+        stiffness: 240,
+        mass: 0.7,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isOpen, scaleAnim]);
+
   if (!isOpen) return null;
 
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isPerfect = totalTasks > 0 && completedTasks === totalTasks;
 
   return (
-    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={isOpen}
+      transparent
+      statusBarTranslucent
+      navigationBarTranslucent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
           {/* Close button */}
           <TouchableOpacity
             style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
@@ -55,6 +86,9 @@ export function EveningReviewModal({
               onClose();
             }}
             activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close evening review"
           >
             <Ionicons name="close" size={18} color={theme.textDim} />
           </TouchableOpacity>
@@ -86,7 +120,7 @@ export function EveningReviewModal({
             </View>
 
             <View style={[styles.kpiCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-              <Ionicons name="flame-outline" size={16} color="#f97316" />
+              <Ionicons name="flame-outline" size={16} color={theme.warning} />
               <Text style={[styles.kpiValue, { color: theme.text }]}>
                 {currentStreak}d
               </Text>
@@ -133,7 +167,7 @@ export function EveningReviewModal({
               activeOpacity={0.8}
             >
               <Ionicons name="arrow-forward-circle-outline" size={17} color="#ffffff" />
-              <Text style={styles.actionBtnText}>
+              <Text style={styles.actionBtnText} numberOfLines={1}>
                 Roll over {overdueCount} remaining to tomorrow
               </Text>
             </TouchableOpacity>
@@ -149,7 +183,7 @@ export function EveningReviewModal({
               <Text style={styles.actionBtnText}>Done</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -167,10 +201,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 22,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    elevation: 4,
   },
   closeBtn: {
     position: 'absolute',
@@ -201,10 +235,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 12,
-    marginTop: 3,
-  },
   kpiGrid: {
     flexDirection: 'row',
     gap: 8,
@@ -222,6 +252,7 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 14,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   kpiLabel: {
     fontSize: 10,
@@ -243,6 +274,7 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 11,
     textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   quoteBox: {
     padding: 12,
@@ -261,6 +293,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 13,
+    paddingHorizontal: 14,
     borderRadius: 16,
   },
   actionBtnText: {

@@ -1,21 +1,21 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { memo, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Animated,
   PanResponder,
   Linking,
-  Platform,
 } from 'react-native';
 import { DailyTask } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
+import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
 import { playBambooTap, playSoftSwoosh } from '../../services/audio/audioService';
-import { animateLayout } from '../../utils/animations';
+import { animateLayout, PRESS_SPRING_CONFIG } from '../../utils/animations';
 import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
 import { useApp } from '../../context/AppContext';
 
@@ -27,7 +27,7 @@ interface TaskCardProps {
   onEdit?: (task: DailyTask) => void;
   onTogglePin?: (taskId: string) => void;
   onMoveToInbox?: (taskId: string) => void;
-  onDeferTask?: () => void;
+  onDeferTask?: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
   onStartFocus?: (task: { id: string; title: string }) => void;
 }
@@ -42,7 +42,7 @@ function formatMinutes(seconds: number): string {
   return `${mins}m`;
 }
 
-export function TaskCard({
+export const TaskCard = memo(function TaskCard({
   task,
   theme,
   onToggle,
@@ -74,47 +74,80 @@ export function TaskCard({
     }
   }, [task.title]);
 
-  // Entrance & checkmark micro-animations
+  // Entrance, press, and checkmark micro-animations
   const [enterAnim] = useState(() => new Animated.Value(0));
   const [checkScale] = useState(() => new Animated.Value(1));
+  const [cardScale] = useState(() => new Animated.Value(1));
+  const [panX] = useState(() => new Animated.Value(0));
+  const swipeThresholdRef = useRef<'left' | 'right' | null>(null);
 
   useEffect(() => {
     Animated.spring(enterAnim, {
       toValue: 1,
-      damping: 20,
-      mass: 0.75,
-      stiffness: 160,
+      damping: 22,
+      mass: 0.7,
+      stiffness: 210,
       useNativeDriver: true,
     }).start();
   }, [enterAnim]);
 
-  const triggerCheckBounce = () => {
+  const triggerCheckBounce = useCallback(() => {
     Animated.sequence([
-      Animated.timing(checkScale, { toValue: 0.78, duration: 70, useNativeDriver: true }),
-      Animated.spring(checkScale, { toValue: 1, friction: 3.5, tension: 80, useNativeDriver: true }),
+      Animated.timing(checkScale, { toValue: 0.78, duration: 65, useNativeDriver: true }),
+      Animated.spring(checkScale, { toValue: 1, friction: 3.8, tension: 90, useNativeDriver: true }),
     ]).start();
+  }, [checkScale]);
+
+  const handleCardPressIn = () => {
+    if (!onEdit) return;
+    Animated.spring(cardScale, { toValue: 0.985, ...PRESS_SPRING_CONFIG }).start();
   };
 
-  // Swipe animation setup
-  const [panX] = useState(() => new Animated.Value(0));
+  const handleCardPressOut = () => {
+    if (!onEdit) return;
+    Animated.spring(cardScale, { toValue: 1, ...PRESS_SPRING_CONFIG }).start();
+  };
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dy) < 12;
+          return Math.abs(gestureState.dx) > 16 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4;
+        },
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          swipeThresholdRef.current = null;
         },
         onPanResponderMove: (_, gestureState) => {
-          panX.setValue(gestureState.dx);
+          const rawDx = gestureState.dx;
+          const clamped =
+            rawDx > 95
+              ? 95 + (rawDx - 95) * 0.25
+              : rawDx < -95
+              ? -95 + (rawDx + 95) * 0.25
+              : rawDx;
+          panX.setValue(clamped);
+
+          if (rawDx > 78 && swipeThresholdRef.current !== 'right') {
+            swipeThresholdRef.current = 'right';
+            hapticSelection();
+          } else if (rawDx < -78 && swipeThresholdRef.current !== 'left') {
+            swipeThresholdRef.current = 'left';
+            hapticSelection();
+          } else if (Math.abs(rawDx) <= 70 && swipeThresholdRef.current !== null) {
+            swipeThresholdRef.current = null;
+          }
         },
         onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dx > 80) {
+          swipeThresholdRef.current = null;
+          if (gestureState.dx > 78) {
             // Swiped right -> Complete
             playSoftSwoosh();
             playBambooTap();
             hapticSuccess();
+            triggerCheckBounce();
             onToggle(task.taskId);
-          } else if (gestureState.dx < -80) {
+          } else if (gestureState.dx < -78) {
             // Swiped left -> Delete
             playSoftSwoosh();
             hapticWarning();
@@ -122,12 +155,23 @@ export function TaskCard({
           }
           Animated.spring(panX, {
             toValue: 0,
+            damping: 20,
+            stiffness: 240,
+            mass: 0.7,
             useNativeDriver: true,
-            bounciness: 4,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          swipeThresholdRef.current = null;
+          Animated.spring(panX, {
+            toValue: 0,
+            damping: 20,
+            stiffness: 240,
+            useNativeDriver: true,
           }).start();
         },
       }),
-    [onDelete, onToggle, panX, task]
+    [onDelete, onToggle, panX, task, triggerCheckBounce]
   );
 
   const subtasks = task.subtasks || [];
@@ -175,12 +219,12 @@ export function TaskCard({
       {/* Background Swipe Indicators (Hidden at rest, reveals on swipe) */}
       <View style={styles.swipeBackground} pointerEvents="none">
         <Animated.View style={[styles.swipeActionLeft, { opacity: swipeOpacityLeft }]}>
-          <Ionicons name="checkmark-circle" size={22} color="#10b981" />
-          <Text style={styles.swipeActionText}>Done</Text>
+          <Ionicons name="checkmark-circle" size={22} color={theme.success} />
+          <Text style={[styles.swipeActionText, { color: theme.success }]}>Done</Text>
         </Animated.View>
         <Animated.View style={[styles.swipeActionRight, { opacity: swipeOpacityRight }]}>
-          <Text style={styles.swipeActionDeleteText}>Delete</Text>
-          <Ionicons name="trash-outline" size={20} color="#ef4444" />
+          <Text style={[styles.swipeActionDeleteText, { color: theme.danger }]}>Delete</Text>
+          <Ionicons name="trash-outline" size={20} color={theme.danger} />
         </Animated.View>
       </View>
 
@@ -191,17 +235,17 @@ export function TaskCard({
           styles.card,
           {
             backgroundColor: theme.card,
-            borderColor: task.isCompleted ? theme.border : (task.isPinned ? '#f59e0b' : theme.border),
+            borderColor: task.isCompleted ? theme.border : (task.isPinned ? theme.warning : theme.border),
             borderWidth: task.isPinned && !task.isCompleted ? 1.5 : 1,
-            transform: [{ translateX: panX }],
+            transform: [{ translateX: panX }, { scale: cardScale }],
           },
         ]}
       >
         {/* Pinned Top Banner */}
         {task.isPinned && !task.isCompleted && (
           <View style={styles.pinnedBanner}>
-            <Ionicons name="star" size={12} color="#f59e0b" />
-            <Text style={styles.pinnedBannerText}>Focus of the Day</Text>
+            <Ionicons name="star" size={12} color={theme.warning} />
+            <Text style={[styles.pinnedBannerText, { color: theme.warning }]}>Focus of the Day</Text>
           </View>
         )}
 
@@ -227,21 +271,27 @@ export function TaskCard({
                 onToggle(task.taskId);
               }}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: task.isCompleted }}
+              accessibilityLabel={`Mark ${task.title} as ${task.isCompleted ? 'incomplete' : 'completed'}`}
             >
               {task.isCompleted && <Ionicons name="checkmark" size={14} color="#ffffff" />}
             </TouchableOpacity>
           </Animated.View>
 
           {/* Content */}
-          <TouchableOpacity
+          <Pressable
             style={styles.content}
+            onPressIn={handleCardPressIn}
+            onPressOut={handleCardPressOut}
             onPress={() => {
               if (onEdit) {
                 hapticLight();
                 onEdit(task);
               }
             }}
-            activeOpacity={onEdit ? 0.7 : 1}
+            disabled={!onEdit}
           >
             <Text
               style={[
@@ -252,6 +302,7 @@ export function TaskCard({
                 },
               ]}
               numberOfLines={2}
+              ellipsizeMode="tail"
             >
               {task.title}
             </Text>
@@ -265,16 +316,17 @@ export function TaskCard({
                     { backgroundColor: theme.isDark ? tagConfig.bgDark : tagConfig.bgLight },
                   ]}
                 >
-                  <Text style={[styles.badgeText, { color: tagConfig.color }]}>
+                  <Text style={[styles.badgeText, { color: tagConfig.color }]} numberOfLines={1}>
                     {tagConfig.label}
                   </Text>
                 </View>
               )}
 
               {task.recurrence !== 'none' && (
-                <View style={[styles.badge, { backgroundColor: theme.surfaceMuted }]}>
-                  <Text style={[styles.badgeText, { color: theme.accent || theme.primary }]}>
-                    🔁 {task.recurrence}
+                <View style={[styles.badge, { backgroundColor: theme.surfaceMuted, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
+                  <Ionicons name="repeat-outline" size={10} color={theme.accent || theme.primary} />
+                  <Text style={[styles.badgeText, { color: theme.accent || theme.primary }]} numberOfLines={1}>
+                    {task.recurrence}
                   </Text>
                 </View>
               )}
@@ -283,7 +335,7 @@ export function TaskCard({
               {task.focusedSeconds && task.focusedSeconds > 0 ? (
                 <View style={[styles.badge, { backgroundColor: theme.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
                   <Ionicons name="timer-outline" size={10} color={theme.primary} />
-                  <Text style={[styles.badgeText, { color: theme.primary }]}>
+                  <Text style={[styles.badgeText, styles.tabularText, { color: theme.primary }]} numberOfLines={1}>
                     {formatMinutes(task.focusedSeconds)}
                   </Text>
                 </View>
@@ -293,7 +345,7 @@ export function TaskCard({
               {task.estimatedMinutes && task.estimatedMinutes > 0 ? (
                 <View style={[styles.badge, { backgroundColor: theme.surfaceMuted, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
                   <Ionicons name="time-outline" size={10} color={theme.textDim} />
-                  <Text style={[styles.badgeText, { color: theme.textDim }]}>
+                  <Text style={[styles.badgeText, styles.tabularText, { color: theme.textDim }]} numberOfLines={1}>
                     {task.estimatedMinutes >= 60
                       ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60 ? `${task.estimatedMinutes % 60}m` : ''}`.trim()
                       : `${task.estimatedMinutes}m`}
@@ -304,16 +356,17 @@ export function TaskCard({
               {/* Quick Link Badge */}
               {linkInfo && (
                 <TouchableOpacity
-                  style={[styles.badge, { backgroundColor: theme.primaryLight, borderColor: theme.primary, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 3 }]}
+                  style={[styles.badge, { backgroundColor: theme.primaryLight, borderColor: theme.primary, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: 145 }]}
                   onPress={(e) => {
                     e.stopPropagation();
                     hapticLight();
                     Linking.openURL(linkInfo.url).catch(() => {});
                   }}
                   activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                 >
                   <Ionicons name="link-outline" size={11} color={theme.primary} />
-                  <Text style={[styles.badgeText, { color: theme.primary, fontWeight: '600' }]} numberOfLines={1}>
+                  <Text style={[styles.badgeText, { color: theme.primary, fontWeight: '600', flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="middle">
                     {linkInfo.displayLabel}
                   </Text>
                 </TouchableOpacity>
@@ -335,6 +388,7 @@ export function TaskCard({
                     setIsSubtasksExpanded(!isSubtasksExpanded);
                   }}
                   activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                 >
                   <Ionicons name="checkbox-outline" size={12} color={theme.primary} />
                   <Text style={[styles.subtaskBadgeText, { color: theme.text }]}>
@@ -363,7 +417,7 @@ export function TaskCard({
                 />
               </View>
             )}
-          </TouchableOpacity>
+          </Pressable>
 
           {/* Actions */}
           <View style={styles.actionsRow}>
@@ -416,8 +470,8 @@ export function TaskCard({
 
         {/* Mobile Task Actions Bottom Sheet Modal */}
         <SwipeableBottomSheet visible={isMenuOpen} onClose={() => setIsMenuOpen(false)} theme={theme} maxHeight="75%">
-          <View style={styles.menuHeader}>
-            <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1}>
+          <View style={[styles.menuHeader, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
               {task.title}
             </Text>
           </View>
@@ -434,7 +488,7 @@ export function TaskCard({
               <Ionicons
                 name={task.isPinned ? 'star' : 'star-outline'}
                 size={18}
-                color={task.isPinned ? '#f59e0b' : theme.text}
+                color={task.isPinned ? theme.warning : theme.text}
               />
               <Text style={[styles.menuItemText, { color: theme.text }]}>
                 {task.isPinned ? 'Unpin Focus Goal' : 'Set as Focus of the Day'}
@@ -448,7 +502,7 @@ export function TaskCard({
               onPress={() => {
                 hapticLight();
                 setIsMenuOpen(false);
-                onDeferTask();
+                onDeferTask(task.taskId);
               }}
             >
               <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
@@ -465,7 +519,7 @@ export function TaskCard({
                 onMoveToInbox(task.taskId);
               }}
             >
-              <Ionicons name="archive-outline" size={18} color="#0284c7" />
+              <Ionicons name="archive-outline" size={18} color={theme.accent || theme.primary} />
               <Text style={[styles.menuItemText, { color: theme.text }]}>
                 Move to Inbox
               </Text>
@@ -496,13 +550,16 @@ export function TaskCard({
               onDelete(task);
             }}
           >
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
-            <Text style={[styles.menuItemText, { color: '#ef4444', fontWeight: '600' }]}>Delete Task</Text>
+            <Ionicons name="trash-outline" size={18} color={theme.danger} />
+            <Text style={[styles.menuItemText, { color: theme.danger, fontWeight: '600' }]}>Delete Task</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.cancelBtn, { backgroundColor: theme.surfaceMuted }]}
-            onPress={() => setIsMenuOpen(false)}
+            onPress={() => {
+              hapticLight();
+              setIsMenuOpen(false);
+            }}
           >
             <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>Cancel</Text>
           </TouchableOpacity>
@@ -527,6 +584,9 @@ export function TaskCard({
                   }
                 }}
                 activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: sub.isCompleted }}
               >
                 <View
                   style={[
@@ -547,6 +607,7 @@ export function TaskCard({
                       textDecorationLine: sub.isCompleted ? 'line-through' : 'none',
                     },
                   ]}
+                  numberOfLines={2}
                 >
                   {sub.title}
                 </Text>
@@ -557,7 +618,7 @@ export function TaskCard({
       </Animated.View>
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   swipeContainer: {
@@ -653,6 +714,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.2,
   },
+  tabularText: {
+    fontVariant: ['tabular-nums'],
+  },
   subtaskBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -665,6 +729,7 @@ const styles = StyleSheet.create({
   subtaskBadgeText: {
     fontSize: 10,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   progressTrack: {
     height: 3,
@@ -712,30 +777,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   subtaskTitle: {
-    fontSize: 13,
-  },
-  modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-  },
-  menuSheet: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 16,
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    fontSize: 13,
   },
   menuHeader: {
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
     marginBottom: 6,
   },
   menuTitle: {

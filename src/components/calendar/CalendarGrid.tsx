@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import {
   format,
@@ -14,7 +14,8 @@ import {
 } from 'date-fns';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight } from '../../hooks/useHaptics';
+import { hapticSelection } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
 
 interface CalendarGridProps {
   selectedDate: Date;
@@ -23,46 +24,74 @@ interface CalendarGridProps {
   theme: ThemeColors;
 }
 
+const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export function CalendarGrid({
   selectedDate,
   onSelectDate,
   getTaskCountForDate,
   theme,
 }: CalendarGridProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate));
+  const selectedDayKey = format(selectedDate, 'yyyy-MM-dd');
+  const [browsedState, setBrowsedState] = useState<{
+    forSelectedDay: string;
+    month: Date;
+  } | null>(null);
 
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(monthStart);
-  const startDate = startOfWeek(monthStart);
-  const endDate = endOfWeek(monthEnd);
+  const currentMonth = useMemo(() => {
+    if (browsedState && browsedState.forSelectedDay === selectedDayKey) {
+      return browsedState.month;
+    }
+    return startOfMonth(selectedDate);
+  }, [browsedState, selectedDate, selectedDayKey]);
 
-  const days = eachDayOfInterval({ start: startDate, end: endDate });
-  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthStart = useMemo(() => startOfMonth(currentMonth), [currentMonth]);
+  const days = useMemo(() => {
+    const monthEnd = endOfMonth(monthStart);
+    const startDate = startOfWeek(monthStart);
+    const endDate = endOfWeek(monthEnd);
+    return eachDayOfInterval({ start: startDate, end: endDate });
+  }, [monthStart]);
+
   const today = new Date();
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
       {/* Month Navigator Header */}
       <View style={styles.header}>
-        <Text style={[styles.monthTitle, { color: theme.text }]}>
+        <Text style={[styles.monthTitle, { color: theme.text }]} numberOfLines={1}>
           {format(currentMonth, 'MMMM yyyy')}
         </Text>
         <View style={styles.navRow}>
           <TouchableOpacity
             style={[styles.navBtn, { borderColor: theme.border }]}
             onPress={() => {
-              hapticLight();
-              setCurrentMonth(prev => subMonths(prev, 1));
+              hapticSelection();
+              animateLayout();
+              setBrowsedState({
+                forSelectedDay: selectedDayKey,
+                month: subMonths(currentMonth, 1),
+              });
             }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
           >
             <Ionicons name="chevron-back" size={16} color={theme.text} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navBtn, { borderColor: theme.border }]}
             onPress={() => {
-              hapticLight();
-              setCurrentMonth(prev => addMonths(prev, 1));
+              hapticSelection();
+              animateLayout();
+              setBrowsedState({
+                forSelectedDay: selectedDayKey,
+                month: addMonths(currentMonth, 1),
+              });
             }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
           >
             <Ionicons name="chevron-forward" size={16} color={theme.text} />
           </TouchableOpacity>
@@ -71,8 +100,8 @@ export function CalendarGrid({
 
       {/* Weekday Labels */}
       <View style={styles.weekDaysRow}>
-        {weekDays.map((wd, i) => (
-          <Text key={i} style={[styles.weekDayLabel, { color: theme.textDim }]}>
+        {WEEK_DAYS.map(wd => (
+          <Text key={wd} style={[styles.weekDayLabel, { color: theme.textDim }]}>
             {wd}
           </Text>
         ))}
@@ -80,7 +109,7 @@ export function CalendarGrid({
 
       {/* Days Grid */}
       <View style={styles.daysGrid}>
-        {days.map((day, idx) => {
+        {days.map(day => {
           const isSelected = isSameDay(day, selectedDate);
           const isCurrentMonth = isSameMonth(day, monthStart);
           const isTodayDate = isSameDay(day, today);
@@ -89,7 +118,7 @@ export function CalendarGrid({
 
           return (
             <TouchableOpacity
-              key={idx}
+              key={dateStr}
               style={[
                 styles.dayCell,
                 isSelected && { backgroundColor: theme.primary, borderRadius: 14 },
@@ -100,10 +129,13 @@ export function CalendarGrid({
                 },
               ]}
               onPress={() => {
-                hapticLight();
+                hapticSelection();
                 onSelectDate(day);
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={dateStr}
+              accessibilityState={{ selected: isSelected }}
             >
               <Text
                 style={[
@@ -148,7 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginBottom: 16,
   },
   header: {
@@ -197,6 +229,7 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 14,
+    fontVariant: ['tabular-nums'],
   },
   dotContainer: {
     height: 5,

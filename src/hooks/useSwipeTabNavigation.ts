@@ -1,25 +1,27 @@
 import { useMemo } from 'react';
 import { PanResponder, PanResponderGestureState } from 'react-native';
-import { router } from 'expo-router';
+import { useNavigation } from 'expo-router';
 import { MobileTab } from '../types';
-import { hapticLight } from './useHaptics';
+import { hapticSelection } from './useHaptics';
 
 const TABS: MobileTab[] = ['today', 'calendar', 'lists', 'focus'];
 
-const TAB_ROUTES: Record<MobileTab, string> = {
-  today: '/(tabs)',
-  calendar: '/(tabs)/calendar',
-  lists: '/(tabs)/lists',
-  focus: '/(tabs)/focus',
+const TAB_ROUTE_NAMES: Record<MobileTab, 'index' | 'calendar' | 'lists' | 'focus'> = {
+  today: 'index',
+  calendar: 'calendar',
+  lists: 'lists',
+  focus: 'focus',
 };
 
 export function useSwipeTabNavigation(currentTab: MobileTab) {
+  const navigation = useNavigation();
+
   const panResponder = useMemo(() => {
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState: PanResponderGestureState) => {
         const isHorizontal =
-          Math.abs(gestureState.dx) > 35 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.8;
+          Math.abs(gestureState.dx) > 36 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2.0;
 
         if (!isHorizontal) return false;
 
@@ -38,8 +40,8 @@ export function useSwipeTabNavigation(currentTab: MobileTab) {
         return true;
       },
       onPanResponderRelease: (_, gestureState: PanResponderGestureState) => {
-        const isSwipeLeft = gestureState.dx < -50 || gestureState.vx < -0.35;
-        const isSwipeRight = gestureState.dx > 50 || gestureState.vx > 0.35;
+        const isSwipeLeft = gestureState.dx < -48 || (gestureState.dx < -24 && gestureState.vx < -0.35);
+        const isSwipeRight = gestureState.dx > 48 || (gestureState.dx > 24 && gestureState.vx > 0.35);
 
         if (!isSwipeLeft && !isSwipeRight) return;
 
@@ -59,12 +61,12 @@ export function useSwipeTabNavigation(currentTab: MobileTab) {
         }
 
         if (targetTab && targetTab !== currentTab) {
-          hapticLight();
-          router.replace(TAB_ROUTES[targetTab]);
+          hapticSelection();
+          navigation.navigate(TAB_ROUTE_NAMES[targetTab] as never);
         }
       },
     });
-  }, [currentTab]);
+  }, [currentTab, navigation]);
 
   return panResponder.panHandlers;
 }

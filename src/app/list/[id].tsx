@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
+import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
 
 export default function ListDetailRoute() {
   const insets = useSafeAreaInsets();
@@ -45,13 +55,19 @@ export default function ListDetailRoute() {
 
   const handleAddItem = () => {
     if (!newItemText.trim()) return;
-    hapticLight();
+    hapticSuccess();
+    animateLayout();
     addListItem(list.id, newItemText.trim());
     setNewItemText('');
   };
 
+  const safeBottomPadding = Math.max(insets.bottom, 20) + 28;
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       {/* Header Bar */}
       <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: safeTopPadding }]}>
         <TouchableOpacity
@@ -60,15 +76,18 @@ export default function ListDetailRoute() {
             hapticLight();
             router.back();
           }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="arrow-back" size={20} color={theme.text} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
             {list.title}
           </Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textDim }]}>
+          <Text style={[styles.headerSubtitle, { color: theme.textDim }]} numberOfLines={1}>
             {completedCount} of {totalCount} completed
           </Text>
         </View>
@@ -80,8 +99,11 @@ export default function ListDetailRoute() {
             handleDeleteList(list.id);
             router.back();
           }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Delete list"
         >
-          <Ionicons name="trash-outline" size={18} color={theme.accent} />
+          <Ionicons name="trash-outline" size={18} color={theme.danger} />
         </TouchableOpacity>
       </View>
 
@@ -97,7 +119,9 @@ export default function ListDetailRoute() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: safeBottomPadding }]}
       >
         {/* Quick Add Item Bar */}
         <View style={[styles.addBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -120,6 +144,9 @@ export default function ListDetailRoute() {
             ]}
             onPress={handleAddItem}
             disabled={!newItemText.trim()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Add list item"
           >
             <Ionicons name="add" size={20} color={newItemText.trim() ? '#ffffff' : theme.textDim} />
           </TouchableOpacity>
@@ -134,7 +161,7 @@ export default function ListDetailRoute() {
               {
                 backgroundColor: theme.card,
                 borderColor: theme.border,
-                opacity: item.completed ? 0.75 : 1,
+                opacity: item.completed ? 0.72 : 1,
               },
             ]}
           >
@@ -148,8 +175,13 @@ export default function ListDetailRoute() {
               ]}
               onPress={() => {
                 hapticLight();
+                animateLayout();
                 toggleListItem(list.id, item.id);
               }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: item.completed }}
+              accessibilityLabel={item.text}
             >
               {item.completed && <Ionicons name="checkmark" size={14} color="#ffffff" />}
             </TouchableOpacity>
@@ -169,9 +201,12 @@ export default function ListDetailRoute() {
             <TouchableOpacity
               onPress={() => {
                 hapticWarning();
+                animateLayout();
                 deleteListItem(list.id, item.id);
               }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${item.text}`}
             >
               <Ionicons name="close" size={16} color={theme.textDim} />
             </TouchableOpacity>
@@ -186,7 +221,7 @@ export default function ListDetailRoute() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -220,6 +255,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
   progressBarBg: {
     height: 3,

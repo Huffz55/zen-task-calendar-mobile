@@ -41,7 +41,11 @@ export function Header({
     <View style={[styles.container, { borderBottomColor: theme.border, paddingTop: safeTopPadding }]}>
       <View style={styles.left}>
         <View style={styles.greetingRow}>
-          <Text style={[styles.subtitle, { color: theme.accent }]}>
+          <Text
+            style={[styles.subtitle, { color: theme.accent }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {subtitle || getGreeting()}
           </Text>
           {currentStreak > 0 && (
@@ -53,7 +57,9 @@ export function Header({
             </View>
           )}
         </View>
-        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+          {title}
+        </Text>
       </View>
 
       <View style={styles.rightActions}>
@@ -65,7 +71,9 @@ export function Header({
               onOpenEveningReview();
             }}
             activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel="Evening review"
           >
             <Ionicons name="moon-outline" size={16} color={theme.primary} />
           </TouchableOpacity>
@@ -79,6 +87,9 @@ export function Header({
               onOpenSyncModal();
             }}
             activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel="Cloud sync"
           >
             <Ionicons name="cloud-outline" size={16} color={theme.primary} />
           </TouchableOpacity>
@@ -92,6 +103,9 @@ export function Header({
               onOpenSettingsModal();
             }}
             activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
           >
             <Ionicons name="settings-outline" size={16} color={theme.text} />
           </TouchableOpacity>
@@ -104,6 +118,9 @@ export function Header({
             onOpenThemeModal();
           }}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+          accessibilityRole="button"
+          accessibilityLabel="Change theme"
         >
           <Text style={styles.themeIcon}>{theme.icon}</Text>
           <Ionicons name="color-palette-outline" size={16} color={theme.primary} />
@@ -124,6 +141,7 @@ const styles = StyleSheet.create({
   },
   left: {
     flex: 1,
+    marginRight: 10,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -135,6 +153,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.2,
+    flexShrink: 1,
   },
   streakBadge: {
     flexDirection: 'row',
@@ -143,10 +162,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
+    flexShrink: 0,
   },
   streakText: {
     fontSize: 11,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   title: {
     fontSize: 22,

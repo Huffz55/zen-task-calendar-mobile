@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CustomList } from '../types';
@@ -13,9 +15,10 @@ import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { ListCard } from '../components/lists/ListCard';
 import { AddListModal } from '../components/lists/AddListModal';
-import { SwipeableBottomSheet } from '../components/common/SwipeableBottomSheet';
+import { BottomSheetScrollView, SwipeableBottomSheet } from '../components/common/SwipeableBottomSheet';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight } from '../hooks/useHaptics';
+import { hapticLight, hapticSelection } from '../hooks/useHaptics';
+import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 const DEFAULT_FOLDERS = ['Study', 'Work', 'Market'];
@@ -107,8 +110,16 @@ export function ListsScreen({
     onAddList(title, folder);
   };
 
+  const handleMoveFolderRequest = useCallback((l: CustomList) => {
+    setMovingList(l);
+  }, []);
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      {...swipeHandlers}
+    >
       <Header
         theme={theme}
         currentStreak={currentStreak}
@@ -120,9 +131,11 @@ export function ListsScreen({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Folders Grid (Screenshot 7 style) */}
+        {/* Folders Grid */}
         <View style={styles.foldersSection}>
           <View style={styles.foldersGrid}>
             <TouchableOpacity
@@ -134,10 +147,13 @@ export function ListsScreen({
                 },
               ]}
               onPress={() => {
-                hapticLight();
+                hapticSelection();
+                animateLayout();
                 setSelectedFolder('ALL');
               }}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedFolder === 'ALL' }}
             >
               <View style={styles.folderTopRow}>
                 <Ionicons
@@ -160,6 +176,7 @@ export function ListsScreen({
                   { color: selectedFolder === 'ALL' ? theme.primary : theme.text },
                 ]}
                 numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 All
               </Text>
@@ -179,10 +196,13 @@ export function ListsScreen({
                     },
                   ]}
                   onPress={() => {
-                    hapticLight();
+                    hapticSelection();
+                    animateLayout();
                     setSelectedFolder(isActive ? 'ALL' : folder);
                   }}
                   activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
                 >
                   <View style={styles.folderTopRow}>
                     <Ionicons
@@ -205,6 +225,7 @@ export function ListsScreen({
                       { color: isActive ? theme.primary : theme.text },
                     ]}
                     numberOfLines={1}
+                    ellipsizeMode="tail"
                   >
                     {folder}
                   </Text>
@@ -225,7 +246,9 @@ export function ListsScreen({
               activeOpacity={0.75}
             >
               <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
-              <Text style={[styles.folderName, { color: theme.primary }]}>Folder</Text>
+              <Text style={[styles.folderName, { color: theme.primary }]} numberOfLines={1}>
+                Folder
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -237,7 +260,7 @@ export function ListsScreen({
             hapticLight();
             setIsAddListOpen(true);
           }}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
           <View style={styles.newListLeft}>
             <View style={[styles.plusCircle, { backgroundColor: theme.primaryLight }]}>
@@ -259,7 +282,7 @@ export function ListsScreen({
               onAddItem={onAddItem}
               onDeleteItem={onDeleteItem}
               onDeleteList={onDeleteList}
-              onMoveFolder={onUpdateListFolder ? l => setMovingList(l) : undefined}
+              onMoveFolder={onUpdateListFolder ? handleMoveFolderRequest : undefined}
             />
           ))
         ) : (
@@ -294,7 +317,13 @@ export function ListsScreen({
       >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: theme.text }]}>New Folder</Text>
-          <TouchableOpacity onPress={() => setIsAddFolderOpen(false)}>
+          <TouchableOpacity
+            onPress={() => {
+              hapticLight();
+              setIsAddFolderOpen(false);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="close" size={20} color={theme.textDim} />
           </TouchableOpacity>
         </View>
@@ -337,14 +366,20 @@ export function ListsScreen({
         maxHeight="65%"
       >
         <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1}>
+          <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
             Move {movingList?.title || 'List'}
           </Text>
-          <TouchableOpacity onPress={() => setMovingList(null)}>
+          <TouchableOpacity
+            onPress={() => {
+              hapticLight();
+              setMovingList(null);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="close" size={20} color={theme.textDim} />
           </TouchableOpacity>
         </View>
-        <View style={styles.moveOptions}>
+        <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.moveOptions}>
           <TouchableOpacity
             style={[
               styles.moveOptionRow,
@@ -362,7 +397,9 @@ export function ListsScreen({
             }}
           >
             <Ionicons name="layers-outline" size={18} color={theme.text} />
-            <Text style={[styles.moveOptionText, { color: theme.text }]}>No Folder</Text>
+            <Text style={[styles.moveOptionText, { color: theme.text }]} numberOfLines={1}>
+              No Folder
+            </Text>
           </TouchableOpacity>
           {allFolders.map(f => {
             const active = movingList?.folder === f;
@@ -385,15 +422,19 @@ export function ListsScreen({
                 }}
               >
                 <Ionicons name="folder-outline" size={18} color={active ? theme.primary : theme.text} />
-                <Text style={[styles.moveOptionText, { color: active ? theme.primary : theme.text }]}>
+                <Text
+                  style={[styles.moveOptionText, { color: active ? theme.primary : theme.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {f}
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </BottomSheetScrollView>
       </SwipeableBottomSheet>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -404,7 +445,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: 110,
+    paddingBottom: 36,
   },
   foldersSection: {
     marginBottom: 14,
@@ -416,7 +457,7 @@ const styles = StyleSheet.create({
   },
   folderCard: {
     width: '31%',
-    minWidth: 96,
+    minWidth: 86,
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -436,6 +477,7 @@ const styles = StyleSheet.create({
   folderCount: {
     fontSize: 11,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   folderName: {
     fontSize: 13,
@@ -524,5 +566,6 @@ const styles = StyleSheet.create({
   moveOptionText: {
     fontSize: 14,
     fontWeight: '600',
+    flex: 1,
   },
 });

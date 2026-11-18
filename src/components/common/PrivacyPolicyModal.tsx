@@ -3,14 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
-  ScrollView,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
 import { hapticLight } from '../../hooks/useHaptics';
+import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 
 interface PrivacyPolicyModalProps {
   visible: boolean;
@@ -43,83 +41,76 @@ const SECTIONS = [
 
 export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyModalProps) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.title, { color: theme.text }]}>Privacy Policy</Text>
-              <Text style={[styles.subtitle, { color: theme.textDim }]}>
-                Zen Task Calendar • Last updated 2026
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="82%">
+      <View style={styles.header}>
+        <View style={styles.headerTextWrap}>
+          <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+            Privacy Policy
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.textDim }]} numberOfLines={1}>
+            Zen Task Calendar • Last updated 2026
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            hapticLight();
+            onClose();
+          }}
+          style={styles.closeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close privacy policy"
+        >
+          <Ionicons name="close" size={20} color={theme.textDim} />
+        </TouchableOpacity>
+      </View>
+
+      <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {SECTIONS.map((sec) => (
+          <View
+            key={sec.title}
+            style={[
+              styles.card,
+              { backgroundColor: theme.surfaceMuted, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBadge, { backgroundColor: theme.primaryLight }]}>
+                <Ionicons name={sec.icon} size={16} color={theme.primary} />
+              </View>
+              <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={1}>
+                {sec.title}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => {
-                hapticLight();
-                onClose();
-              }}
-              style={styles.closeBtn}
-            >
-              <Ionicons name="close" size={20} color={theme.textDim} />
-            </TouchableOpacity>
+            <Text style={[styles.cardBody, { color: theme.textDim }]}>{sec.body}</Text>
           </View>
+        ))}
+      </BottomSheetScrollView>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {SECTIONS.map((sec) => (
-              <View
-                key={sec.title}
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.surfaceMuted, borderColor: theme.border },
-                ]}
-              >
-                <View style={styles.cardHeader}>
-                  <View style={[styles.iconBadge, { backgroundColor: theme.primaryLight }]}>
-                    <Ionicons name={sec.icon} size={16} color={theme.primary} />
-                  </View>
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>{sec.title}</Text>
-                </View>
-                <Text style={[styles.cardBody, { color: theme.textDim }]}>{sec.body}</Text>
-              </View>
-            ))}
-          </ScrollView>
-
-          <TouchableOpacity
-            style={[styles.doneBtn, { backgroundColor: theme.primary }]}
-            onPress={() => {
-              hapticLight();
-              onClose();
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.doneBtnText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
+      <TouchableOpacity
+        style={[styles.doneBtn, { backgroundColor: theme.primary }]}
+        onPress={() => {
+          hapticLight();
+          onClose();
+        }}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.doneBtnText}>Close</Text>
+      </TouchableOpacity>
+    </SwipeableBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    borderWidth: 1,
-    maxHeight: '82%',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  headerTextWrap: {
+    flex: 1,
+    marginRight: 8,
   },
   title: {
     fontSize: 19,
@@ -158,6 +149,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 14,
     fontWeight: '700',
+    flex: 1,
   },
   cardBody: {
     fontSize: 12,

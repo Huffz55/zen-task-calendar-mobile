@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticMedium, hapticLight } from '../../hooks/useHaptics';
+import { hapticMedium, hapticLight, hapticSelection } from '../../hooks/useHaptics';
 
 interface ZenTimerViewProps {
   timeLeft: number;
@@ -76,7 +76,8 @@ export function ZenTimerView({
             style={[
               styles.glowAura,
               {
-                backgroundColor: theme.primary,
+                backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.14 : 0.10),
+                borderColor: withAlpha(theme.primary, theme.isDark ? 0.24 : 0.16),
                 transform: [{ scale: pulseAnim }],
               },
             ]}
@@ -154,7 +155,13 @@ export function ZenTimerView({
 
         {/* Primary Play / Pause Button */}
         <TouchableOpacity
-          style={[styles.playBtn, { backgroundColor: theme.primary }]}
+          style={[
+            styles.playBtn,
+            {
+              backgroundColor: theme.primary,
+              borderColor: withAlpha('#ffffff', theme.isDark ? 0.22 : 0.18),
+            },
+          ]}
           onPress={handlePlayToggle}
           activeOpacity={0.85}
           accessibilityLabel={isTimerRunning ? 'Pause timer' : 'Start timer'}
@@ -194,13 +201,18 @@ export function ZenTimerView({
               key={mins}
               style={[
                 styles.presetPill,
-                isSelected && { backgroundColor: theme.card, borderColor: theme.border, shadowColor: '#000', elevation: 2 },
+                isSelected && {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                },
               ]}
               onPress={() => {
-                hapticLight();
+                hapticSelection();
                 onSetMinutes(mins);
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
             >
               <Text
                 style={[
@@ -240,26 +252,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '92%',
     height: '92%',
-    borderRadius: 200,
-    opacity: 0.12,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   clockCard: {
     width: '100%',
     height: '100%',
-    borderRadius: 200,
-    borderWidth: 1.5,
+    borderRadius: 999,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 3,
   },
   innerConcentricRing: {
     width: '100%',
     height: '100%',
-    borderRadius: 200,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -304,12 +312,9 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
   },
   secondaryBtn: {
     width: 44,
@@ -340,5 +345,6 @@ const styles = StyleSheet.create({
   },
   presetText: {
     fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
 });

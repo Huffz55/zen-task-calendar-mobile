@@ -14,6 +14,21 @@ export function useZenTimer(
 
   const endTimeRef = useRef<number | null>(null);
   const timeLeftMsRef = useRef<number | null>(null);
+  const initialTimeRef = useRef(initialTime);
+  const timeLeftRef = useRef(timeLeft);
+  const onTimerCompleteRef = useRef(onTimerComplete);
+
+  useEffect(() => {
+    initialTimeRef.current = initialTime;
+  }, [initialTime]);
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
+  useEffect(() => {
+    onTimerCompleteRef.current = onTimerComplete;
+  }, [onTimerComplete]);
 
   // Keep screen awake while focusing on mobile
   useEffect(() => {
@@ -28,7 +43,9 @@ export function useZenTimer(
   }, [isTimerRunning]);
 
   const startTimer = useCallback(() => {
-    const remainingMs = timeLeftMsRef.current ?? (timeLeft <= 0 ? initialTime * 1000 : timeLeft * 1000);
+    const currentInitial = initialTimeRef.current;
+    const currentLeft = timeLeftRef.current;
+    const remainingMs = timeLeftMsRef.current ?? (currentLeft <= 0 ? currentInitial * 1000 : currentLeft * 1000);
     endTimeRef.current = Date.now() + remainingMs;
     timeLeftMsRef.current = null;
     setIsTimerRunning(true);
@@ -36,7 +53,7 @@ export function useZenTimer(
 
     // Schedule background notification for when user backgrounds app
     defaultNotificationService.scheduleFocusTimerEnd(remainingMs / 1000);
-  }, [initialTime, timeLeft]);
+  }, []);
 
   const pauseTimer = useCallback(() => {
     if (endTimeRef.current !== null) {
@@ -64,15 +81,15 @@ export function useZenTimer(
     endTimeRef.current = null;
     timeLeftMsRef.current = null;
     setIsTimerRunning(false);
-    setTimeLeft(initialTime);
+    setTimeLeft(initialTimeRef.current);
     hapticMedium();
     defaultNotificationService.cancelNotification('zen-timer-end');
-  }, [initialTime]);
+  }, []);
 
   const adjustTime = useCallback((deltaSeconds: number) => {
     setInitialTime(prev => Math.max(60, prev + deltaSeconds));
     if (isTimerRunning) {
-      const currentEnd = endTimeRef.current ?? (Date.now() + (timeLeftMsRef.current ?? timeLeft * 1000));
+      const currentEnd = endTimeRef.current ?? (Date.now() + (timeLeftMsRef.current ?? timeLeftRef.current * 1000));
       const newEnd = Math.max(Date.now(), currentEnd + deltaSeconds * 1000);
       endTimeRef.current = newEnd;
       timeLeftMsRef.current = null;
@@ -84,7 +101,7 @@ export function useZenTimer(
       setTimeLeft(prev => Math.max(60, prev + deltaSeconds));
     }
     hapticMedium();
-  }, [isTimerRunning, timeLeft]);
+  }, [isTimerRunning]);
 
   const setTimerMinutes = useCallback((minutes: number) => {
     const newSeconds = minutes * 60;
@@ -102,7 +119,9 @@ export function useZenTimer(
     if (!isTimerRunning) return;
 
     if (endTimeRef.current === null) {
-      const remainingMs = timeLeftMsRef.current ?? (timeLeft <= 0 ? initialTime * 1000 : timeLeft * 1000);
+      const currentInitial = initialTimeRef.current;
+      const currentLeft = timeLeftRef.current;
+      const remainingMs = timeLeftMsRef.current ?? (currentLeft <= 0 ? currentInitial * 1000 : currentLeft * 1000);
       endTimeRef.current = Date.now() + remainingMs;
       timeLeftMsRef.current = null;
     }
@@ -112,15 +131,13 @@ export function useZenTimer(
       const remainingMs = Math.max(0, endTimeRef.current - Date.now());
       const remainingSecs = Math.max(0, Math.ceil(remainingMs / 1000));
 
-      setTimeLeft(remainingSecs);
+      setTimeLeft(prev => (prev !== remainingSecs ? remainingSecs : prev));
 
       if (remainingMs <= 0) {
         hapticSuccess();
         playZenChime();
         defaultNotificationService.cancelNotification('zen-timer-end');
-        if (onTimerComplete) {
-          onTimerComplete(initialTime);
-        }
+        onTimerCompleteRef.current?.(initialTimeRef.current);
         setIsTimerRunning(false);
         endTimeRef.current = null;
         timeLeftMsRef.current = null;
@@ -128,21 +145,21 @@ export function useZenTimer(
     }, 500);
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTimerRunning, initialTime, onTimerComplete]);
+  }, [isTimerRunning]);
 
   const finishEarlySession = useCallback(() => {
+    const currentInitial = initialTimeRef.current;
     let elapsedSeconds = 0;
     if (endTimeRef.current !== null) {
       const remainingMs = Math.max(0, endTimeRef.current - Date.now());
       const remainingSecs = Math.max(0, Math.ceil(remainingMs / 1000));
-      elapsedSeconds = Math.max(0, initialTime - remainingSecs);
+      elapsedSeconds = Math.max(0, currentInitial - remainingSecs);
     } else {
-      elapsedSeconds = Math.max(0, initialTime - timeLeft);
+      elapsedSeconds = Math.max(0, currentInitial - timeLeftRef.current);
     }
 
-    if (elapsedSeconds >= 10 && onTimerComplete) {
-      onTimerComplete(elapsedSeconds);
+    if (elapsedSeconds >= 10 && onTimerCompleteRef.current) {
+      onTimerCompleteRef.current(elapsedSeconds);
       hapticSuccess();
       playZenChime();
     } else {
@@ -152,9 +169,9 @@ export function useZenTimer(
     endTimeRef.current = null;
     timeLeftMsRef.current = null;
     setIsTimerRunning(false);
-    setTimeLeft(initialTime);
+    setTimeLeft(currentInitial);
     defaultNotificationService.cancelNotification('zen-timer-end');
-  }, [initialTime, timeLeft, onTimerComplete]);
+  }, []);
 
   return {
     timeLeft,

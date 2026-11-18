@@ -7,11 +7,12 @@ import {
   TextInput,
 } from 'react-native';
 import { Task } from '../../types';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
 import { playWaterDrop, playBambooTap, playSoftSwoosh } from '../../services/audio/audioService';
-import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { animateLayout } from '../../utils/animations';
+import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 
 interface ZenTriageModalProps {
   visible: boolean;
@@ -34,6 +35,7 @@ export function ZenTriageModal({
   const currentTask = inboxTasks[0];
 
   const handleDecision = (taskId: string, decision: 'today' | 'someday' | 'delete') => {
+    animateLayout();
     if (decision === 'today') {
       playWaterDrop();
       hapticSuccess();
@@ -52,6 +54,7 @@ export function ZenTriageModal({
     if (!trimmed) return;
     playWaterDrop();
     hapticLight();
+    animateLayout();
     onQuickAddTask(trimmed);
     setNewTitle('');
   };
@@ -65,7 +68,9 @@ export function ZenTriageModal({
             <Ionicons name="file-tray-full-outline" size={20} color={theme.primary} />
           </View>
           <View style={styles.titleRow}>
-            <Text style={[styles.title, { color: theme.text }]}>Inbox</Text>
+            <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+              Inbox
+            </Text>
             <View style={[styles.badge, { backgroundColor: theme.primaryLight }]}>
               <Text style={[styles.badgeText, { color: theme.primary }]}>
                 {inboxTasks.length}
@@ -73,96 +78,111 @@ export function ZenTriageModal({
             </View>
           </View>
         </View>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={() => {
+            hapticLight();
+            onClose();
+          }}
+          style={styles.closeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close inbox"
+        >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
       </View>
 
-      {/* Quick Capture Input */}
-      <View style={[styles.inputRow, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-        <TextInput
-          style={[styles.input, { color: theme.text }]}
-          value={newTitle}
-          onChangeText={setNewTitle}
-          placeholder="Add to inbox"
-          placeholderTextColor={theme.textDim}
-          onSubmitEditing={handleAdd}
-          returnKeyType="done"
-        />
-        <TouchableOpacity
-          onPress={handleAdd}
-          disabled={!newTitle.trim()}
-          style={[
-            styles.addBtn,
-            { backgroundColor: theme.primary, opacity: newTitle.trim() ? 1 : 0.5 },
-          ]}
-        >
-          <Ionicons name="arrow-down" size={16} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Focused Task / Empty State */}
-      {inboxTasks.length > 0 && currentTask ? (
-        <View style={styles.cardContainer}>
-          <View style={[styles.taskCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-            <Text style={[styles.taskOrder, { color: theme.textDim }]}>
-              {inboxTasks.length} REMAINING
-            </Text>
-            <Text style={[styles.taskTitle, { color: theme.text }]}>
-              {currentTask.title}
-            </Text>
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border }]}
-              onPress={() => handleDecision(currentTask.id, 'today')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="checkmark-circle-outline" size={22} color={theme.primary} />
-              <Text style={[styles.actionBtnText, { color: theme.primary }]}>Today</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-              onPress={() => handleDecision(currentTask.id, 'someday')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="time-outline" size={22} color={theme.textDim} />
-              <Text style={[styles.actionBtnText, { color: theme.text }]}>Later</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                {
-                  backgroundColor: theme.isDark ? 'rgba(220,38,38,0.14)' : '#fee2e2',
-                  borderColor: theme.isDark ? 'rgba(220,38,38,0.35)' : '#fca5a5',
-                },
-              ]}
-              onPress={() => handleDecision(currentTask.id, 'delete')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash-outline" size={22} color="#dc2626" />
-              <Text style={[styles.actionBtnText, { color: '#dc2626' }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
+      <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        {/* Quick Capture Input */}
+        <View style={[styles.inputRow, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+          <TextInput
+            style={[styles.input, { color: theme.text }]}
+            value={newTitle}
+            onChangeText={setNewTitle}
+            placeholder="Add to inbox"
+            placeholderTextColor={theme.textDim}
+            onSubmitEditing={handleAdd}
+            returnKeyType="done"
+          />
+          <TouchableOpacity
+            onPress={handleAdd}
+            disabled={!newTitle.trim()}
+            style={[
+              styles.addBtn,
+              { backgroundColor: theme.primary, opacity: newTitle.trim() ? 1 : 0.5 },
+            ]}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="arrow-down" size={16} color="#fff" />
+          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.emptyContainer}>
-          <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
-            <Ionicons name="checkmark-done-outline" size={26} color={theme.primary} />
+
+        {/* Focused Task / Empty State */}
+        {inboxTasks.length > 0 && currentTask ? (
+          <View style={styles.cardContainer}>
+            <View style={[styles.taskCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <Text style={[styles.taskOrder, { color: theme.textDim }]}>
+                {inboxTasks.length} REMAINING
+              </Text>
+              <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={4} ellipsizeMode="tail">
+                {currentTask.title}
+              </Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.actionsGrid}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border }]}
+                onPress={() => handleDecision(currentTask.id, 'today')}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="checkmark-circle-outline" size={22} color={theme.primary} />
+                <Text style={[styles.actionBtnText, { color: theme.primary }]}>Today</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+                onPress={() => handleDecision(currentTask.id, 'someday')}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="time-outline" size={22} color={theme.textDim} />
+                <Text style={[styles.actionBtnText, { color: theme.text }]}>Later</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  {
+                    backgroundColor: withAlpha(theme.danger, theme.isDark ? 0.16 : 0.1),
+                    borderColor: withAlpha(theme.danger, 0.35),
+                  },
+                ]}
+                onPress={() => handleDecision(currentTask.id, 'delete')}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="trash-outline" size={22} color={theme.danger} />
+                <Text style={[styles.actionBtnText, { color: theme.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>Inbox Empty</Text>
-        </View>
-      )}
+        ) : (
+          <View style={styles.emptyContainer}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
+              <Ionicons name="checkmark-done-outline" size={26} color={theme.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>Inbox Empty</Text>
+          </View>
+        )}
+      </BottomSheetScrollView>
 
       {/* Footer Close */}
       <TouchableOpacity
         style={[styles.footerBtn, { backgroundColor: theme.primaryLight }]}
-        onPress={onClose}
-        activeOpacity={0.7}
+        onPress={() => {
+          hapticLight();
+          onClose();
+        }}
+        activeOpacity={0.75}
       >
         <Text style={[styles.footerBtnText, { color: theme.primary }]}>Done</Text>
       </TouchableOpacity>
@@ -171,22 +191,10 @@ export function ZenTriageModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    padding: 20,
-    maxHeight: '85%',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
   },
   headerLeft: {
@@ -207,6 +215,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   title: {
     fontSize: 17,
@@ -220,10 +229,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 11,
     fontWeight: '600',
-  },
-  subtitle: {
-    fontSize: 12,
-    marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
   closeBtn: {
     padding: 4,
@@ -263,6 +269,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
     marginBottom: 4,
+    fontVariant: ['tabular-nums'],
   },
   taskTitle: {
     fontSize: 16,
@@ -286,10 +293,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
-  actionBtnHint: {
-    fontSize: 9,
-    marginTop: 2,
-  },
   emptyContainer: {
     paddingVertical: 32,
     alignItems: 'center',
@@ -308,13 +311,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 4,
   },
-  emptySubtitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
   footerBtn: {
-    marginTop: 16,
+    marginTop: 14,
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',

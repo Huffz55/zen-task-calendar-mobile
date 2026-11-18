@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedback, Animated } from 'react-native';
 import { DailyTask } from '../../types';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
 
 interface DeleteTaskModalProps {
@@ -25,20 +25,56 @@ export function DeleteTaskModal({
   onDeleteInstance,
   onDeleteFuture,
 }: DeleteTaskModalProps) {
+  const [scaleAnim] = useState(() => new Animated.Value(0.94));
+
+  useEffect(() => {
+    if (visible) {
+      scaleAnim.setValue(0.94);
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        damping: 18,
+        stiffness: 240,
+        mass: 0.7,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, scaleAnim]);
+
   if (!task) return null;
 
   const isRecurring = task.recurrence !== 'none';
+  const dangerBg = withAlpha(theme.danger, theme.isDark ? 0.18 : 0.1);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      statusBarTranslucent
+      navigationBarTranslucent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={[styles.dialog, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Animated.View
+              style={[
+                styles.dialog,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
               <Text style={[styles.title, { color: theme.text }]}>
                 {isRecurring ? 'Delete Recurring Task' : 'Delete Task'}
               </Text>
-              <Text style={[styles.subtitle, { color: theme.textDim }]}>
+              <Text
+                style={[styles.subtitle, { color: theme.textDim }]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
                 {`Choose a delete option for "${task.title}":`}
               </Text>
 
@@ -68,26 +104,26 @@ export function DeleteTaskModal({
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.btn, { backgroundColor: theme.primaryLight }]}
+                      style={[styles.btn, { backgroundColor: dangerBg }]}
                       onPress={() => {
                         hapticWarning();
                         onDeleteSingle(task.taskId);
                         onClose();
                       }}
                     >
-                      <Text style={[styles.btnText, { color: theme.primary }]}>Delete entire series</Text>
+                      <Text style={[styles.btnText, { color: theme.danger }]}>Delete entire series</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.btn, { backgroundColor: theme.primaryLight }]}
+                    style={[styles.btn, { backgroundColor: dangerBg }]}
                     onPress={() => {
                       hapticWarning();
                       onDeleteSingle(task.taskId);
                       onClose();
                     }}
                   >
-                    <Text style={[styles.btnText, { color: theme.danger || theme.primary }]}>Delete Task</Text>
+                    <Text style={[styles.btnText, { color: theme.danger }]}>Delete Task</Text>
                   </TouchableOpacity>
                 )}
 
@@ -101,7 +137,7 @@ export function DeleteTaskModal({
                   <Text style={[styles.cancelText, { color: theme.textDim }]}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
@@ -125,9 +161,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
+    shadowOpacity: 0.14,
     shadowRadius: 16,
-    elevation: 10,
+    elevation: 4,
   },
   title: {
     fontSize: 18,
@@ -155,6 +191,7 @@ const styles = StyleSheet.create({
   cancelBtn: {
     paddingVertical: 12,
     borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     marginTop: 4,
   },

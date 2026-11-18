@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
-import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
+import { animateLayout } from '../../utils/animations';
+import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
 
 interface AddListModalProps {
   visible: boolean;
@@ -29,176 +30,200 @@ export function AddListModal({
   onClose,
   onAddList,
 }: AddListModalProps) {
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%" useKeyboardAvoiding>
+      {visible && (
+        <AddListForm
+          key={defaultFolder ?? '__none__'}
+          theme={theme}
+          folders={folders}
+          defaultFolder={defaultFolder}
+          onClose={onClose}
+          onAddList={onAddList}
+        />
+      )}
+    </SwipeableBottomSheet>
+  );
+}
+
+function AddListForm({
+  theme,
+  folders,
+  defaultFolder,
+  onClose,
+  onAddList,
+}: Omit<AddListModalProps, 'visible'>) {
   const [title, setTitle] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string | undefined>(defaultFolder || undefined);
   const [customFolder, setCustomFolder] = useState('');
   const [isAddingFolder, setIsAddingFolder] = useState(false);
-  const [prevVisible, setPrevVisible] = useState(visible);
-
-  if (visible !== prevVisible) {
-    setPrevVisible(visible);
-    if (visible) {
-      setSelectedFolder(defaultFolder || undefined);
-      setIsAddingFolder(false);
-      setCustomFolder('');
-    }
-  }
 
   const handleSave = () => {
     if (!title.trim()) return;
     hapticSuccess();
     const chosenFolder = isAddingFolder && customFolder.trim() ? customFolder.trim() : selectedFolder;
     onAddList(title.trim(), chosenFolder);
-    setTitle('');
-    setCustomFolder('');
-    setIsAddingFolder(false);
     onClose();
   };
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%" useKeyboardAvoiding>
+    <>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>New List</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            hapticLight();
+            onClose();
+          }}
+          style={styles.closeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close new list"
+        >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
       </View>
 
-      <TextInput
-        style={[
-          styles.input,
-          {
-            backgroundColor: theme.surfaceMuted,
-            color: theme.text,
-            borderColor: theme.border,
-          },
-        ]}
-        placeholder="List title"
-        placeholderTextColor={theme.textDim}
-        value={title}
-        onChangeText={setTitle}
-        autoFocus
-        returnKeyType="done"
-        onSubmitEditing={handleSave}
-      />
-
-      <Text style={[styles.folderLabel, { color: theme.textDim }]}>FOLDER</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.foldersRow}
-      >
-        <TouchableOpacity
-          style={[
-            styles.folderChip,
-            {
-              backgroundColor: !selectedFolder && !isAddingFolder ? theme.primary : theme.surfaceMuted,
-              borderColor: !selectedFolder && !isAddingFolder ? theme.primary : theme.border,
-            },
-          ]}
-          onPress={() => {
-            hapticLight();
-            setIsAddingFolder(false);
-            setSelectedFolder(undefined);
-          }}
-        >
-          <Text
-            style={[
-              styles.folderChipText,
-              { color: !selectedFolder && !isAddingFolder ? '#ffffff' : theme.textMuted },
-            ]}
-          >
-            None
-          </Text>
-        </TouchableOpacity>
-
-        {folders.map(f => {
-          const isSelected = !isAddingFolder && selectedFolder === f;
-          return (
-            <TouchableOpacity
-              key={f}
-              style={[
-                styles.folderChip,
-                {
-                  backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
-                  borderColor: isSelected ? theme.primary : theme.border,
-                },
-              ]}
-              onPress={() => {
-                hapticLight();
-                setIsAddingFolder(false);
-                setSelectedFolder(f);
-              }}
-            >
-              <Ionicons
-                name="folder-outline"
-                size={13}
-                color={isSelected ? '#ffffff' : theme.textMuted}
-              />
-              <Text
-                style={[
-                  styles.folderChipText,
-                  { color: isSelected ? '#ffffff' : theme.textMuted },
-                ]}
-              >
-                {f}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-
-        <TouchableOpacity
-          style={[
-            styles.folderChip,
-            {
-              backgroundColor: isAddingFolder ? theme.primaryLight : theme.surfaceMuted,
-              borderColor: isAddingFolder ? theme.primary : theme.border,
-            },
-          ]}
-          onPress={() => {
-            hapticLight();
-            setIsAddingFolder(prev => !prev);
-          }}
-        >
-          <Ionicons name="add" size={14} color={theme.primary} />
-          <Text style={[styles.folderChipText, { color: theme.primary }]}>Custom</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {isAddingFolder && (
+      <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <TextInput
           style={[
-            styles.customFolderInput,
+            styles.input,
             {
               backgroundColor: theme.surfaceMuted,
               color: theme.text,
               borderColor: theme.border,
             },
           ]}
-          placeholder="Folder name"
+          placeholder="List title"
           placeholderTextColor={theme.textDim}
-          value={customFolder}
-          onChangeText={setCustomFolder}
-          maxLength={32}
+          value={title}
+          onChangeText={setTitle}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleSave}
         />
-      )}
 
-      <TouchableOpacity
-        style={[
-          styles.submitBtn,
-          {
-            backgroundColor: title.trim() ? theme.primary : theme.surfaceMuted,
-            opacity: title.trim() ? 1 : 0.6,
-          },
-        ]}
-        onPress={handleSave}
-        disabled={!title.trim()}
-      >
-        <Text style={[styles.submitText, { color: title.trim() ? '#ffffff' : theme.textDim }]}>
-          Create List
-        </Text>
-      </TouchableOpacity>
-    </SwipeableBottomSheet>
+        <Text style={[styles.folderLabel, { color: theme.textDim }]}>FOLDER</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.foldersRow}
+        >
+          <TouchableOpacity
+            style={[
+              styles.folderChip,
+              {
+                backgroundColor: !selectedFolder && !isAddingFolder ? theme.primary : theme.surfaceMuted,
+                borderColor: !selectedFolder && !isAddingFolder ? theme.primary : theme.border,
+              },
+            ]}
+            onPress={() => {
+              hapticSelection();
+              setIsAddingFolder(false);
+              setSelectedFolder(undefined);
+            }}
+          >
+            <Text
+              style={[
+                styles.folderChipText,
+                { color: !selectedFolder && !isAddingFolder ? '#ffffff' : theme.textMuted },
+              ]}
+            >
+              None
+            </Text>
+          </TouchableOpacity>
+
+          {folders.map(f => {
+            const isSelected = !isAddingFolder && selectedFolder === f;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.folderChip,
+                  {
+                    backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => {
+                  hapticSelection();
+                  setIsAddingFolder(false);
+                  setSelectedFolder(f);
+                }}
+              >
+                <Ionicons
+                  name="folder-outline"
+                  size={13}
+                  color={isSelected ? '#ffffff' : theme.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.folderChipText,
+                    { color: isSelected ? '#ffffff' : theme.textMuted },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {f}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          <TouchableOpacity
+            style={[
+              styles.folderChip,
+              {
+                backgroundColor: isAddingFolder ? theme.primaryLight : theme.surfaceMuted,
+                borderColor: isAddingFolder ? theme.primary : theme.border,
+              },
+            ]}
+            onPress={() => {
+              hapticLight();
+              animateLayout();
+              setIsAddingFolder(prev => !prev);
+            }}
+          >
+            <Ionicons name="add" size={14} color={theme.primary} />
+            <Text style={[styles.folderChipText, { color: theme.primary }]}>Custom</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {isAddingFolder && (
+          <TextInput
+            style={[
+              styles.customFolderInput,
+              {
+                backgroundColor: theme.surfaceMuted,
+                color: theme.text,
+                borderColor: theme.border,
+              },
+            ]}
+            placeholder="Folder name"
+            placeholderTextColor={theme.textDim}
+            value={customFolder}
+            onChangeText={setCustomFolder}
+            maxLength={32}
+          />
+        )}
+
+        <TouchableOpacity
+          style={[
+            styles.submitBtn,
+            {
+              backgroundColor: title.trim() ? theme.primary : theme.surfaceMuted,
+              opacity: title.trim() ? 1 : 0.6,
+            },
+          ]}
+          onPress={handleSave}
+          disabled={!title.trim()}
+        >
+          <Text style={[styles.submitText, { color: title.trim() ? '#ffffff' : theme.textDim }]}>
+            Create List
+          </Text>
+        </TouchableOpacity>
+      </BottomSheetScrollView>
+    </>
   );
 }
 

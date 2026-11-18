@@ -45,7 +45,7 @@ export function FocusAnalyticsCard({
       </View>
 
       {/* KPI Row */}
-      <View style={styles.kpiRow}>
+      <View style={[styles.kpiRow, { borderBottomColor: theme.border }]}>
         <View style={styles.kpiItem}>
           <Text style={[styles.kpiLabel, { color: theme.textDim }]}>TODAY</Text>
           <Text style={[styles.kpiValue, { color: theme.text }]}>
@@ -109,7 +109,7 @@ export function FocusAnalyticsCard({
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 24,
+    marginHorizontal: 20,
     marginTop: 16,
     padding: 18,
     borderRadius: 22,
@@ -125,6 +125,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    marginRight: 8,
   },
   title: {
     fontSize: 14,
@@ -137,6 +139,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 10,
     overflow: 'hidden',
+    fontVariant: ['tabular-nums'],
   },
   kpiRow: {
     flexDirection: 'row',
@@ -144,7 +147,6 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(150,150,150,0.2)',
   },
   kpiItem: {
     flex: 1,
@@ -159,6 +161,7 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 18,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   divider: {
     width: StyleSheet.hairlineWidth,

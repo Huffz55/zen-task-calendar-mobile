@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
-import { ThemeColors } from '../../constants/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { playSingingBowl } from '../../services/audio/audioService';
@@ -14,14 +15,24 @@ interface ZenBreathingModalProps {
 type BreathPhase = 'Inhale' | 'Hold' | 'Exhale';
 
 export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalProps) {
+  if (!isOpen) return null;
+  return <ZenBreathingContent onClose={onClose} theme={theme} />;
+}
+
+function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'isOpen'>) {
+  const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<BreathPhase>('Inhale');
   const [remainingSeconds, setRemainingSeconds] = useState(180); // 3-min default break
   const [scaleAnim] = useState(() => new Animated.Value(1));
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // 4-4-4 breathing loop
   useEffect(() => {
-    if (!isOpen) return;
-
     playSingingBowl();
     let isMounted = true;
 
@@ -29,18 +40,17 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
       if (!isMounted) return;
 
       // Inhale: 4 seconds (scale up)
-      setPhase('Inhale');
       Animated.timing(scaleAnim, {
         toValue: 1.5,
         duration: 4000,
         easing: Easing.inOut(Easing.ease),
         useNativeDriver: true,
-      }).start(() => {
-        if (!isMounted) return;
+      }).start(({ finished }) => {
+        if (!isMounted || !finished) return;
 
         // Hold: 4 seconds
         setPhase('Hold');
-        setTimeout(() => {
+        holdTimerRef.current = setTimeout(() => {
           if (!isMounted) return;
 
           // Exhale: 4 seconds (scale down)
@@ -50,8 +60,9 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
             duration: 4000,
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
-          }).start(() => {
-            if (isMounted) {
+          }).start(({ finished: exhaleFinished }) => {
+            if (isMounted && exhaleFinished) {
+              setPhase('Inhale');
               runBreathingCycle();
             }
           });
@@ -66,7 +77,7 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
         if (prev <= 1) {
           clearInterval(ticker);
           hapticSuccess();
-          onClose();
+          onCloseRef.current();
           return 0;
         }
         return prev - 1;
@@ -76,26 +87,44 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
     return () => {
       isMounted = false;
       clearInterval(ticker);
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
       scaleAnim.stopAnimation();
     };
-  }, [isOpen, scaleAnim, onClose]);
-
-  if (!isOpen) return null;
+  }, [scaleAnim]);
 
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
+  const safeCloseTop = Math.max(insets.top, 20) + 12;
 
   return (
-    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.overlay, { backgroundColor: theme.isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,247,250,0.92)' }]}>
+    <Modal
+      visible
+      transparent
+      statusBarTranslucent
+      navigationBarTranslucent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View
+        style={[
+          styles.overlay,
+          { backgroundColor: withAlpha(theme.background, theme.isDark ? 0.94 : 0.96) },
+        ]}
+      >
         {/* Close / Skip button */}
         <TouchableOpacity
-          style={[styles.closeBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          style={[styles.closeBtn, { top: safeCloseTop, backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => {
             hapticLight();
             onClose();
           }}
           activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close breathing break"
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -115,12 +144,20 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
               styles.outerRing,
               {
                 borderColor: theme.primaryLight,
-                backgroundColor: theme.isDark ? 'rgba(244,114,182,0.1)' : 'rgba(253,242,248,0.7)',
+                backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.12 : 0.1),
                 transform: [{ scale: scaleAnim }],
               },
             ]}
           >
-            <View style={[styles.innerCircle, { backgroundColor: theme.primary }]}>
+            <View
+              style={[
+                styles.innerCircle,
+                {
+                  backgroundColor: theme.primary,
+                  borderColor: withAlpha('#ffffff', 0.22),
+                },
+              ]}
+            >
               <Text style={styles.phaseText}>{phase}</Text>
             </View>
           </Animated.View>
@@ -136,12 +173,18 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
 
         {/* Finish break button */}
         <TouchableOpacity
-          style={[styles.finishBtn, { backgroundColor: theme.primary }]}
+          style={[
+            styles.finishBtn,
+            {
+              backgroundColor: theme.primary,
+              borderColor: withAlpha('#ffffff', 0.18),
+            },
+          ]}
           onPress={() => {
             hapticSuccess();
             onClose();
           }}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
           <Text style={styles.finishBtnText}>Finish Break</Text>
         </TouchableOpacity>
@@ -159,7 +202,6 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     position: 'absolute',
-    top: 50,
     right: 24,
     width: 38,
     height: 38,
@@ -201,13 +243,9 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
   },
   phaseText: {
     color: '#ffffff',
@@ -231,11 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
   },
   finishBtnText: {
     color: '#ffffff',

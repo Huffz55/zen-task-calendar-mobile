@@ -46,27 +46,23 @@ export function useFocusStats() {
     };
   }, []);
 
-  const saveSessions = useCallback((updated: FocusSession[]) => {
-    setSessions(updated);
-    defaultFocusStorage.saveSessions(updated).catch(() => {});
+  const recordSession = useCallback((durationSeconds: number, taskId?: string, taskTitle?: string) => {
+    if (durationSeconds <= 0) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const newSession: FocusSession = {
+      id: generateUniqueId(),
+      date: todayStr,
+      durationSeconds,
+      timestamp: Date.now(),
+      taskId,
+      taskTitle,
+    };
+    setSessions(prev => {
+      const next = [newSession, ...prev];
+      defaultFocusStorage.saveSessions(next).catch(() => {});
+      return next;
+    });
   }, []);
-
-  const recordSession = useCallback(
-    (durationSeconds: number, taskId?: string, taskTitle?: string) => {
-      if (durationSeconds <= 0) return;
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const newSession: FocusSession = {
-        id: generateUniqueId(),
-        date: todayStr,
-        durationSeconds,
-        timestamp: Date.now(),
-        taskId,
-        taskTitle,
-      };
-      saveSessions([newSession, ...sessions]);
-    },
-    [sessions, saveSessions]
-  );
 
   const stats = useMemo(() => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');

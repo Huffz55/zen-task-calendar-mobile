@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  BackHandler,
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
-import { ThemeColors } from '../constants/colors';
+import { ThemeColors, withAlpha } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { DayStrip } from '../components/calendar/DayStrip';
 import { TaskCard } from '../components/tasks/TaskCard';
@@ -21,6 +24,7 @@ import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../hooks/useHaptics';
 import { playWaterDrop } from '../services/audio/audioService';
+import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
 interface TodayScreenProps {
@@ -110,49 +114,96 @@ export function TodayScreen({
   const completedTasks = tasks.filter(t => t.isCompleted).length;
   const swipeHandlers = useSwipeTabNavigation('today');
 
-  const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
-  const formatEstimatedTotal = (mins: number) => {
-    if (mins <= 0) return null;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
+  const totalEstimatedMinutes = useMemo(
+    () => tasks.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0),
+    [tasks]
+  );
+
+  const plannedTotalStr = useMemo(() => {
+    if (totalEstimatedMinutes <= 0) return null;
+    const h = Math.floor(totalEstimatedMinutes / 60);
+    const m = totalEstimatedMinutes % 60;
     if (h > 0) return m > 0 ? `${h}h ${m}m planned` : `${h}h planned`;
     return `${m}m planned`;
-  };
-  const plannedTotalStr = formatEstimatedTotal(totalEstimatedMinutes);
+  }, [totalEstimatedMinutes]);
 
-  const handleToggle = (taskId: string) => {
-    const target = tasks.find(t => t.taskId === taskId);
-    if (target && !target.isCompleted) {
-      const willBeAllDone = completedTasks + 1 === totalTasks && totalTasks > 0;
-      if (willBeAllDone) {
-        setShowSakura(true);
+  const handleToggle = useCallback(
+    (taskId: string) => {
+      const target = tasks.find(t => t.taskId === taskId);
+      if (target && !target.isCompleted) {
+        const willBeAllDone = completedTasks + 1 === totalTasks && totalTasks > 0;
+        if (willBeAllDone) {
+          setShowSakura(true);
+        }
+      }
+      onToggleTask(taskId);
+    },
+    [tasks, completedTasks, totalTasks, onToggleTask]
+  );
+
+  const handleDateSelect = useCallback(
+    (date: Date) => {
+      playWaterDrop();
+      animateLayout();
+      onSelectDate(date);
+    },
+    [onSelectDate]
+  );
+
+  const handleDeferForDate = useCallback(
+    (taskId: string) => {
+      onDeferTask?.(taskId, selectedDateStr);
+    },
+    [onDeferTask, selectedDateStr]
+  );
+
+  const handleDeleteRequest = useCallback((t: DailyTask) => {
+    setTaskToDelete(t);
+  }, []);
+
+  const handleEditRequest = useCallback((t: DailyTask) => {
+    setTaskToEdit(t);
+  }, []);
+
+  // Android hardware back clears active filter/search before navigating away
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (searchQuery.trim() !== '' || selectedTag !== 'all') {
+        animateLayout();
+        setSearchQuery('');
+        setSelectedTag('all');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [searchQuery, selectedTag]);
+
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: tasks.length };
+    for (const t of tasks) {
+      if (t.tag) {
+        counts[t.tag] = (counts[t.tag] || 0) + 1;
       }
     }
-    onToggleTask(taskId);
-  };
+    return counts;
+  }, [tasks]);
 
-  const handleDateSelect = (date: Date) => {
-    playWaterDrop();
-    onSelectDate(date);
-  };
-
-  const tagCounts: Record<string, number> = { all: tasks.length };
-  for (const t of tasks) {
-    if (t.tag) {
-      tagCounts[t.tag] = (tagCounts[t.tag] || 0) + 1;
-    }
-  }
-
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      task.title.toLowerCase().includes(searchQuery.toLowerCase().trim());
-    const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
-    return matchesSearch && matchesTag;
-  });
+  const filteredTasks = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return tasks.filter(task => {
+      const matchesSearch = q === '' || task.title.toLowerCase().includes(q);
+      const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
+      return matchesSearch && matchesTag;
+    });
+  }, [tasks, searchQuery, selectedTag]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]} {...swipeHandlers}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      {...swipeHandlers}
+    >
       {/* Header */}
       <Header
         theme={theme}
@@ -175,6 +226,8 @@ export function TodayScreen({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
       >
         {/* Overdue Rollover Banner */}
@@ -185,11 +238,11 @@ export function TodayScreen({
               hapticSuccess();
               onRolloverTasks();
             }}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
             <View style={styles.rolloverLeft}>
               <Ionicons name="sparkles" size={16} color={theme.primary} />
-              <Text style={[styles.rolloverText, { color: theme.text }]}>
+              <Text style={[styles.rolloverText, { color: theme.text }]} numberOfLines={1}>
                 {overdueCount} overdue {overdueCount === 1 ? 'task' : 'tasks'}
               </Text>
             </View>
@@ -204,12 +257,12 @@ export function TodayScreen({
           <View style={styles.summaryRow}>
             <View style={styles.summaryLeft}>
               {totalTasks > 0 && (
-                <Text style={[styles.summaryText, { color: theme.textDim }]}>
+                <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1}>
                   {completedTasks} of {totalTasks} completed
                 </Text>
               )}
               {plannedTotalStr && (
-                <Text style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
+                <Text style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]} numberOfLines={1}>
                   {plannedTotalStr}
                 </Text>
               )}
@@ -233,6 +286,7 @@ export function TodayScreen({
                   onOpenTriage();
                 }}
                 activeOpacity={0.75}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
                 <Ionicons
                   name="file-tray-full-outline"
@@ -244,6 +298,7 @@ export function TodayScreen({
                     styles.inboxActionText,
                     { color: inboxCount > 0 ? theme.primary : theme.textMuted },
                   ]}
+                  numberOfLines={1}
                 >
                   Inbox{inboxCount > 0 ? ` (${inboxCount})` : ''}
                 </Text>
@@ -274,11 +329,11 @@ export function TodayScreen({
                   task={task}
                   theme={theme}
                   onToggle={handleToggle}
-                  onDelete={t => setTaskToDelete(t)}
-                  onEdit={t => setTaskToEdit(t)}
+                  onDelete={handleDeleteRequest}
+                  onEdit={handleEditRequest}
                   onTogglePin={onTogglePin}
                   onMoveToInbox={onMoveToInbox}
-                  onDeferTask={onDeferTask ? () => onDeferTask(task.taskId, selectedDateStr) : undefined}
+                  onDeferTask={onDeferTask ? handleDeferForDate : undefined}
                   onToggleSubtask={onToggleSubtask}
                   onStartFocus={onStartFocus}
                 />
@@ -292,6 +347,7 @@ export function TodayScreen({
                 style={[styles.clearFilterBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 10 }]}
                 onPress={() => {
                   hapticLight();
+                  animateLayout();
                   setSearchQuery('');
                   setSelectedTag('all');
                 }}
@@ -324,12 +380,20 @@ export function TodayScreen({
 
       {/* Floating Action Button (+) */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
+        style={[
+          styles.fab,
+          {
+            backgroundColor: theme.primary,
+            borderColor: withAlpha('#ffffff', theme.isDark ? 0.22 : 0.28),
+          },
+        ]}
         onPress={() => {
           hapticLight();
           setIsAddModalOpen(true);
         }}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Add new task"
       >
         <Ionicons name="add" size={28} color="#ffffff" />
       </TouchableOpacity>
@@ -383,7 +447,7 @@ export function TodayScreen({
         active={showSakura}
         onFinished={() => setShowSakura(false)}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -394,7 +458,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 110,
+    paddingBottom: 96,
   },
   rolloverBanner: {
     flexDirection: 'row',
@@ -409,10 +473,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    marginRight: 8,
   },
   rolloverText: {
     fontSize: 13,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   rolloverPill: {
     paddingHorizontal: 10,
@@ -428,16 +495,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 8,
   },
   summaryLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+    flex: 1,
   },
   summaryText: {
     fontSize: 12,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   plannedTimeBadge: {
     fontSize: 10,
@@ -445,6 +515,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2.5,
     borderRadius: 8,
+    overflow: 'hidden',
+    fontVariant: ['tabular-nums'],
   },
   perfectBadge: {
     fontSize: 12,
@@ -470,13 +542,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
   },
-  emptySubtitle: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 280,
-    marginBottom: 20,
-  },
   emptyAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -492,17 +557,14 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 92,
+    bottom: 22,
     right: 20,
     width: 58,
     height: 58,
     borderRadius: 29,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
   },
   filterEmptyContainer: {
     alignItems: 'center',
@@ -516,12 +578,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 4,
-  },
-  filterEmptySubtitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 14,
   },
   clearFilterBtn: {
     paddingHorizontal: 14,
@@ -541,9 +597,11 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
+    flexShrink: 0,
   },
   inboxActionText: {
     fontSize: 11,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
 });

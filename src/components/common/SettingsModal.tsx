@@ -4,21 +4,20 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
   Switch,
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeColors } from '../../constants/colors';
+import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Task } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, setGlobalHapticsEnabled } from '../../hooks/useHaptics';
+import { hapticLight, hapticSelection, setGlobalHapticsEnabled } from '../../hooks/useHaptics';
 import { defaultNotificationService } from '../../services/notifications/notificationService';
 import { defaultBackupService } from '../../services/storage/backupService';
 import { isSoundEffectsEnabled, setSoundEffectsEnabled } from '../../services/audio/audioService';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
-import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -221,21 +220,32 @@ export function SettingsModal({
 
   return (
     <>
-      <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="88%">
+      <SwipeableBottomSheet visible={visible && !isPrivacyOpen} onClose={onClose} theme={theme} maxHeight="88%">
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={[styles.sheetTitle, { color: theme.text }]}>Settings</Text>
-            <Text style={[styles.subtitle, { color: theme.textDim }]}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
+              Settings
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.textDim }]} numberOfLines={1}>
               {totalTasks} tasks • {totalLists} lists
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}>
+          <TouchableOpacity
+            onPress={() => {
+              hapticLight();
+              onClose();
+            }}
+            style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close settings"
+          >
             <Ionicons name="close" size={18} color={theme.textDim} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* Preferences */}
           <Text style={[styles.sectionTitle, { color: theme.textDim }]}>PREFERENCES</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
@@ -254,8 +264,12 @@ export function SettingsModal({
                     <Ionicons name="color-palette-outline" size={18} color={theme.primary} />
                   </View>
                   <View style={styles.actionContent}>
-                    <Text style={[styles.actionTitle, { color: theme.text }]}>Appearance</Text>
-                    <Text style={[styles.actionDesc, { color: theme.textDim }]}>{theme.name}</Text>
+                    <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1}>
+                      Appearance
+                    </Text>
+                    <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1}>
+                      {theme.name}
+                    </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
                 </TouchableOpacity>
@@ -323,7 +337,10 @@ export function SettingsModal({
               </View>
               <Switch
                 value={autoNightShift}
-                onValueChange={onToggleAutoNightShift}
+                onValueChange={(enabled) => {
+                  hapticSelection();
+                  onToggleAutoNightShift?.(enabled);
+                }}
                 trackColor={{ false: theme.border, true: theme.primary }}
                 thumbColor="#ffffff"
               />
@@ -437,15 +454,17 @@ export function SettingsModal({
                   disabled={isClearingData}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#450a0a' : '#fee2e2' }]}>
+                  <View style={[styles.iconCircle, { backgroundColor: withAlpha(theme.danger, theme.isDark ? 0.2 : 0.12) }]}>
                     {isClearingData ? (
-                      <ActivityIndicator size="small" color="#dc2626" />
+                      <ActivityIndicator size="small" color={theme.danger} />
                     ) : (
-                      <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                      <Ionicons name="trash-outline" size={18} color={theme.danger} />
                     )}
                   </View>
                   <View style={styles.actionContent}>
-                    <Text style={[styles.actionTitle, { color: '#dc2626' }]}>Clear All Data</Text>
+                    <Text style={[styles.actionTitle, { color: theme.danger }]} numberOfLines={1}>
+                      Clear All Data
+                    </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
                 </TouchableOpacity>
@@ -458,7 +477,7 @@ export function SettingsModal({
             <Text style={[styles.footerTitle, { color: theme.textDim }]}>Zen Task Calendar</Text>
             <Text style={[styles.footerSub, { color: theme.textDim }]}>Version 1.0.0</Text>
           </View>
-        </ScrollView>
+        </BottomSheetScrollView>
       </SwipeableBottomSheet>
 
       <PrivacyPolicyModal
@@ -486,6 +505,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
   closeBtn: {
     width: 32,

@@ -1,11 +1,21 @@
 import React from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp, useTimer } from '../../context/AppContext';
 import { FocusScreen } from '../../screens/FocusScreen';
 
 export default function FocusRoute() {
   const {
     theme,
     currentStreak,
+    setIsThemeModalOpen,
+    focusStats,
+    setIsSettingsModalOpen,
+    setIsSyncModalOpen,
+    activeFocusTask,
+    setActiveFocusTask,
+    isZenBreathingOpen,
+    setIsZenBreathingOpen,
+  } = useApp();
+  const {
     timeLeft,
     initialTime,
     isTimerRunning,
@@ -13,16 +23,8 @@ export default function FocusRoute() {
     resetTimer,
     adjustTime,
     setTimerMinutes,
-    setIsThemeModalOpen,
-    focusStats,
-    setIsSettingsModalOpen,
-    setIsSyncModalOpen,
     finishEarlySession,
-    activeFocusTask,
-    setActiveFocusTask,
-    isZenBreathingOpen,
-    setIsZenBreathingOpen,
-  } = useApp();
+  } = useTimer();
 
   return (
     <FocusScreen

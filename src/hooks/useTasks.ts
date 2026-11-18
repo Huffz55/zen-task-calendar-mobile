@@ -3,7 +3,7 @@ import type { Task, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types
 import { differenceInDays, parseISO, isValid, subDays, addDays, format } from 'date-fns';
 import { ITaskStorage, defaultTaskStorage } from '../services/storage/taskStorage';
 import { springLayout } from '../utils/animations';
-import { getDailyTasksForDate } from '../utils/taskSchedule';
+import { computeCurrentStreak, getDailyTasksForDate } from '../utils/taskSchedule';
 import { generateSecureId as generateUniqueId } from '../utils/cryptoRandom';
 
 export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
@@ -105,6 +105,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   }, []);
 
   const toggleTaskCompletion = useCallback((taskId: string, dateStr: string) => {
+    springLayout();
     setTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const completedList = Array.isArray(task.completedDates) ? task.completedDates : [];
@@ -385,40 +386,8 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     }).length;
   }, [tasks]);
 
-  // Streak engine calculation
-  const currentStreak = useMemo(() => {
-    let streak = 0;
-    const today = new Date();
-    let checkDate = today;
-
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const todayTasks = getTasksForDate(todayStr);
-    const todayIsDone = todayTasks.length > 0 && todayTasks.every(t => t.isCompleted);
-
-    if (todayIsDone) {
-      streak++;
-    }
-    checkDate = subDays(checkDate, 1);
-
-    const MAX_DAYS = 365;
-    let daysChecked = 0;
-
-    while (daysChecked < MAX_DAYS) {
-      daysChecked++;
-      const dateStr = format(checkDate, 'yyyy-MM-dd');
-      const dayTasks = getTasksForDate(dateStr);
-      const isPerfect = dayTasks.length > 0 && dayTasks.every(t => t.isCompleted);
-
-      if (isPerfect) {
-        streak++;
-        checkDate = subDays(checkDate, 1);
-      } else {
-        break;
-      }
-    }
-
-    return streak;
-  }, [getTasksForDate]);
+  // Streak engine calculation (indexed O(N) over active tasks)
+  const currentStreak = useMemo(() => computeCurrentStreak(tasks), [tasks]);
 
   const getInboxTasks = useCallback((): Task[] => {
     return tasks.filter(t => !t.isArchived && t.isInbox);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Task } from '../types';
-import { getDailyTasksForDate } from './taskSchedule';
+import { computeCurrentStreak, getDailyTasksForDate } from './taskSchedule';
 
 describe('mobile getDailyTasksForDate', () => {
   const sampleTasks: Task[] = [
@@ -95,5 +95,44 @@ describe('mobile getDailyTasksForDate', () => {
 
   it('returns empty array for invalid date input', () => {
     expect(getDailyTasksForDate(sampleTasks, 'invalid')).toEqual([]);
+  });
+});
+
+describe('mobile computeCurrentStreak', () => {
+  it('counts consecutive perfect days ending today or yesterday while respecting exclusions and inbox/archived tasks', () => {
+    const tasks: Task[] = [
+      {
+        id: 'daily-habit',
+        title: 'Meditation',
+        date: '2026-11-10',
+        recurrence: 'daily',
+        completedDates: ['2026-11-13', '2026-11-14', '2026-11-15'],
+        excludedDates: ['2026-11-14'],
+      },
+      {
+        id: 'single-14',
+        title: 'Finish report',
+        date: '2026-11-14',
+        recurrence: 'none',
+        completedDates: ['2026-11-14'],
+      },
+      {
+        id: 'inbox-noise',
+        title: 'Unscheduled inbox',
+        date: '2026-11-15',
+        recurrence: 'none',
+        completedDates: [],
+        isInbox: true,
+      },
+    ];
+
+    // Nov 13, 14, 15 are all perfect -> streak 3 when reference is Nov 15
+    expect(computeCurrentStreak(tasks, new Date('2026-11-15T12:00:00Z'))).toBe(3);
+
+    // If Nov 16 has uncompleted daily-habit, yesterday (15), 14, 13 still yield streak 3
+    expect(computeCurrentStreak(tasks, new Date('2026-11-16T12:00:00Z'))).toBe(3);
+
+    // Gap on Nov 16 breaks streak when reference is Nov 17
+    expect(computeCurrentStreak(tasks, new Date('2026-11-17T12:00:00Z'))).toBe(0);
   });
 });

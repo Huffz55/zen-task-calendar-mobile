@@ -1,13 +1,11 @@
-import { LayoutAnimation, Platform, UIManager } from 'react-native';
+import { LayoutAnimation } from 'react-native';
 
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  try {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  } catch {
-    // Ignore if not supported
-  }
-}
+export const PRESS_SPRING_CONFIG = {
+  damping: 18,
+  stiffness: 280,
+  mass: 0.6,
+  useNativeDriver: true,
+} as const;
 
 /**
  * Silky smooth layout animation for list updates, task additions, and deletions
@@ -15,7 +13,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 export function springLayout() {
   try {
     LayoutAnimation.configureNext({
-      duration: 260,
+      duration: 240,
       create: {
         type: LayoutAnimation.Types.easeInEaseOut,
         property: LayoutAnimation.Properties.opacity,
@@ -41,7 +39,7 @@ export function animateLayout() {
   try {
     LayoutAnimation.configureNext(
       LayoutAnimation.create(
-        220,
+        200,
         LayoutAnimation.Types.easeInEaseOut,
         LayoutAnimation.Properties.opacity
       )
