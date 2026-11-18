@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 import { generateSyncKey, isValidSyncKey } from './syncKeyFormat';
 
 export { generateSyncKey, isValidSyncKey };
@@ -9,8 +8,24 @@ const SECURE_SYNC_KEY = 'zen_sync_key_v1';
 
 let cachedSyncKey: string | null = null;
 
+function getSecureStoreModule(): typeof import('expo-secure-store') | null {
+  try {
+    // Load lazily so OTA updates stay compatible even with older APKs lacking ExpoSecureStore native binary
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('expo-secure-store') as typeof import('expo-secure-store');
+    if (mod && typeof mod.getItemAsync === 'function' && typeof mod.setItemAsync === 'function') {
+      return mod;
+    }
+  } catch {
+    // Fallback to AsyncStorage if native module is unavailable
+  }
+  return null;
+}
+
 async function writeToSecureStorage(value: string): Promise<boolean> {
   try {
+    const SecureStore = getSecureStoreModule();
+    if (!SecureStore) return false;
     await SecureStore.setItemAsync(SECURE_SYNC_KEY, value, {
       keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
     });
@@ -24,12 +39,14 @@ async function writeToSecureStorage(value: string): Promise<boolean> {
 
 async function readFromSecureStorage(): Promise<string | null> {
   try {
+    const SecureStore = getSecureStoreModule();
+    if (!SecureStore) return null;
     const secured = await SecureStore.getItemAsync(SECURE_SYNC_KEY);
     if (secured && isValidSyncKey(secured)) {
       return secured.trim().toUpperCase();
     }
   } catch {
-    // Ignore when SecureStore is unavailable (e.g., web or test environment)
+    // Ignore when SecureStore is unavailable (e.g., web, test environment, or pre-SecureStore APK)
   }
   return null;
 }
