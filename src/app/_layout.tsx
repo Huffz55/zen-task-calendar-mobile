@@ -3,7 +3,6 @@ import { View, StyleSheet } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import * as SystemUI from 'expo-system-ui';
 
 import { AppProvider, useApp } from '../context/AppContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -41,9 +40,15 @@ function RootLayoutContent() {
   } = useApp();
   const pathname = usePathname();
 
-  // Keep native Android/iOS root window background aligned with active theme
+  // Keep native Android/iOS root window background aligned with active theme when supported by the binary
   useEffect(() => {
-    SystemUI.setBackgroundColorAsync(theme.background).catch(() => {});
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const systemUi = require('expo-system-ui') as typeof import('expo-system-ui');
+      systemUi.setBackgroundColorAsync?.(theme.background)?.catch?.(() => {});
+    } catch {
+      // Older APKs without ExpoSystemUI native module ignore gracefully during OTA
+    }
   }, [theme.background]);
 
   const archivedTasks = useMemo(
