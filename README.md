@@ -1,46 +1,76 @@
-# Zen Task Calendar Mobile 🌸 (React Native / Expo)
+# Zen Task Calendar Mobile 🌸
 
-Zen Task Calendar'ın iOS ve Android için sıfırdan tasarlanmış modern, native mobil versiyonudur.
+A calm, offline-first task, calendar, checklist, and Zen focus mobile app built with React Native and Expo.
 
-## 🚀 Seçilen Teknoloji Yığını
-- **Çatı:** React Native 0.86 / Expo SDK 57 (TypeScript)
-- **Navigasyon & Yönlendirme:** **Expo Router (~57.0.26)** dosya tabanlı yönlendirme (`src/app/`)
-- **Mimari:** Clean Architecture (Context, Components, Screens, Services, Hooks, Types, Constants)
-- **Depolama:** `@react-native-async-storage/async-storage` (Offline-first kalıcı veri saklama)
-- **Ses Motoru:** `expo-audio` (Modern ses çalma, arka plan müzikleri, 432Hz Zen çanı)
-- **Bildirimler:** `expo-notifications` (Sabah 09:00 görev hatırlatıcısı ve odaklanma tamamlanma bildirimleri)
-- **Haptik:** `expo-haptics` (Taptic Engine titreşim geri bildirimleri)
-- **Ekran Uyanıklığı:** `expo-keep-awake` (Zen Odak modunda ekran kapanmasını önleme)
-- **Güvenli Alan:** `react-native-safe-area-context` (Çentik ve home bar uyumu)
-- **Tarih Motoru:** `date-fns`
+## 🚀 Tech Stack
 
-## 🗂️ Rota Yapısı (`src/app/`)
-- `src/app/_layout.tsx`: Root Stack, SafeArea ve global AppProvider (`Toast`, `ThemeModal`)
-- `src/app/(tabs)/_layout.tsx`: Alt sekme çubuğu navigatörü (BottomNav entegrasyonu)
-- `src/app/(tabs)/index.tsx`: Bugün ekranı rotası
-- `src/app/(tabs)/calendar.tsx`: Aylık takvim ekranı rotası
-- `src/app/(tabs)/lists.tsx`: Özel listeler ekranı rotası
-- `src/app/(tabs)/focus.tsx`: Zen odaklanma sayacı rotası
-- `src/app/list/[id].tsx`: Dinamik özel liste tam ekran detay rotası
+- **Framework:** React Native `0.86.3` / Expo SDK `57` (`~57.0.33`) with TypeScript (`~6.0.3`)
+- **Navigation:** Expo Router (`~57.0.31`) file-based routing under `src/app/`
+- **Storage & Sync:** `@react-native-async-storage/async-storage`, `expo-secure-store`, and optional Firebase sync (`firebase`)
+- **Audio Engine:** `expo-audio` (`audioService.ts` & `ambientPlaybackEngine.ts`) for seamless looping ambient soundscapes and a 432 Hz Zen completion chime
+- **Notifications:** `expo-notifications` for daily reminders and focus session completion alerts
+- **Haptics & UX:** `expo-haptics`, `expo-keep-awake`, `expo-system-ui`, `react-native-safe-area-context`, and swipeable bottom sheets (`SwipeableBottomSheet`)
+- **Date Utilities:** `date-fns`
+- **Testing & Linting:** Vitest (`vitest`), `eslint-config-expo`, and TypeScript (`tsc --noEmit`)
 
-## 📱 Ekranlar & Yetenekler
-1. **Bugün (TodayScreen):** Günlük görevler, yatay 14 günlük hızlı kaydırma çubuğu (`DayStrip`), streak sayacı (`🔥`), gecikmiş görevleri bugüne aktarma (`Rollover`), hızlı görev ekleme FAB, gerçek zamanlı arama & etiket filtreleme (`TaskFilterBar`), görev düzenleme (`EditTaskModal`).
-2. **Takvim (CalendarScreen):** Tam ekran aylık takvim matrisi, görev yoğunluk noktaları, seçilen gün detayları, arama/filtreleme ve tek dokunuşla düzenleme & planlama.
-3. **Listeler (ListsScreen):** Kategorize edilmiş özel kontrol listeleri, madde bazlı ilerleme çubuğu, tek dokunuşla madde tamamlama, tek dokunuşla tam ekran detay sayfasına geçiş (`/list/[id]`).
-4. **Zen Odak (FocusScreen):** Minimalist Pomodoro / odaklanma sayacı, hızlı süre butonları (15m, 25m, 45m, 60m), Keep-Awake entegrasyonu, **Zen Ortam Sesleri** (`AmbientSoundBar`: Yağmur, Okyanus, Orman, Şömine) ve **432 Hz Tibet Zen Çanı** tamamlama sesi.
-5. **Tema Sistemi (ThemeModal):** Sakura Rose 🌸, Matcha Garden 🍵, Nordic Breeze 🌊 ve Midnight Silk 🌙 (Tam karanlık mod).
-6. **Arama & Etiket Filtreleme:** Görev başlığına göre anlık filtreleme, etiket bazlı dinamik sayaç rozetleri.
-7. **Yerel Bildirimler:** Sabah 09:00 günlük görev özeti ve arka planda Zen seansı bittiğinde uyaran bildirimler.
+## 🗂️ Route Structure (`src/app/`)
 
-## 🛠️ Çalıştırma Adımları
+- `src/app/_layout.tsx` — Root stack, safe-area setup, and global `AppProvider` (`Toast`, `ThemeModal`)
+- `src/app/(tabs)/_layout.tsx` — Bottom tab navigator (`BottomNav`) with horizontal swipe tab navigation
+- `src/app/(tabs)/index.tsx` — Today screen route
+- `src/app/(tabs)/calendar.tsx` — Monthly calendar route
+- `src/app/(tabs)/lists.tsx` — Custom checklists route
+- `src/app/(tabs)/focus.tsx` — Zen focus timer route
+- `src/app/list/[id].tsx` — Dynamic full-screen checklist detail route
+
+## 📱 Screens & Features
+
+1. **Today (`TodayScreen`):** Daily task list, 14-day horizontal `DayStrip`, streak counter, overdue task rollover, quick-add FAB, real-time search and tag filtering (`TaskFilterBar`), `EditTaskModal`, `ZenTriageModal`, and `EveningReviewModal`.
+2. **Calendar (`CalendarScreen`):** Full-screen monthly calendar matrix (`CalendarGrid`), task density indicators, selected-day task list, search/tag filtering, and quick scheduling.
+3. **Lists (`ListsScreen` & `/list/[id]`):** Categorized custom checklists with progress bars, one-tap item completion, and dedicated detail views.
+4. **Zen Focus (`FocusScreen`):** Minimalist focus timer (`ZenTimerView`), breathing exercises (`ZenBreathingModal`), `MiniFocusPlayer`, focus analytics & heatmap (`FocusAnalyticsCard`, `ZenHeatmap`), `KeepAwake`, 5 seamless stereo AAC-LC ambient soundscapes (`AmbientSoundBar`: Rain, Ocean Waves, Forest, Wind, Cozy Fireplace), and a 432 Hz Zen chime.
+5. **Themes (`ThemeModal`):** Four curated color palettes — **Sakura Rose**, **Matcha Garden**, **Nordic Breeze**, and **Midnight Silk** (dark mode).
+6. **Sync & Privacy:** Local-first persistence with optional encrypted sync (`SyncModal`) and in-app privacy policy (`PrivacyPolicyModal` / `PRIVACY_POLICY.md`).
+
+## 🛠️ Getting Started
+
 ```bash
-# Bağımlılıkları yükleyin (halihazırda yüklüdür)
+# Install dependencies
 npm install
 
-# Geliştirme sunucusunu başlatın
-npx expo start
+# Start the Expo development server
+npm start
 
-# QR kodu Expo Go (iOS / Android) uygulamasından taratın veya emülatörde açın:
-# 'a' -> Android Emülatör
-# 'i' -> iOS Simülatör
+# Run on Android / iOS / Web
+npm run android
+npm run ios
+npm run web
+```
+
+## ✅ Verification & Testing
+
+```bash
+# TypeScript type check
+npx tsc --noEmit
+
+# Expo ESLint check
+npm run lint
+
+# Unit tests (Vitest)
+npm test
+
+# Expo project health check
+npx expo-doctor
+```
+
+## 📦 Building for Release (EAS)
+
+Release profiles are configured in `eas.json` and `app.json` (`com.zentask.mobile`):
+
+```bash
+# Preview Android APK
+eas build --platform android --profile preview
+
+# Production Android App Bundle (.aab)
+eas build --platform android --profile production
 ```
