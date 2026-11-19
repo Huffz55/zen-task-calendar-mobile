@@ -8,7 +8,7 @@ const VALID_RECURRENCES: Set<RecurrenceType> = new Set(['none', 'daily', 'weekly
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024; // 5 MB DoS guard
-export const MAX_TASKS_LIMIT = 5000;
+export const MAX_TASKS_LIMIT = 3000;
 export const MAX_LISTS_LIMIT = 500;
 export const MAX_FOCUS_SESSIONS_LIMIT = 10000;
 export const MAX_SUBTASKS_PER_TASK = 100;

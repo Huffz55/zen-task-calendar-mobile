@@ -118,10 +118,23 @@ const sfxPlayers: Record<string, AudioPlayer | null> = {
 let sfxEnabled = true;
 const SETTINGS_SFX_KEY = '@noteapp_setting_sfx';
 
+let chimeEnabled = true;
+let hasExplicitChimeOverride = false;
+const SETTINGS_CHIME_KEY = '@noteapp_setting_chime';
+
 // Initialize SFX setting from AsyncStorage
 AsyncStorage.getItem(SETTINGS_SFX_KEY).then(val => {
   if (val !== null) sfxEnabled = val === 'true';
 });
+
+// Initialize completion chime setting from AsyncStorage
+const chimeInitPromise = AsyncStorage.getItem(SETTINGS_CHIME_KEY)
+  .then(val => {
+    if (val !== null && !hasExplicitChimeOverride) {
+      chimeEnabled = val === 'true';
+    }
+  })
+  .catch(() => {});
 
 export function isSoundEffectsEnabled(): boolean {
   return sfxEnabled;
@@ -130,6 +143,16 @@ export function isSoundEffectsEnabled(): boolean {
 export async function setSoundEffectsEnabled(enabled: boolean): Promise<void> {
   sfxEnabled = enabled;
   await AsyncStorage.setItem(SETTINGS_SFX_KEY, String(enabled));
+}
+
+export function isCompletionChimeEnabled(): boolean {
+  return chimeEnabled;
+}
+
+export async function setCompletionChimeEnabled(enabled: boolean): Promise<void> {
+  hasExplicitChimeOverride = true;
+  chimeEnabled = enabled;
+  await AsyncStorage.setItem(SETTINGS_CHIME_KEY, String(enabled));
 }
 
 async function playSfx(name: 'bamboo' | 'water' | 'bowl' | 'swoosh', volume = 0.8): Promise<void> {
@@ -179,6 +202,8 @@ export async function playSoftSwoosh(): Promise<void> {
 }
 
 export async function playZenChime(): Promise<void> {
+  await chimeInitPromise;
+  if (!chimeEnabled) return;
   try {
     await ambientEngine.ensureAudioModeConfigured();
     if (!chimePlayer) {

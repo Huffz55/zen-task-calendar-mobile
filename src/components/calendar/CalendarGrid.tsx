@@ -19,6 +19,7 @@ import { animateLayout } from '../../utils/animations';
 
 interface CalendarGridProps {
   selectedDate: Date;
+  todayStr?: string;
   onSelectDate: (date: Date) => void;
   getTaskCountForDate: (dateStr: string) => number;
   theme: ThemeColors;
@@ -28,6 +29,7 @@ const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function CalendarGrid({
   selectedDate,
+  todayStr,
   onSelectDate,
   getTaskCountForDate,
   theme,
@@ -53,7 +55,7 @@ export function CalendarGrid({
     return eachDayOfInterval({ start: startDate, end: endDate });
   }, [monthStart]);
 
-  const today = new Date();
+  const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -112,8 +114,8 @@ export function CalendarGrid({
         {days.map(day => {
           const isSelected = isSameDay(day, selectedDate);
           const isCurrentMonth = isSameMonth(day, monthStart);
-          const isTodayDate = isSameDay(day, today);
           const dateStr = format(day, 'yyyy-MM-dd');
+          const isTodayDate = dateStr === resolvedTodayStr;
           const count = getTaskCountForDate(dateStr);
 
           return (

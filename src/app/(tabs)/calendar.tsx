@@ -8,6 +8,7 @@ export default function CalendarRoute() {
     currentStreak,
     selectedDate,
     setSelectedDate,
+    todayStr,
     getTasksForDate,
     getTaskCountForDate,
     toggleTaskCompletion,
@@ -30,6 +31,7 @@ export default function CalendarRoute() {
       theme={theme}
       currentStreak={currentStreak}
       selectedDate={selectedDate}
+      todayStr={todayStr}
       onSelectDate={setSelectedDate}
       getTasksForDate={getTasksForDate}
       getTaskCountForDate={getTaskCountForDate}

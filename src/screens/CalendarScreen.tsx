@@ -28,6 +28,7 @@ interface CalendarScreenProps {
   theme: ThemeColors;
   currentStreak: number;
   selectedDate: Date;
+  todayStr?: string;
   onSelectDate: (date: Date) => void;
   getTasksForDate: (dateStr: string) => DailyTask[];
   getTaskCountForDate: (dateStr: string) => number;
@@ -66,6 +67,7 @@ export function CalendarScreen({
   theme,
   currentStreak,
   selectedDate,
+  todayStr,
   onSelectDate,
   getTasksForDate,
   getTaskCountForDate,
@@ -143,7 +145,7 @@ export function CalendarScreen({
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       {...swipeHandlers}
     >
       <Header
@@ -165,6 +167,7 @@ export function CalendarScreen({
         {/* Month Calendar Grid */}
         <CalendarGrid
           selectedDate={selectedDate}
+          todayStr={todayStr}
           onSelectDate={handleSelectDateSmooth}
           getTaskCountForDate={getTaskCountForDate}
           theme={theme}
@@ -242,9 +245,13 @@ export function CalendarScreen({
               </View>
             )
           ) : (
-            <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.emptyText, { color: theme.textDim }]}>
-                No tasks planned for this date.
+            <View style={styles.emptyContainer}>
+              <View style={[styles.emptyHairline, { backgroundColor: theme.border }]} />
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                Nothing scheduled
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: theme.textMuted }]} numberOfLines={2}>
+                This day is open and unscheduled.
               </Text>
             </View>
           )}
@@ -325,14 +332,30 @@ const styles = StyleSheet.create({
   tasksList: {
     paddingHorizontal: 20,
   },
-  emptyCard: {
-    padding: 20,
-    borderRadius: 18,
-    borderWidth: 1,
+  emptyContainer: {
+    paddingVertical: 36,
+    paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  emptyText: {
+  emptyHairline: {
+    width: 24,
+    height: 1.5,
+    borderRadius: 1,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
     fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 4,
   },
   filterWrapper: {
     paddingHorizontal: 20,

@@ -15,7 +15,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, setGlobalHapticsEnabled } from '../../hooks/useHaptics';
 import { defaultNotificationService } from '../../services/notifications/notificationService';
 import { defaultBackupService } from '../../services/storage/backupService';
-import { isSoundEffectsEnabled, setSoundEffectsEnabled } from '../../services/audio/audioService';
+import {
+  isSoundEffectsEnabled,
+  setSoundEffectsEnabled,
+  isCompletionChimeEnabled,
+  setCompletionChimeEnabled,
+} from '../../services/audio/audioService';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 
@@ -67,7 +72,7 @@ export function SettingsModal({
   const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(false);
   const [eveningWindDownEnabled, setEveningWindDownEnabled] = useState(false);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
-  const [chimeEnabled, setChimeEnabled] = useState(true);
+  const [chimeEnabled, setChimeEnabled] = useState(() => isCompletionChimeEnabled());
   const [sfxEnabled, setSfxEnabled] = useState(() => isSoundEffectsEnabled());
 
   useEffect(() => {
@@ -86,7 +91,13 @@ export function SettingsModal({
       }
     });
     AsyncStorage.getItem(SETTINGS_CHIME_KEY).then(val => {
-      if (val !== null) setChimeEnabled(val === 'true');
+      if (val !== null) {
+        const enabled = val === 'true';
+        setChimeEnabled(enabled);
+        if (enabled !== isCompletionChimeEnabled()) {
+          void setCompletionChimeEnabled(enabled);
+        }
+      }
     });
   }, [visible]);
 
@@ -133,7 +144,7 @@ export function SettingsModal({
   const handleToggleChime = async (enabled: boolean) => {
     hapticLight();
     setChimeEnabled(enabled);
-    await AsyncStorage.setItem(SETTINGS_CHIME_KEY, String(enabled));
+    await setCompletionChimeEnabled(enabled);
     onShowToast(enabled ? 'Completion chime enabled' : 'Completion chime disabled');
   };
 

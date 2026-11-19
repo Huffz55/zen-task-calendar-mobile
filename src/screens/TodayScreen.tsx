@@ -32,6 +32,7 @@ interface TodayScreenProps {
   currentStreak: number;
   tasks: DailyTask[];
   selectedDate: Date;
+  todayStr?: string;
   onSelectDate: (date: Date) => void;
   getTaskCountForDate: (dateStr: string) => number;
   onToggleTask: (taskId: string) => void;
@@ -74,6 +75,7 @@ export function TodayScreen({
   currentStreak,
   tasks,
   selectedDate,
+  todayStr,
   onSelectDate,
   getTaskCountForDate,
   onToggleTask,
@@ -107,8 +109,8 @@ export function TodayScreen({
   const [showSakura, setShowSakura] = useState(false);
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const isToday = selectedDateStr === todayStr;
+  const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
+  const isToday = selectedDateStr === resolvedTodayStr;
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.isCompleted).length;
@@ -201,7 +203,7 @@ export function TodayScreen({
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       {...swipeHandlers}
     >
       {/* Header */}
@@ -219,6 +221,7 @@ export function TodayScreen({
       {/* Horizontal Day Strip */}
       <DayStrip
         selectedDate={selectedDate}
+        todayStr={resolvedTodayStr}
         onSelectDate={handleDateSelect}
         getTaskCountForDate={getTaskCountForDate}
         theme={theme}
@@ -358,22 +361,20 @@ export function TodayScreen({
           )
         ) : (
           <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
-              <Ionicons name="sparkles-outline" size={26} color={theme.primary} />
-            </View>
+            <View
+              style={[
+                styles.emptyHairline,
+                { backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.45 : 0.35) },
+              ]}
+            />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              No tasks for today
+              {isToday ? 'A clear slate for today' : 'Nothing scheduled'}
             </Text>
-            <TouchableOpacity
-              style={[styles.emptyAddBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 12 }]}
-              onPress={() => {
-                hapticLight();
-                setIsAddModalOpen(true);
-              }}
-            >
-              <Ionicons name="add" size={18} color={theme.primary} />
-              <Text style={[styles.emptyAddText, { color: theme.primary }]}>Add Task</Text>
-            </TouchableOpacity>
+            <Text style={[styles.emptySubtitle, { color: theme.textMuted }]} numberOfLines={2}>
+              {isToday
+                ? 'Tap + below whenever something needs focus.'
+                : 'This day is open and unscheduled.'}
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -525,35 +526,27 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
+    paddingVertical: 80,
+    paddingHorizontal: 28,
   },
-  emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
+  emptyHairline: {
+    width: 28,
+    height: 1.5,
+    borderRadius: 1,
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: -0.3,
     textAlign: 'center',
-    marginBottom: 6,
   },
-  emptyAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  emptyAddText: {
+  emptySubtitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 6,
   },
   fab: {
     position: 'absolute',
