@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'reac
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticMedium, hapticLight, hapticSelection } from '../../hooks/useHaptics';
+import { useTranslation } from '../../i18n';
 
 interface ZenTimerViewProps {
   timeLeft: number;
@@ -26,6 +27,7 @@ export function ZenTimerView({
   onSetMinutes,
   onFinishEarly,
 }: ZenTimerViewProps) {
+  const { t } = useTranslation();
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -121,7 +123,7 @@ export function ZenTimerView({
                 style={[styles.timeSub, { color: isTimerRunning ? theme.primary : theme.textDim }]}
                 maxFontSizeMultiplier={1.25}
               >
-                {isTimerRunning ? 'DEEP FOCUS' : 'READY'}
+                {isTimerRunning ? t('focus.timerDeepFocus') : t('focus.timerReady')}
               </Text>
             </View>
           </View>
@@ -154,7 +156,7 @@ export function ZenTimerView({
           }}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Reset timer"
+          accessibilityLabel={t('focus.a11yResetTimer')}
         >
           <Ionicons name="reload-outline" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -171,7 +173,7 @@ export function ZenTimerView({
           onPress={handlePlayToggle}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={isTimerRunning ? 'Pause timer' : 'Start timer'}
+          accessibilityLabel={isTimerRunning ? t('focus.a11yPauseTimer') : t('focus.a11yStartTimer')}
         >
           <Ionicons
             name={isTimerRunning ? 'pause' : 'play'}
@@ -191,7 +193,7 @@ export function ZenTimerView({
             }}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="Finish and log session"
+            accessibilityLabel={t('focus.a11yFinishEarly')}
           >
             <Ionicons name="checkmark" size={20} color={theme.primary} />
           </TouchableOpacity>
@@ -222,7 +224,7 @@ export function ZenTimerView({
               hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={`${mins} minutes`}
+              accessibilityLabel={t('focus.a11yPresetMinutes', { minutes: mins })}
             >
               <Text
                 style={[
@@ -234,7 +236,7 @@ export function ZenTimerView({
                 ]}
                 maxFontSizeMultiplier={1.35}
               >
-                {mins}m
+                {mins}{t('units.minuteShort')}
               </Text>
             </TouchableOpacity>
           );

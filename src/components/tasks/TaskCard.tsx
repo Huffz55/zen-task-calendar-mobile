@@ -18,6 +18,7 @@ import { playBambooTap, playSoftSwoosh } from '../../services/audio/audioService
 import { animateLayout, PRESS_SPRING_CONFIG } from '../../utils/animations';
 import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
 import { useApp } from '../../context/AppContext';
+import { formatDurationCompact, formatMinutesCompact, useTranslation } from '../../i18n';
 
 interface TaskCardProps {
   task: DailyTask;
@@ -30,16 +31,6 @@ interface TaskCardProps {
   onDeferTask?: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
   onStartFocus?: (task: { id: string; title: string }) => void;
-}
-
-function formatMinutes(seconds: number): string {
-  const mins = Math.round(seconds / 60);
-  if (mins >= 60) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h}h ${m}m`;
-  }
-  return `${mins}m`;
 }
 
 export const TaskCard = memo(function TaskCard({
@@ -55,9 +46,10 @@ export const TaskCard = memo(function TaskCard({
   onStartFocus,
 }: TaskCardProps) {
   const { customTags } = useApp();
+  const { t, language } = useTranslation();
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const tagConfig = task.tag ? resolveTagConfig(task.tag, customTags) : null;
+  const tagConfig = task.tag ? resolveTagConfig(task.tag, customTags, language) : null;
 
   // Extract link if task contains a URL
   const linkInfo = useMemo(() => {
@@ -68,11 +60,11 @@ export const TaskCard = memo(function TaskCard({
     try {
       const parsed = new URL(url);
       const host = parsed.hostname.replace(/^www\./, '');
-      return { url, displayLabel: host || 'Link' };
+      return { url, displayLabel: host || t('common.link') };
     } catch {
-      return { url, displayLabel: 'Link' };
+      return { url, displayLabel: t('common.link') };
     }
-  }, [task.title]);
+  }, [task.title, t]);
 
   // Entrance, press, and checkmark micro-animations
   const [enterAnim] = useState(() => new Animated.Value(0));
@@ -220,10 +212,10 @@ export const TaskCard = memo(function TaskCard({
       <View style={styles.swipeBackground} pointerEvents="none">
         <Animated.View style={[styles.swipeActionLeft, { opacity: swipeOpacityLeft }]}>
           <Ionicons name="checkmark-circle" size={22} color={theme.success} />
-          <Text style={[styles.swipeActionText, { color: theme.success }]}>Done</Text>
+          <Text style={[styles.swipeActionText, { color: theme.success }]}>{t('tasks.swipeDone')}</Text>
         </Animated.View>
         <Animated.View style={[styles.swipeActionRight, { opacity: swipeOpacityRight }]}>
-          <Text style={[styles.swipeActionDeleteText, { color: theme.danger }]}>Delete</Text>
+          <Text style={[styles.swipeActionDeleteText, { color: theme.danger }]}>{t('tasks.swipeDelete')}</Text>
           <Ionicons name="trash-outline" size={20} color={theme.danger} />
         </Animated.View>
       </View>
@@ -245,7 +237,7 @@ export const TaskCard = memo(function TaskCard({
         {task.isPinned && !task.isCompleted && (
           <View style={styles.pinnedBanner}>
             <Ionicons name="star" size={12} color={theme.warning} />
-            <Text style={[styles.pinnedBannerText, { color: theme.warning }]}>Focus of the Day</Text>
+            <Text style={[styles.pinnedBannerText, { color: theme.warning }]}>{t('tasks.focusOfTheDay')}</Text>
           </View>
         )}
 
@@ -274,7 +266,10 @@ export const TaskCard = memo(function TaskCard({
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: task.isCompleted }}
-              accessibilityLabel={`Mark ${task.title} as ${task.isCompleted ? 'incomplete' : 'completed'}`}
+              accessibilityLabel={t(
+                task.isCompleted ? 'tasks.a11yMarkIncomplete' : 'tasks.a11yMarkCompleted',
+                { title: task.title }
+              )}
             >
               {task.isCompleted && <Ionicons name="checkmark" size={14} color="#ffffff" />}
             </TouchableOpacity>
@@ -326,7 +321,7 @@ export const TaskCard = memo(function TaskCard({
                 <View style={[styles.badge, { backgroundColor: theme.surfaceMuted, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
                   <Ionicons name="repeat-outline" size={10} color={theme.accent || theme.primary} />
                   <Text style={[styles.badgeText, { color: theme.accent || theme.primary }]} numberOfLines={1}>
-                    {task.recurrence}
+                    {t(`tasks.recurrence.${task.recurrence}`)}
                   </Text>
                 </View>
               )}
@@ -336,7 +331,7 @@ export const TaskCard = memo(function TaskCard({
                 <View style={[styles.badge, { backgroundColor: theme.primaryLight, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
                   <Ionicons name="timer-outline" size={10} color={theme.primary} />
                   <Text style={[styles.badgeText, styles.tabularText, { color: theme.primary }]} numberOfLines={1}>
-                    {formatMinutes(task.focusedSeconds)}
+                    {formatDurationCompact(task.focusedSeconds, language)}
                   </Text>
                 </View>
               ) : null}
@@ -346,9 +341,7 @@ export const TaskCard = memo(function TaskCard({
                 <View style={[styles.badge, { backgroundColor: theme.surfaceMuted, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
                   <Ionicons name="time-outline" size={10} color={theme.textDim} />
                   <Text style={[styles.badgeText, styles.tabularText, { color: theme.textDim }]} numberOfLines={1}>
-                    {task.estimatedMinutes >= 60
-                      ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60 ? `${task.estimatedMinutes % 60}m` : ''}`.trim()
-                      : `${task.estimatedMinutes}m`}
+                    {formatMinutesCompact(task.estimatedMinutes, language)}
                   </Text>
                 </View>
               ) : null}
@@ -432,7 +425,7 @@ export const TaskCard = memo(function TaskCard({
                       onStartFocus({ id: task.taskId, title: task.title });
                     }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    accessibilityLabel="Focus on this task"
+                    accessibilityLabel={t('tasks.a11yFocusTask')}
                   >
                     <Ionicons name="timer-outline" size={15} color={theme.primary} />
                   </TouchableOpacity>
@@ -446,7 +439,7 @@ export const TaskCard = memo(function TaskCard({
                     setIsMenuOpen(true);
                   }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  accessibilityLabel="Task options"
+                  accessibilityLabel={t('tasks.a11yTaskOptions')}
                 >
                   <Ionicons name="ellipsis-horizontal" size={17} color={theme.textDim} />
                 </TouchableOpacity>
@@ -460,7 +453,7 @@ export const TaskCard = memo(function TaskCard({
                   onDelete(task);
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Delete completed task"
+                accessibilityLabel={t('tasks.a11yDeleteCompleted')}
               >
                 <Ionicons name="trash-outline" size={16} color={theme.textDim} />
               </TouchableOpacity>
@@ -491,7 +484,7 @@ export const TaskCard = memo(function TaskCard({
                 color={task.isPinned ? theme.warning : theme.text}
               />
               <Text style={[styles.menuItemText, { color: theme.text }]}>
-                {task.isPinned ? 'Unpin Focus Goal' : 'Set as Focus of the Day'}
+                {task.isPinned ? t('tasks.menuUnpinFocus') : t('tasks.menuPinFocus')}
               </Text>
             </TouchableOpacity>
           )}
@@ -506,7 +499,7 @@ export const TaskCard = memo(function TaskCard({
               }}
             >
               <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
-              <Text style={[styles.menuItemText, { color: theme.text }]}>Defer to Tomorrow</Text>
+              <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuDeferTomorrow')}</Text>
             </TouchableOpacity>
           )}
 
@@ -521,7 +514,7 @@ export const TaskCard = memo(function TaskCard({
             >
               <Ionicons name="archive-outline" size={18} color={theme.accent || theme.primary} />
               <Text style={[styles.menuItemText, { color: theme.text }]}>
-                Move to Inbox
+                {t('tasks.menuMoveInbox')}
               </Text>
             </TouchableOpacity>
           )}
@@ -536,7 +529,7 @@ export const TaskCard = memo(function TaskCard({
               }}
             >
               <Ionicons name="pencil-outline" size={18} color={theme.text} />
-              <Text style={[styles.menuItemText, { color: theme.text }]}>Edit Task</Text>
+              <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuEditTask')}</Text>
             </TouchableOpacity>
           )}
 
@@ -551,7 +544,7 @@ export const TaskCard = memo(function TaskCard({
             }}
           >
             <Ionicons name="trash-outline" size={18} color={theme.danger} />
-            <Text style={[styles.menuItemText, { color: theme.danger, fontWeight: '600' }]}>Delete Task</Text>
+            <Text style={[styles.menuItemText, { color: theme.danger, fontWeight: '600' }]}>{t('tasks.menuDeleteTask')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -561,7 +554,7 @@ export const TaskCard = memo(function TaskCard({
               setIsMenuOpen(false);
             }}
           >
-            <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>Cancel</Text>
+            <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </SwipeableBottomSheet>
 

@@ -16,6 +16,7 @@ import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSelection } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
+import { useTranslation } from '../../i18n';
 
 interface CalendarGridProps {
   selectedDate: Date;
@@ -25,8 +26,6 @@ interface CalendarGridProps {
   theme: ThemeColors;
 }
 
-const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 export function CalendarGrid({
   selectedDate,
   todayStr,
@@ -34,6 +33,7 @@ export function CalendarGrid({
   getTaskCountForDate,
   theme,
 }: CalendarGridProps) {
+  const { t, dateLocale, weekStartsOn } = useTranslation();
   const selectedDayKey = format(selectedDate, 'yyyy-MM-dd');
   const [browsedState, setBrowsedState] = useState<{
     forSelectedDay: string;
@@ -50,10 +50,17 @@ export function CalendarGrid({
   const monthStart = useMemo(() => startOfMonth(currentMonth), [currentMonth]);
   const days = useMemo(() => {
     const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart);
-    const endDate = endOfWeek(monthEnd);
+    const startDate = startOfWeek(monthStart, { locale: dateLocale, weekStartsOn });
+    const endDate = endOfWeek(monthEnd, { locale: dateLocale, weekStartsOn });
     return eachDayOfInterval({ start: startDate, end: endDate });
-  }, [monthStart]);
+  }, [monthStart, dateLocale, weekStartsOn]);
+
+  const weekDays = useMemo(() => {
+    const baseKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+    const orderedKeys =
+      weekStartsOn === 1 ? [...baseKeys.slice(1), baseKeys[0]] : baseKeys;
+    return orderedKeys.map(k => t(`calendar.weekdays.${k}`));
+  }, [t, weekStartsOn]);
 
   const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
 
@@ -62,7 +69,7 @@ export function CalendarGrid({
       {/* Month Navigator Header */}
       <View style={styles.header}>
         <Text style={[styles.monthTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-          {format(currentMonth, 'MMMM yyyy')}
+          {format(currentMonth, 'MMMM yyyy', { locale: dateLocale })}
         </Text>
         <View style={styles.navRow}>
           <TouchableOpacity
@@ -77,7 +84,7 @@ export function CalendarGrid({
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Previous month"
+            accessibilityLabel={t('calendar.a11yPrevMonth')}
           >
             <Ionicons name="chevron-back" size={16} color={theme.text} />
           </TouchableOpacity>
@@ -93,7 +100,7 @@ export function CalendarGrid({
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Next month"
+            accessibilityLabel={t('calendar.a11yNextMonth')}
           >
             <Ionicons name="chevron-forward" size={16} color={theme.text} />
           </TouchableOpacity>
@@ -102,7 +109,7 @@ export function CalendarGrid({
 
       {/* Weekday Labels */}
       <View style={styles.weekDaysRow}>
-        {WEEK_DAYS.map(wd => (
+        {weekDays.map(wd => (
           <Text key={wd} style={[styles.weekDayLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
             {wd}
           </Text>
@@ -136,7 +143,7 @@ export function CalendarGrid({
               }}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel={dateStr}
+              accessibilityLabel={format(day, t('dates.fullDate'), { locale: dateLocale })}
               accessibilityState={{ selected: isSelected }}
             >
               <Text
@@ -154,7 +161,7 @@ export function CalendarGrid({
                 ]}
                 maxFontSizeMultiplier={1.35}
               >
-                {format(day, 'd')}
+                {format(day, 'd', { locale: dateLocale })}
               </Text>
 
               {/* Task Count Dot Indicator */}

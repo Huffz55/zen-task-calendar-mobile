@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedba
 import { DailyTask } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
+import { useTranslation } from '../../i18n';
 
 interface DeleteTaskModalProps {
   visible: boolean;
@@ -25,6 +26,7 @@ export function DeleteTaskModal({
   onDeleteInstance,
   onDeleteFuture,
 }: DeleteTaskModalProps) {
+  const { t } = useTranslation();
   const [scaleAnim] = useState(() => new Animated.Value(0.94));
 
   useEffect(() => {
@@ -68,14 +70,14 @@ export function DeleteTaskModal({
               ]}
             >
               <Text style={[styles.title, { color: theme.text }]}>
-                {isRecurring ? 'Delete Recurring Task' : 'Delete Task'}
+                {isRecurring ? t('tasks.deleteRecurringTitle') : t('tasks.deleteTitle')}
               </Text>
               <Text
                 style={[styles.subtitle, { color: theme.textDim }]}
                 numberOfLines={2}
                 ellipsizeMode="tail"
               >
-                {`Choose a delete option for "${task.title}":`}
+                {t('tasks.deletePrompt', { title: task.title })}
               </Text>
 
               <View style={styles.optionsCol}>
@@ -89,7 +91,7 @@ export function DeleteTaskModal({
                         onClose();
                       }}
                     >
-                      <Text style={[styles.btnText, { color: theme.text }]}>Delete this date only</Text>
+                      <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteInstance')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -100,7 +102,7 @@ export function DeleteTaskModal({
                         onClose();
                       }}
                     >
-                      <Text style={[styles.btnText, { color: theme.text }]}>Delete this and future dates</Text>
+                      <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteFuture')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -111,7 +113,7 @@ export function DeleteTaskModal({
                         onClose();
                       }}
                     >
-                      <Text style={[styles.btnText, { color: theme.danger }]}>Delete entire series</Text>
+                      <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSeries')}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -123,7 +125,7 @@ export function DeleteTaskModal({
                       onClose();
                     }}
                   >
-                    <Text style={[styles.btnText, { color: theme.danger }]}>Delete Task</Text>
+                    <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSingleButton')}</Text>
                   </TouchableOpacity>
                 )}
 
@@ -134,7 +136,7 @@ export function DeleteTaskModal({
                     onClose();
                   }}
                 >
-                  <Text style={[styles.cancelText, { color: theme.textDim }]}>Cancel</Text>
+                  <Text style={[styles.cancelText, { color: theme.textDim }]}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>

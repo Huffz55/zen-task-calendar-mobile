@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
 import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
+import { formatDurationCompact, useTranslation } from '../i18n';
 
 interface FocusScreenProps {
   theme: ThemeColors;
@@ -42,14 +43,6 @@ interface FocusScreenProps {
   onOpenSyncModal?: () => void;
 }
 
-function formatFocusTime(seconds: number): string {
-  if (seconds <= 0) return '0m';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-  return `${m}m`;
-}
-
 export function FocusScreen({
   theme,
   currentStreak,
@@ -71,6 +64,7 @@ export function FocusScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: FocusScreenProps) {
+  const { t, language } = useTranslation();
   const [showHistory, setShowHistory] = useState(false);
   const swipeHandlers = useSwipeTabNavigation('focus');
 
@@ -82,8 +76,8 @@ export function FocusScreen({
         onOpenThemeModal={onOpenThemeModal}
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
-        title="Zen Focus"
-        subtitle="Clear Mind & Deep Focus"
+        title={t('focus.title')}
+        subtitle={t('focus.subtitle')}
       />
 
       <ScrollView
@@ -97,7 +91,7 @@ export function FocusScreen({
               <Ionicons name="locate-outline" size={20} color={theme.primary} />
               <View style={styles.targetTexts}>
                 <Text style={[styles.targetSubtitle, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
-                  FOCUSING ON TARGET
+                  {t('focus.focusingOnTarget')}
                 </Text>
                 <Text
                   style={[styles.targetTitle, { color: theme.text }]}
@@ -119,7 +113,7 @@ export function FocusScreen({
                 style={styles.targetClearBtn}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="Clear focus target"
+                accessibilityLabel={t('focus.a11yClearTarget')}
               >
                 <Ionicons name="close-circle" size={20} color={theme.primary} />
               </TouchableOpacity>
@@ -143,10 +137,10 @@ export function FocusScreen({
         <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-              {formatFocusTime(focusStats.todayFocusSeconds)}
+              {formatDurationCompact(focusStats.todayFocusSeconds, language)}
             </Text>
             <Text style={[styles.summaryLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-              Today
+              {t('focus.statToday')}
             </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
@@ -155,16 +149,16 @@ export function FocusScreen({
               {focusStats.totalSessionsCount}
             </Text>
             <Text style={[styles.summaryLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-              Sessions
+              {t('focus.statSessions')}
             </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-              {currentStreak}d
+              {currentStreak}{t('units.dayShort')}
             </Text>
             <Text style={[styles.summaryLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-              Streak
+              {t('focus.statStreak')}
             </Text>
           </View>
         </View>
@@ -186,10 +180,10 @@ export function FocusScreen({
               <Ionicons name="leaf-outline" size={17} color={theme.primary} />
               <View style={styles.breathingTexts}>
                 <Text style={[styles.breathingTitle, { color: theme.text }]} numberOfLines={1}>
-                  Box Breathing
+                  {t('focus.boxBreathing')}
                 </Text>
                 <Text style={[styles.breathingSubtitle, { color: theme.textDim }]} numberOfLines={1}>
-                  A 3-minute mindful pause
+                  {t('focus.boxBreathingSub')}
                 </Text>
               </View>
             </View>
@@ -217,7 +211,7 @@ export function FocusScreen({
               style={[styles.historyToggleText, { color: showHistory ? theme.primary : theme.text }]}
               numberOfLines={1}
             >
-              {showHistory ? 'Hide Rhythm & Focus History' : 'View Rhythm & Focus History'}
+              {showHistory ? t('focus.hideHistory') : t('focus.viewHistory')}
             </Text>
           </View>
           <Ionicons

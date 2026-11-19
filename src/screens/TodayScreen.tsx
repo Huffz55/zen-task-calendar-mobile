@@ -26,6 +26,7 @@ import { hapticLight, hapticSuccess } from '../hooks/useHaptics';
 import { playWaterDrop } from '../services/audio/audioService';
 import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
+import { useTranslation } from '../i18n';
 
 interface TodayScreenProps {
   theme: ThemeColors;
@@ -101,6 +102,7 @@ export function TodayScreen({
   onCloseEveningReview,
   todayFocusSeconds = 0,
 }: TodayScreenProps) {
+  const { t, dateLocale } = useTranslation();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<DailyTask | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<DailyTask | null>(null);
@@ -125,9 +127,13 @@ export function TodayScreen({
     if (totalEstimatedMinutes <= 0) return null;
     const h = Math.floor(totalEstimatedMinutes / 60);
     const m = totalEstimatedMinutes % 60;
-    if (h > 0) return m > 0 ? `${h}h ${m}m planned` : `${h}h planned`;
-    return `${m}m planned`;
-  }, [totalEstimatedMinutes]);
+    if (h > 0) {
+      return m > 0
+        ? t('today.plannedHoursMinutes', { hours: h, minutes: m })
+        : t('today.plannedHours', { hours: h });
+    }
+    return t('today.plannedMinutes', { minutes: m });
+  }, [totalEstimatedMinutes, t]);
 
   const handleToggle = useCallback(
     (taskId: string) => {
@@ -214,8 +220,8 @@ export function TodayScreen({
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
         onOpenEveningReview={onOpenEveningReview}
-        title={isToday ? 'Today' : format(selectedDate, 'MMMM d')}
-        subtitle={format(selectedDate, 'EEEE, yyyy')}
+        title={isToday ? t('today.title') : format(selectedDate, t('dates.monthDay'), { locale: dateLocale })}
+        subtitle={format(selectedDate, t('dates.weekdayYear'), { locale: dateLocale })}
       />
 
       {/* Horizontal Day Strip */}
@@ -246,12 +252,12 @@ export function TodayScreen({
             <View style={styles.rolloverLeft}>
               <Ionicons name="sparkles" size={16} color={theme.primary} />
               <Text style={[styles.rolloverText, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                {overdueCount} overdue {overdueCount === 1 ? 'task' : 'tasks'}
+                {t(overdueCount === 1 ? 'today.overdueOne' : 'today.overdueOther', { count: overdueCount })}
               </Text>
             </View>
             <View style={[styles.rolloverPill, { backgroundColor: theme.primaryLight }]}>
               <Text style={[styles.rolloverPillText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
-                Roll over
+                {t('today.rollOver')}
               </Text>
             </View>
           </TouchableOpacity>
@@ -263,7 +269,7 @@ export function TodayScreen({
             <View style={styles.summaryLeft}>
               {totalTasks > 0 && (
                 <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                  {completedTasks} of {totalTasks} completed
+                  {t('today.progressCompleted', { completed: completedTasks, total: totalTasks })}
                 </Text>
               )}
               {plannedTotalStr && (
@@ -277,7 +283,7 @@ export function TodayScreen({
               )}
               {totalTasks > 0 && completedTasks === totalTasks && (
                 <Text style={[styles.perfectBadge, { color: theme.success }]} maxFontSizeMultiplier={1.35}>
-                  All done
+                  {t('today.allDone')}
                 </Text>
               )}
             </View>
@@ -310,7 +316,7 @@ export function TodayScreen({
                   numberOfLines={1}
                   maxFontSizeMultiplier={1.35}
                 >
-                  Inbox{inboxCount > 0 ? ` (${inboxCount})` : ''}
+                  {inboxCount > 0 ? t('today.inboxWithCount', { count: inboxCount }) : t('today.inbox')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -352,7 +358,7 @@ export function TodayScreen({
           ) : (
             <View style={[styles.filterEmptyContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Ionicons name="search-outline" size={32} color={theme.textDim} style={{ marginBottom: 8 }} />
-              <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>No matching tasks</Text>
+              <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>{t('today.noMatchingTasks')}</Text>
               <TouchableOpacity
                 style={[styles.clearFilterBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 10 }]}
                 onPress={() => {
@@ -362,7 +368,7 @@ export function TodayScreen({
                   setSelectedTag('all');
                 }}
               >
-                <Text style={[styles.clearFilterText, { color: theme.primary }]}>Clear Filter</Text>
+                <Text style={[styles.clearFilterText, { color: theme.primary }]}>{t('today.clearFilter')}</Text>
               </TouchableOpacity>
             </View>
           )
@@ -375,12 +381,12 @@ export function TodayScreen({
               ]}
             />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {isToday ? 'A clear slate for today' : 'Nothing scheduled'}
+              {isToday ? t('today.emptyTodayTitle') : t('today.emptyDateTitle')}
             </Text>
             <Text style={[styles.emptySubtitle, { color: theme.textMuted }]} numberOfLines={2}>
               {isToday
-                ? 'Tap + below whenever something needs focus.'
-                : 'This day is open and unscheduled.'}
+                ? t('today.emptyTodaySubtitle')
+                : t('today.emptyDateSubtitle')}
             </Text>
           </View>
         )}
@@ -401,7 +407,7 @@ export function TodayScreen({
         }}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel="Add new task"
+        accessibilityLabel={t('today.a11yAddTask')}
       >
         <Ionicons name="add" size={28} color="#ffffff" />
       </TouchableOpacity>

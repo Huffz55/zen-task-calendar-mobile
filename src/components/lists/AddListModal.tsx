@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
 import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { useTranslation } from '../../i18n';
 
 interface AddListModalProps {
   visible: boolean;
@@ -53,6 +54,7 @@ function AddListForm({
   onClose,
   onAddList,
 }: Omit<AddListModalProps, 'visible'>) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string | undefined>(defaultFolder || undefined);
   const [customFolder, setCustomFolder] = useState('');
@@ -69,7 +71,7 @@ function AddListForm({
   return (
     <>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>New List</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('lists.addListTitle')}</Text>
         <TouchableOpacity
           onPress={() => {
             hapticLight();
@@ -78,7 +80,7 @@ function AddListForm({
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close new list"
+          accessibilityLabel={t('lists.a11yCloseNewList')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -94,7 +96,7 @@ function AddListForm({
               borderColor: theme.border,
             },
           ]}
-          placeholder="List title"
+          placeholder={t('lists.listTitlePlaceholder')}
           placeholderTextColor={theme.textDim}
           value={title}
           onChangeText={setTitle}
@@ -103,7 +105,7 @@ function AddListForm({
           onSubmitEditing={handleSave}
         />
 
-        <Text style={[styles.folderLabel, { color: theme.textDim }]}>FOLDER</Text>
+        <Text style={[styles.folderLabel, { color: theme.textDim }]}>{t('lists.folderLabel')}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -130,7 +132,7 @@ function AddListForm({
                 { color: !selectedFolder && !isAddingFolder ? '#ffffff' : theme.textMuted },
               ]}
             >
-              None
+              {t('common.none')}
             </Text>
           </TouchableOpacity>
 
@@ -185,7 +187,7 @@ function AddListForm({
             }}
           >
             <Ionicons name="add" size={14} color={theme.primary} />
-            <Text style={[styles.folderChipText, { color: theme.primary }]}>Custom</Text>
+            <Text style={[styles.folderChipText, { color: theme.primary }]}>{t('lists.customFolder')}</Text>
           </TouchableOpacity>
         </ScrollView>
 
@@ -199,7 +201,7 @@ function AddListForm({
                 borderColor: theme.border,
               },
             ]}
-            placeholder="Folder name"
+            placeholder={t('lists.folderNamePlaceholder')}
             placeholderTextColor={theme.textDim}
             value={customFolder}
             onChangeText={setCustomFolder}
@@ -219,7 +221,7 @@ function AddListForm({
           disabled={!title.trim()}
         >
           <Text style={[styles.submitText, { color: title.trim() ? '#ffffff' : theme.textDim }]}>
-            Create List
+            {t('lists.createList')}
           </Text>
         </TouchableOpacity>
       </BottomSheetScrollView>

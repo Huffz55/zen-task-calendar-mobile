@@ -6,7 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { isValid, parseISO } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { BuiltinTaskTag, RecurrenceType, TaskTag, Subtask } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { TAGS, CUSTOM_TAG_COLORS, resolveTagConfig } from '../../constants/tags';
@@ -16,6 +16,7 @@ import { playWaterDrop, playBambooTap } from '../../services/audio/audioService'
 import { animateLayout, springLayout } from '../../utils/animations';
 import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
 import { useApp } from '../../context/AppContext';
+import { formatMinutesCompact, useTranslation } from '../../i18n';
 
 interface AddTaskModalProps {
   visible: boolean;
@@ -44,6 +45,7 @@ export function AddTaskModal({
   onAddTask,
 }: AddTaskModalProps) {
   const { customTags, addCustomTag } = useApp();
+  const { t, language, dateLocale } = useTranslation();
   const [title, setTitle] = useState('');
   const [tag, setTag] = useState<TaskTag | undefined>(undefined);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
@@ -60,8 +62,8 @@ export function AddTaskModal({
   const formattedDate = useMemo(() => {
     const parsed = parseISO(selectedDateStr);
     if (!isValid(parsed)) return selectedDateStr;
-    return parsed.toLocaleDateString();
-  }, [selectedDateStr]);
+    return format(parsed, t('dates.fullDate'), { locale: dateLocale });
+  }, [selectedDateStr, t, dateLocale]);
 
   const handleAddSubtask = () => {
     const trimmed = newSubtaskInput.trim();
@@ -130,19 +132,19 @@ export function AddTaskModal({
     ...customTags.map(t => t.id),
   ];
   const recurrenceOptions: { id: RecurrenceType; label: string }[] = [
-    { id: 'none', label: 'Once' },
-    { id: 'daily', label: 'Daily' },
-    { id: 'weekly', label: 'Weekly' },
-    { id: 'biweekly', label: 'Every 2 weeks' },
+    { id: 'none', label: t('tasks.recurrence.none') },
+    { id: 'daily', label: t('tasks.recurrence.daily') },
+    { id: 'weekly', label: t('tasks.recurrence.weekly') },
+    { id: 'biweekly', label: t('tasks.recurrence.biweekly') },
   ];
 
   const durationOptions: { label: string; value: number | undefined }[] = [
-    { label: 'None', value: undefined },
-    { label: '15m', value: 15 },
-    { label: '30m', value: 30 },
-    { label: '45m', value: 45 },
-    { label: '1h', value: 60 },
-    { label: '2h', value: 120 },
+    { label: t('common.none'), value: undefined },
+    { label: formatMinutesCompact(15, language), value: 15 },
+    { label: formatMinutesCompact(30, language), value: 30 },
+    { label: formatMinutesCompact(45, language), value: 45 },
+    { label: formatMinutesCompact(60, language), value: 60 },
+    { label: formatMinutesCompact(120, language), value: 120 },
   ];
 
   const inboxTint = theme.isDark ? '#38bdf8' : '#0284c7';
@@ -153,7 +155,7 @@ export function AddTaskModal({
       <View style={styles.header}>
         <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
-            Add New Task
+            {t('tasks.addTitle')}
           </Text>
           <Text style={[styles.dateSubtitle, { color: theme.textDim }]} numberOfLines={1}>
             {formattedDate}
@@ -167,7 +169,7 @@ export function AddTaskModal({
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close add task"
+          accessibilityLabel={t('tasks.a11yCloseAdd')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -184,7 +186,7 @@ export function AddTaskModal({
               borderColor: theme.border,
             },
           ]}
-          placeholder="What would you like to do?"
+          placeholder={t('tasks.titlePlaceholder')}
           placeholderTextColor={theme.textDim}
           value={title}
           onChangeText={setTitle}
@@ -221,7 +223,7 @@ export function AddTaskModal({
               ]}
               numberOfLines={1}
             >
-              {tag ? resolveTagConfig(tag, customTags).label : 'Tag'}
+              {tag ? resolveTagConfig(tag, customTags, language).label : t('tasks.pillTag')}
             </Text>
           </TouchableOpacity>
 
@@ -250,7 +252,7 @@ export function AddTaskModal({
                 { color: activeSection === 'time' || estimatedMinutes ? theme.primary : theme.textDim },
               ]}
             >
-              {estimatedMinutes ? `${estimatedMinutes}m` : 'Time'}
+              {estimatedMinutes ? formatMinutesCompact(estimatedMinutes, language) : t('tasks.pillTime')}
             </Text>
           </TouchableOpacity>
 
@@ -273,7 +275,7 @@ export function AddTaskModal({
               color={isPinned ? theme.warning : theme.textDim}
             />
             <Text style={[styles.optionPillText, { color: isPinned ? theme.warning : theme.textDim }]}>
-              Priority
+              {t('tasks.pillPriority')}
             </Text>
           </TouchableOpacity>
 
@@ -302,7 +304,7 @@ export function AddTaskModal({
                 { color: activeSection === 'repeat' || recurrence !== 'none' ? theme.primary : theme.textDim },
               ]}
             >
-              {recurrence !== 'none' ? recurrence : 'Repeat'}
+              {recurrence !== 'none' ? t(`tasks.recurrence.${recurrence}`) : t('tasks.pillRepeat')}
             </Text>
           </TouchableOpacity>
 
@@ -331,7 +333,7 @@ export function AddTaskModal({
                 { color: activeSection === 'subtasks' || subtasks.length > 0 ? theme.primary : theme.textDim },
               ]}
             >
-              Steps{subtasks.length > 0 ? ` (${subtasks.length})` : ''}
+              {subtasks.length > 0 ? t('tasks.pillStepsCount', { count: subtasks.length }) : t('tasks.pillSteps')}
             </Text>
           </TouchableOpacity>
 
@@ -354,7 +356,7 @@ export function AddTaskModal({
               color={isInbox ? inboxTint : theme.textDim}
             />
             <Text style={[styles.optionPillText, { color: isInbox ? inboxTint : theme.textDim }]}>
-              Inbox
+              {t('tasks.pillInbox')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -364,10 +366,10 @@ export function AddTaskModal({
           <View style={styles.expandedSectionWrap}>
             {activeSection === 'tag' && (
               <View style={styles.sectionBlock}>
-                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>CHOOSE TAG</Text>
+                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>{t('tasks.sectionChooseTag')}</Text>
                 <View style={styles.chipsRow}>
                   {tagKeys.map(tKey => {
-                    const conf = resolveTagConfig(tKey, customTags);
+                    const conf = resolveTagConfig(tKey, customTags, language);
                     const isSelected = tag === tKey;
                     return (
                       <TouchableOpacity
@@ -413,7 +415,7 @@ export function AddTaskModal({
                       setIsCreatingTag(prev => !prev);
                     }}
                   >
-                    <Text style={[styles.chipText, { color: theme.primary }]}>+ Tag</Text>
+                    <Text style={[styles.chipText, { color: theme.primary }]}>{t('tasks.addCustomTag')}</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -429,7 +431,7 @@ export function AddTaskModal({
                             color: theme.text,
                           },
                         ]}
-                        placeholder="Tag name"
+                        placeholder={t('tasks.tagNamePlaceholder')}
                         placeholderTextColor={theme.textDim}
                         value={newTagName}
                         onChangeText={setNewTagName}
@@ -472,7 +474,7 @@ export function AddTaskModal({
 
             {activeSection === 'repeat' && (
               <View style={styles.sectionBlock}>
-                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>RECURRENCE</Text>
+                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>{t('tasks.sectionRecurrence')}</Text>
                 <View style={styles.chipsRow}>
                   {recurrenceOptions.map(opt => {
                     const isSelected = recurrence === opt.id;
@@ -508,7 +510,7 @@ export function AddTaskModal({
 
             {activeSection === 'time' && (
               <View style={styles.sectionBlock}>
-                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>ESTIMATED TIME</Text>
+                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>{t('tasks.sectionEstimatedTime')}</Text>
                 <View style={styles.chipsRow}>
                   {durationOptions.map(opt => {
                     const isSelected = estimatedMinutes === opt.value;
@@ -545,7 +547,7 @@ export function AddTaskModal({
             {activeSection === 'subtasks' && (
               <View style={styles.sectionBlock}>
                 <Text style={[styles.sectionLabel, { color: theme.textDim }]}>
-                  SUBTASKS ({subtasks.length})
+                  {t('tasks.sectionSubtasks', { count: subtasks.length })}
                 </Text>
                 <View style={styles.subtaskInputRow}>
                   <TextInput
@@ -557,7 +559,7 @@ export function AddTaskModal({
                         color: theme.text,
                       },
                     ]}
-                    placeholder="Add checklist step"
+                    placeholder={t('tasks.subtaskPlaceholder')}
                     placeholderTextColor={theme.textDim}
                     value={newSubtaskInput}
                     onChangeText={setNewSubtaskInput}
@@ -618,7 +620,7 @@ export function AddTaskModal({
               { color: title.trim() ? '#ffffff' : theme.textDim },
             ]}
           >
-            Add Task
+            {t('tasks.addTaskButton')}
           </Text>
         </TouchableOpacity>
       </BottomSheetScrollView>

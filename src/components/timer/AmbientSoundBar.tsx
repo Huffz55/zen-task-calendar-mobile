@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSelection } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
+import { useTranslation } from '../../i18n';
 
 interface AmbientSoundBarProps {
   theme: ThemeColors;
@@ -20,6 +21,7 @@ interface AmbientSoundBarProps {
 }
 
 export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
+  const { t } = useTranslation();
   const [activeSounds, setActiveSounds] = useState<AmbientSoundType[]>(() => getActiveAmbientSounds());
   const [volume, setVolumeState] = useState<number>(getAmbientVolume());
 
@@ -44,7 +46,7 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
   };
 
   const isPlaying = activeSounds.length > 0;
-  const activeTrack = isPlaying ? AMBIENT_TRACKS[activeSounds[0]] : null;
+  const activeSoundKey = isPlaying ? activeSounds[0] : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -52,11 +54,13 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Ionicons name="headset-outline" size={17} color={theme.primary} />
-          <Text style={[styles.title, { color: theme.text }]}>Ambient Sound</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('audio.title')}</Text>
         </View>
-        {activeTrack && (
+        {activeSoundKey && (
           <View style={[styles.activePill, { backgroundColor: theme.primaryLight }]}>
-            <Text style={[styles.activePillText, { color: theme.primary }]}>{activeTrack.label}</Text>
+            <Text style={[styles.activePillText, { color: theme.primary }]}>
+              {t(`audio.tracks.${activeSoundKey}`)}
+            </Text>
           </View>
         )}
       </View>
@@ -102,7 +106,7 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
                   { color: isSelected && key !== 'none' ? '#ffffff' : theme.textMuted },
                 ]}
               >
-                {config.label}
+                {t(`audio.tracks.${key}`)}
               </Text>
               {isSelected && key !== 'none' && (
                 <Ionicons name="checkmark" size={12} color="#ffffff" style={{ marginLeft: 4 }} />

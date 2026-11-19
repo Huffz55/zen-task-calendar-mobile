@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { format, addDays, subDays, parseISO } from 'date-fns';
 import { ThemeColors } from '../../constants/colors';
 import { hapticSelection } from '../../hooks/useHaptics';
+import { useTranslation } from '../../i18n';
 
 interface DayStripProps {
   selectedDate: Date;
@@ -21,6 +22,7 @@ export function DayStrip({
   getTaskCountForDate,
   theme,
 }: DayStripProps) {
+  const { language, dateLocale } = useTranslation();
   const scrollRef = useRef<ScrollView | null>(null);
   const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
   const selectedStr = format(selectedDate, 'yyyy-MM-dd');
@@ -28,16 +30,17 @@ export function DayStrip({
   // Generate 14 days centered around today (-3 to +10 days)
   const days = useMemo(() => {
     const base = parseISO(resolvedTodayStr);
+    const upperLocale = language === 'tr' ? 'tr-TR' : 'en-US';
     return Array.from({ length: 14 }, (_, i) => {
       const date = addDays(subDays(base, 3), i);
       return {
         date,
         dateStr: format(date, 'yyyy-MM-dd'),
-        dayOfWeek: format(date, 'EEE').toLocaleUpperCase('en-US'),
-        dayNum: format(date, 'd'),
+        dayOfWeek: format(date, 'EEE', { locale: dateLocale }).toLocaleUpperCase(upperLocale),
+        dayNum: format(date, 'd', { locale: dateLocale }),
       };
     });
-  }, [resolvedTodayStr]);
+  }, [resolvedTodayStr, dateLocale, language]);
 
   useEffect(() => {
     const index = days.findIndex(d => d.dateStr === selectedStr);

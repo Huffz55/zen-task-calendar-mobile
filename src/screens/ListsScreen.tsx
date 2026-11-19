@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection } from '../hooks/useHaptics';
 import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
+import { useTranslation } from '../i18n';
 
 interface ListsScreenProps {
   theme: ThemeColors;
@@ -54,6 +55,7 @@ export function ListsScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: ListsScreenProps) {
+  const { t } = useTranslation();
   const [isAddListOpen, setIsAddListOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>('ALL');
   const [savedFolders, setSavedFolders] = useState<string[]>([]);
@@ -144,7 +146,7 @@ export function ListsScreen({
         onOpenThemeModal={onOpenThemeModal}
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
-        title="Lists"
+        title={t('lists.title')}
       />
 
       <ScrollView
@@ -198,7 +200,7 @@ export function ListsScreen({
                 ellipsizeMode="tail"
                 maxFontSizeMultiplier={1.35}
               >
-                All
+                {t('common.all')}
               </Text>
             </TouchableOpacity>
 
@@ -269,7 +271,7 @@ export function ListsScreen({
             >
               <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
               <Text style={[styles.folderName, { color: theme.primary }]} numberOfLines={1}>
-                Folder
+                {t('lists.folderButton')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -288,7 +290,7 @@ export function ListsScreen({
             <View style={[styles.plusCircle, { backgroundColor: theme.primaryLight }]}>
               <Ionicons name="add" size={20} color={theme.primary} />
             </View>
-            <Text style={[styles.newListText, { color: theme.text }]}>New List</Text>
+            <Text style={[styles.newListText, { color: theme.text }]}>{t('lists.newList')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
         </TouchableOpacity>
@@ -313,7 +315,9 @@ export function ListsScreen({
               <Ionicons name="list-outline" size={26} color={theme.primary} />
             </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {selectedFolder === 'ALL' ? 'No lists yet' : `No lists in ${selectedFolder}`}
+              {selectedFolder === 'ALL'
+                ? t('lists.emptyAll')
+                : t('lists.emptyFolder', { folder: selectedFolder })}
             </Text>
           </View>
         )}
@@ -338,7 +342,7 @@ export function ListsScreen({
         useKeyboardAvoiding
       >
         <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>New Folder</Text>
+          <Text style={[styles.modalTitle, { color: theme.text }]}>{t('lists.newFolderTitle')}</Text>
           <TouchableOpacity
             onPress={() => {
               hapticLight();
@@ -354,7 +358,7 @@ export function ListsScreen({
             styles.folderInput,
             { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border },
           ]}
-          placeholder="Folder name"
+          placeholder={t('lists.folderNamePlaceholder')}
           placeholderTextColor={theme.textDim}
           value={newFolderName}
           onChangeText={setNewFolderName}
@@ -375,7 +379,7 @@ export function ListsScreen({
           disabled={!newFolderName.trim()}
         >
           <Text style={{ fontSize: 15, fontWeight: '700', color: newFolderName.trim() ? '#ffffff' : theme.textDim }}>
-            Create Folder
+            {t('lists.createFolder')}
           </Text>
         </TouchableOpacity>
       </SwipeableBottomSheet>
@@ -389,7 +393,7 @@ export function ListsScreen({
       >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
-            Move {movingList?.title || 'List'}
+            {t('lists.moveListTitle', { title: movingList?.title || t('lists.defaultListLabel') })}
           </Text>
           <TouchableOpacity
             onPress={() => {
@@ -420,7 +424,7 @@ export function ListsScreen({
           >
             <Ionicons name="layers-outline" size={18} color={theme.text} />
             <Text style={[styles.moveOptionText, { color: theme.text }]} numberOfLines={1}>
-              No Folder
+              {t('lists.noFolder')}
             </Text>
           </TouchableOpacity>
           {allFolders.map(f => {

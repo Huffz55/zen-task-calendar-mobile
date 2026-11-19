@@ -217,4 +217,26 @@ describe('reminderScheduler', () => {
     expect(client.cancelEveningReview).toHaveBeenCalledTimes(1);
     expect(scheduled.size).toBe(0);
   });
+
+  it('reschedules only active reminders in the new language when language changes', async () => {
+    const storage = createMemoryStorage({
+      [SETTINGS_MORNING_KEY]: 'true',
+      [SETTINGS_EVENING_KEY]: 'false',
+    });
+    const { client } = createMockNotifications();
+    const coordinator = createReminderCoordinator(storage, client);
+
+    await coordinator.syncForTaskState({
+      isLoaded: true,
+      morningBriefingEnabled: true,
+      eveningReviewEnabled: false,
+      totalTodayTasks: 3,
+      pendingTodayTasks: 2,
+      language: 'tr',
+    });
+
+    expect(client.scheduleDailySummary).toHaveBeenCalledWith(9, 0, 3, 'tr');
+    expect(client.scheduleEveningWindDown).not.toHaveBeenCalled();
+    expect(client.cancelEveningReview).toHaveBeenCalledTimes(1);
+  });
 });

@@ -5,6 +5,7 @@ import { AppToast } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../../hooks/useHaptics';
+import { useTranslation } from '../../i18n';
 
 interface ToastProps {
   toast: AppToast | null;
@@ -14,6 +15,7 @@ interface ToastProps {
 }
 
 export function Toast({ toast, onDismiss, theme, hasMiniPlayer = false }: ToastProps) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [translateY] = useState(() => new Animated.Value(20));
   const [opacity] = useState(() => new Animated.Value(0));
@@ -141,7 +143,7 @@ export function Toast({ toast, onDismiss, theme, hasMiniPlayer = false }: ToastP
           style={styles.closeButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Dismiss notification"
+          accessibilityLabel={t('toasts.a11yDismiss')}
         >
           <Ionicons name="close" size={16} color={theme.textDim} />
         </TouchableOpacity>

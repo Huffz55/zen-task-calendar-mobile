@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { format, isValid, parseISO } from 'date-fns';
 import { ThemeColors } from '../../constants/colors';
 import { DayFocusStat } from '../../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
+import { formatDurationCompact, useTranslation } from '../../i18n';
 
 interface FocusAnalyticsCardProps {
   theme: ThemeColors;
@@ -13,16 +15,6 @@ interface FocusAnalyticsCardProps {
   maxDaySeconds: number;
 }
 
-function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
-}
-
 export function FocusAnalyticsCard({
   theme,
   totalFocusSeconds,
@@ -31,6 +23,8 @@ export function FocusAnalyticsCard({
   weeklyDays,
   maxDaySeconds,
 }: FocusAnalyticsCardProps) {
+  const { t, language, dateLocale } = useTranslation();
+
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {/* Header */}
@@ -38,14 +32,14 @@ export function FocusAnalyticsCard({
         <View style={styles.titleRow}>
           <Ionicons name="bar-chart-outline" size={17} color={theme.primary} />
           <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-            Weekly Focus Analytics
+            {t('focus.analyticsTitle')}
           </Text>
         </View>
         <Text
           style={[styles.badge, { color: theme.primary, backgroundColor: theme.primaryLight }]}
           maxFontSizeMultiplier={1.35}
         >
-          {totalSessionsCount} Sessions
+          {t('focus.analyticsSessionsCount', { count: totalSessionsCount })}
         </Text>
       </View>
 
@@ -53,10 +47,10 @@ export function FocusAnalyticsCard({
       <View style={[styles.kpiRow, { borderBottomColor: theme.border }]}>
         <View style={styles.kpiItem}>
           <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-            TODAY
+            {t('focus.analyticsToday')}
           </Text>
           <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-            {formatDuration(todayFocusSeconds)}
+            {formatDurationCompact(todayFocusSeconds, language)}
           </Text>
         </View>
 
@@ -64,10 +58,10 @@ export function FocusAnalyticsCard({
 
         <View style={styles.kpiItem}>
           <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-            TOTAL FOCUS
+            {t('focus.analyticsTotal')}
           </Text>
           <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-            {formatDuration(totalFocusSeconds)}
+            {formatDurationCompact(totalFocusSeconds, language)}
           </Text>
         </View>
       </View>
@@ -79,6 +73,10 @@ export function FocusAnalyticsCard({
             maxDaySeconds > 0 && day.seconds > 0
               ? Math.max(12, Math.round((day.seconds / maxDaySeconds) * 100))
               : 6;
+          const parsedDay = parseISO(day.dateStr);
+          const dayLabel = isValid(parsedDay)
+            ? format(parsedDay, 'EEE', { locale: dateLocale })
+            : day.dayName;
 
           return (
             <View key={day.dateStr} style={styles.barColumn}>
@@ -106,7 +104,7 @@ export function FocusAnalyticsCard({
                   },
                 ]}
               >
-                {day.dayName}
+                {dayLabel}
               </Text>
             </View>
           );

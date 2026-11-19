@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../../hooks/useHaptics';
+import { useTranslation } from '../../i18n';
 
 interface HeaderProps {
   theme: ThemeColors;
@@ -23,18 +24,20 @@ export function Header({
   onOpenSettingsModal,
   onOpenSyncModal,
   onOpenEveningReview,
-  title = 'Plan your day',
+  title,
   subtitle,
 }: HeaderProps) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const safeTopPadding = Math.max(insets.top, Platform.OS === 'android' ? 28 : 20) + 6;
+  const resolvedTitle = title ?? t('header.defaultTitle');
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'A calm morning ahead';
-    if (hour >= 12 && hour < 18) return 'A focused afternoon';
-    if (hour >= 18 && hour < 22) return 'Wind down & reflect';
-    return 'Time to rest';
+    if (hour >= 5 && hour < 12) return t('header.greetingMorning');
+    if (hour >= 12 && hour < 18) return t('header.greetingAfternoon');
+    if (hour >= 18 && hour < 22) return t('header.greetingEvening');
+    return t('header.greetingNight');
   };
 
   return (
@@ -53,7 +56,9 @@ export function Header({
             <View style={[styles.streakBadge, { backgroundColor: theme.primaryLight }]}>
               <Ionicons name="flame-outline" size={12} color={theme.primary} />
               <Text style={[styles.streakText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
-                {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
+                {t(currentStreak === 1 ? 'header.streakOne' : 'header.streakOther', {
+                  count: currentStreak,
+                })}
               </Text>
             </View>
           )}
@@ -66,7 +71,7 @@ export function Header({
           ellipsizeMode="tail"
           maxFontSizeMultiplier={1.35}
         >
-          {title}
+          {resolvedTitle}
         </Text>
       </View>
 
@@ -81,7 +86,7 @@ export function Header({
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             accessibilityRole="button"
-            accessibilityLabel="Evening review"
+            accessibilityLabel={t('header.a11yEveningReview')}
           >
             <Ionicons name="moon-outline" size={16} color={theme.primary} />
           </TouchableOpacity>
@@ -97,7 +102,7 @@ export function Header({
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             accessibilityRole="button"
-            accessibilityLabel="Cloud sync"
+            accessibilityLabel={t('header.a11yCloudSync')}
           >
             <Ionicons name="cloud-outline" size={16} color={theme.primary} />
           </TouchableOpacity>
@@ -113,7 +118,7 @@ export function Header({
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             accessibilityRole="button"
-            accessibilityLabel="Settings"
+            accessibilityLabel={t('header.a11ySettings')}
           >
             <Ionicons name="settings-outline" size={16} color={theme.text} />
           </TouchableOpacity>
@@ -128,7 +133,7 @@ export function Header({
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
           accessibilityRole="button"
-          accessibilityLabel="Change theme"
+          accessibilityLabel={t('header.a11yChangeTheme')}
         >
           <Text style={styles.themeIcon}>{theme.icon}</Text>
           <Ionicons name="color-palette-outline" size={16} color={theme.primary} />

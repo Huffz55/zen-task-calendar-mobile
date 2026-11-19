@@ -5,6 +5,7 @@ import { useApp, useTimer } from '../../context/AppContext';
 import { BottomNav } from '../../components/common/BottomNav';
 import { MiniFocusPlayer } from '../../components/timer/MiniFocusPlayer';
 import { MobileTab } from '../../types';
+import { useTranslation } from '../../i18n';
 
 const ROUTE_TO_TAB: Record<string, MobileTab> = {
   index: 'today',
@@ -113,6 +114,7 @@ const TabsFooter = memo(function TabsFooter({ state, navigation }: CustomTabBarP
 
 export default function TabsLayout() {
   const { theme } = useApp();
+  const { t } = useTranslation();
 
   const screenOptions = useMemo<TabsScreenOptions>(
     () => ({
@@ -146,25 +148,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Today',
+          title: t('tabs.today'),
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
-          title: 'Calendar',
+          title: t('tabs.calendar'),
         }}
       />
       <Tabs.Screen
         name="lists"
         options={{
-          title: 'Lists',
+          title: t('tabs.lists'),
         }}
       />
       <Tabs.Screen
         name="focus"
         options={{
-          title: 'Focus',
+          title: t('tabs.focus'),
         }}
       />
     </Tabs>

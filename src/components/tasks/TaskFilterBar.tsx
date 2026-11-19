@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
 import { useApp } from '../../context/AppContext';
+import { useTranslation } from '../../i18n';
 
 interface TaskFilterBarProps {
   searchQuery: string;
@@ -33,6 +34,7 @@ export function TaskFilterBar({
   counts,
 }: TaskFilterBarProps) {
   const { customTags } = useApp();
+  const { t, language } = useTranslation();
   const builtinKeys = Object.keys(TAGS) as BuiltinTaskTag[];
   const extraTagKeys = Array.from(
     new Set([
@@ -57,7 +59,7 @@ export function TaskFilterBar({
         <Ionicons name="search" size={16} color={theme.textDim} style={styles.searchIcon} />
         <TextInput
           style={[styles.searchInput, { color: theme.text }]}
-          placeholder="Search tasks..."
+          placeholder={t('tasks.searchPlaceholder')}
           placeholderTextColor={theme.textDim}
           value={searchQuery}
           onChangeText={onSearchChange}
@@ -72,7 +74,7 @@ export function TaskFilterBar({
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
-            accessibilityLabel="Clear search"
+            accessibilityLabel={t('tasks.a11yClearSearch')}
           >
             <Ionicons name="close-circle" size={16} color={theme.textDim} />
           </TouchableOpacity>
@@ -113,7 +115,7 @@ export function TaskFilterBar({
             ]}
             numberOfLines={1}
           >
-            All
+            {t('common.all')}
           </Text>
           {counts && counts.all > 0 && (
             <View
@@ -141,7 +143,7 @@ export function TaskFilterBar({
 
         {/* Individual Tag Chips */}
         {tagKeys.map(tKey => {
-          const conf = resolveTagConfig(tKey, customTags);
+          const conf = resolveTagConfig(tKey, customTags, language);
           const isSelected = selectedTag === tKey;
           const tagCount = counts ? (counts[tKey] || 0) : 0;
 

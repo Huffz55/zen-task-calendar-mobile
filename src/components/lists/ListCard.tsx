@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
+import { useTranslation } from '../../i18n';
 
 interface ListCardProps {
   list: CustomList;
@@ -26,6 +27,7 @@ export const ListCard = memo(function ListCard({
   onDeleteList,
   onMoveFolder,
 }: ListCardProps) {
+  const { t } = useTranslation();
   const [newItemText, setNewItemText] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -205,7 +207,7 @@ export const ListCard = memo(function ListCard({
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Delete ${item.text}`}
+                accessibilityLabel={t('lists.a11yDeleteItem', { item: item.text })}
               >
                 <Ionicons name="close" size={16} color={theme.textDim} />
               </TouchableOpacity>
@@ -223,7 +225,7 @@ export const ListCard = memo(function ListCard({
                   borderColor: theme.border,
                 },
               ]}
-              placeholder="+ Add an item..."
+              placeholder={t('lists.inlineAddItemPlaceholder')}
               placeholderTextColor={theme.textDim}
               value={newItemText}
               onChangeText={setNewItemText}

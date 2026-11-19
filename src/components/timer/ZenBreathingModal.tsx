@@ -5,6 +5,7 @@ import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { playSingingBowl } from '../../services/audio/audioService';
+import { useTranslation } from '../../i18n';
 
 interface ZenBreathingModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
 }
 
 function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'isOpen'>) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [isRunning, setIsRunning] = useState(true);
   const [phase, setPhase] = useState<BreathPhase>('Inhale');
@@ -121,7 +123,15 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
 
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
+  const formattedRemaining = `${mins}:${secs < 10 ? `0${secs}` : secs}`;
   const safeCloseTop = Math.max(insets.top, 20) + 12;
+
+  const phaseLabel =
+    phase === 'Inhale'
+      ? t('breathing.phaseInhale')
+      : phase === 'Hold'
+      ? t('breathing.phaseHold')
+      : t('breathing.phaseExhale');
 
   return (
     <Modal
@@ -145,7 +155,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close breathing break"
+          accessibilityLabel={t('breathing.a11yClose')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -153,10 +163,10 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-            Zen Breathing Break
+            {t('breathing.title')}
           </Text>
           <Text style={[styles.subtitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-            Clear your mind and restore focus • 4-4-4 rhythm
+            {t('breathing.subtitle')}
           </Text>
         </View>
 
@@ -182,7 +192,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
               ]}
             >
               <Text style={styles.phaseText} maxFontSizeMultiplier={1.35}>
-                {isRunning ? phase : 'Paused'}
+                {isRunning ? phaseLabel : t('breathing.paused')}
               </Text>
             </View>
           </Animated.View>
@@ -192,7 +202,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         <View style={styles.timerRow}>
           <Ionicons name="hourglass-outline" size={16} color={theme.primary} />
           <Text style={[styles.timerText, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-            {mins}:{secs < 10 ? `0${secs}` : secs} remaining
+            {t('breathing.remainingTime', { time: formattedRemaining })}
           </Text>
         </View>
 
@@ -213,7 +223,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
           onPress={handleTogglePause}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={isRunning ? 'Pause breathing session' : 'Resume breathing session'}
+          accessibilityLabel={isRunning ? t('breathing.a11yPause') : t('breathing.a11yResume')}
         >
           <Ionicons
             name={isRunning ? 'pause' : 'play'}
@@ -224,7 +234,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
             style={[styles.finishBtnText, { color: isRunning ? theme.text : '#ffffff' }]}
             maxFontSizeMultiplier={1.35}
           >
-            {isRunning ? 'Pause' : 'Resume'}
+            {isRunning ? t('breathing.pause') : t('breathing.resume')}
           </Text>
         </TouchableOpacity>
       </View>

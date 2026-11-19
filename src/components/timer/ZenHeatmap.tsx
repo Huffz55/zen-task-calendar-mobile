@@ -1,28 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { format, isValid, parseISO } from 'date-fns';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { HeatmapDay } from '../../hooks/useFocusStats';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSelection } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
+import { formatDurationCompact, useTranslation } from '../../i18n';
 
 interface ZenHeatmapProps {
   theme: ThemeColors;
   days: HeatmapDay[];
 }
 
-function formatMinutes(seconds: number): string {
-  if (seconds <= 0) return 'No focus';
-  const mins = Math.round(seconds / 60);
-  if (mins >= 60) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h}h ${m}m`;
-  }
-  return `${mins}m focus`;
-}
-
 export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
+  const { t, language, dateLocale } = useTranslation();
   const [selectedDay, setSelectedDay] = useState<HeatmapDay | null>(null);
 
   // Group 84 days into 12 columns of 7 days
@@ -46,25 +38,42 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
     }
   };
 
+  const selectedDateLabel = selectedDay
+    ? (() => {
+        const parsed = parseISO(selectedDay.dateStr);
+        return isValid(parsed)
+          ? format(parsed, t('dates.shortDate'), { locale: dateLocale })
+          : selectedDay.dateStr;
+      })()
+    : '';
+
+  const selectedValueLabel = selectedDay
+    ? selectedDay.seconds <= 0
+      ? t('focus.heatmapNoFocus')
+      : t('focus.heatmapFocusValue', {
+          duration: formatDurationCompact(selectedDay.seconds, language),
+        })
+    : '';
+
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Ionicons name="grid-outline" size={16} color={theme.primary} />
-          <Text style={[styles.title, { color: theme.text }]}>Zen Activity Matrix</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('focus.heatmapTitle')}</Text>
         </View>
-        <Text style={[styles.subtitle, { color: theme.textDim }]}>Last 12 Weeks</Text>
+        <Text style={[styles.subtitle, { color: theme.textDim }]}>{t('focus.heatmapSubtitle')}</Text>
       </View>
 
       {/* Selected Day Tooltip */}
       {selectedDay && (
         <View style={[styles.tooltipPill, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
           <Text style={[styles.tooltipDate, { color: theme.primary }]}>
-            {selectedDay.dateStr}:
+            {selectedDateLabel}:
           </Text>
           <Text style={[styles.tooltipValue, { color: theme.text }]}>
-            {formatMinutes(selectedDay.seconds)}
+            {selectedValueLabel}
           </Text>
         </View>
       )}
@@ -108,13 +117,13 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
 
       {/* Legend */}
       <View style={styles.legendRow}>
-        <Text style={[styles.legendText, { color: theme.textDim }]}>Less</Text>
+        <Text style={[styles.legendText, { color: theme.textDim }]}>{t('focus.heatmapLess')}</Text>
         <View style={styles.legendTiles}>
           {[0, 1, 2, 3, 4].map((lvl) => (
             <View key={lvl} style={[styles.legendTile, { backgroundColor: getTileColor(lvl) }]} />
           ))}
         </View>
-        <Text style={[styles.legendText, { color: theme.textDim }]}>More</Text>
+        <Text style={[styles.legendText, { color: theme.textDim }]}>{t('focus.heatmapMore')}</Text>
       </View>
     </View>
   );

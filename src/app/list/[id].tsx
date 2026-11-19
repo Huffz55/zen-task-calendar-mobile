@@ -15,8 +15,10 @@ import { useApp } from '../../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
+import { useTranslation } from '../../i18n';
 
 export default function ListDetailRoute() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const safeTopPadding = Math.max(insets.top, Platform.OS === 'android' ? 28 : 20) + 6;
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,12 +39,12 @@ export default function ListDetailRoute() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.notFoundContainer}>
-          <Text style={[styles.notFoundTitle, { color: theme.text }]}>List Not Found</Text>
+          <Text style={[styles.notFoundTitle, { color: theme.text }]}>{t('lists.detailNotFound')}</Text>
           <TouchableOpacity
             style={[styles.backBtn, { backgroundColor: theme.primaryLight }]}
             onPress={() => router.back()}
           >
-            <Text style={[styles.backBtnText, { color: theme.primary }]}>Go Back</Text>
+            <Text style={[styles.backBtnText, { color: theme.primary }]}>{t('common.goBack')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -78,7 +80,7 @@ export default function ListDetailRoute() {
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={t('lists.a11yGoBack')}
         >
           <Ionicons name="arrow-back" size={20} color={theme.text} />
         </TouchableOpacity>
@@ -88,7 +90,7 @@ export default function ListDetailRoute() {
             {list.title}
           </Text>
           <Text style={[styles.headerSubtitle, { color: theme.textDim }]} numberOfLines={1}>
-            {completedCount} of {totalCount} completed
+            {t('lists.detailProgress', { completed: completedCount, total: totalCount })}
           </Text>
         </View>
 
@@ -101,7 +103,7 @@ export default function ListDetailRoute() {
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="Delete list"
+          accessibilityLabel={t('lists.a11yDeleteList')}
         >
           <Ionicons name="trash-outline" size={18} color={theme.danger} />
         </TouchableOpacity>
@@ -127,7 +129,7 @@ export default function ListDetailRoute() {
         <View style={[styles.addBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <TextInput
             style={[styles.input, { color: theme.text }]}
-            placeholder="Add a new item..."
+            placeholder={t('lists.detailAddPlaceholder')}
             placeholderTextColor={theme.textDim}
             value={newItemText}
             onChangeText={setNewItemText}
@@ -146,7 +148,7 @@ export default function ListDetailRoute() {
             disabled={!newItemText.trim()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Add list item"
+            accessibilityLabel={t('lists.a11yAddListItem')}
           >
             <Ionicons name="add" size={20} color={newItemText.trim() ? '#ffffff' : theme.textDim} />
           </TouchableOpacity>
@@ -206,7 +208,7 @@ export default function ListDetailRoute() {
               }}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
-              accessibilityLabel={`Remove ${item.text}`}
+              accessibilityLabel={t('lists.a11yRemoveListItem', { item: item.text })}
             >
               <Ionicons name="close" size={16} color={theme.textDim} />
             </TouchableOpacity>
@@ -216,7 +218,7 @@ export default function ListDetailRoute() {
         {list.items.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={[styles.emptyText, { color: theme.textDim }]}>
-              No items in this list yet. You can add one using the input above.
+              {t('lists.detailEmpty')}
             </Text>
           </View>
         )}

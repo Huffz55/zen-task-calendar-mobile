@@ -6,6 +6,7 @@ import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSelection } from '../../hooks/useHaptics';
 import { PRESS_SPRING_CONFIG } from '../../utils/animations';
+import { useTranslation } from '../../i18n';
 
 interface BottomNavProps {
   activeTab: MobileTab;
@@ -15,25 +16,27 @@ interface BottomNavProps {
 
 interface NavItem {
   id: MobileTab;
-  label: string;
+  labelKey: 'tabs.today' | 'tabs.calendar' | 'tabs.lists' | 'tabs.focus';
   iconActive: keyof typeof Ionicons.glyphMap;
   iconInactive: keyof typeof Ionicons.glyphMap;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'today', label: 'Today', iconActive: 'today', iconInactive: 'today-outline' },
-  { id: 'calendar', label: 'Calendar', iconActive: 'calendar', iconInactive: 'calendar-outline' },
-  { id: 'lists', label: 'Lists', iconActive: 'checkbox', iconInactive: 'checkbox-outline' },
-  { id: 'focus', label: 'Focus', iconActive: 'timer', iconInactive: 'timer-outline' },
+  { id: 'today', labelKey: 'tabs.today', iconActive: 'today', iconInactive: 'today-outline' },
+  { id: 'calendar', labelKey: 'tabs.calendar', iconActive: 'calendar', iconInactive: 'calendar-outline' },
+  { id: 'lists', labelKey: 'tabs.lists', iconActive: 'checkbox', iconInactive: 'checkbox-outline' },
+  { id: 'focus', labelKey: 'tabs.focus', iconActive: 'timer', iconInactive: 'timer-outline' },
 ];
 
 function NavTabButton({
   item,
+  label,
   isActive,
   onPress,
   theme,
 }: {
   item: NavItem;
+  label: string;
   isActive: boolean;
   onPress: () => void;
   theme: ThemeColors;
@@ -66,7 +69,7 @@ function NavTabButton({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       accessibilityRole="tab"
-      accessibilityLabel={item.label}
+      accessibilityLabel={label}
       accessibilityState={{ selected: isActive }}
     >
       <Animated.View
@@ -93,13 +96,14 @@ function NavTabButton({
         numberOfLines={1}
         maxFontSizeMultiplier={1.35}
       >
-        {item.label}
+        {label}
       </Text>
     </Pressable>
   );
 }
 
 export function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const safeBottomPadding = Math.max(insets.bottom, 10);
 
@@ -120,6 +124,7 @@ export function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
           <NavTabButton
             key={item.id}
             item={item}
+            label={t(item.labelKey)}
             isActive={isActive}
             onPress={() => {
               if (!isActive) {

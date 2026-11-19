@@ -13,6 +13,7 @@ import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptic
 import { playWaterDrop, playBambooTap, playSoftSwoosh } from '../../services/audio/audioService';
 import { animateLayout } from '../../utils/animations';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { useTranslation } from '../../i18n';
 
 interface ZenTriageModalProps {
   visible: boolean;
@@ -31,6 +32,7 @@ export function ZenTriageModal({
   onQuickAddTask,
   onClose,
 }: ZenTriageModalProps) {
+  const { t } = useTranslation();
   const [newTitle, setNewTitle] = useState('');
   const [skippedIds, setSkippedIds] = useState<string[]>([]);
 
@@ -81,7 +83,7 @@ export function ZenTriageModal({
           </View>
           <View style={styles.titleRow}>
             <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-              Inbox
+              {t('triage.title')}
             </Text>
             <View style={[styles.badge, { backgroundColor: theme.primaryLight }]}>
               <Text style={[styles.badgeText, { color: theme.primary }]}>
@@ -98,7 +100,7 @@ export function ZenTriageModal({
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close inbox"
+          accessibilityLabel={t('triage.a11yClose')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -111,7 +113,7 @@ export function ZenTriageModal({
             style={[styles.input, { color: theme.text }]}
             value={newTitle}
             onChangeText={setNewTitle}
-            placeholder="Add to inbox"
+            placeholder={t('triage.placeholder')}
             placeholderTextColor={theme.textDim}
             onSubmitEditing={handleAdd}
             returnKeyType="done"
@@ -134,7 +136,7 @@ export function ZenTriageModal({
           <View style={styles.cardContainer}>
             <View style={[styles.taskCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Text style={[styles.taskOrder, { color: theme.textDim }]}>
-                {pendingTasks.length} REMAINING
+                {t('triage.remaining', { count: pendingTasks.length })}
               </Text>
               <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={4} ellipsizeMode="tail">
                 {currentTask.title}
@@ -149,7 +151,7 @@ export function ZenTriageModal({
                 activeOpacity={0.75}
               >
                 <Ionicons name="checkmark-circle-outline" size={22} color={theme.primary} />
-                <Text style={[styles.actionBtnText, { color: theme.primary }]}>Today</Text>
+                <Text style={[styles.actionBtnText, { color: theme.primary }]}>{t('triage.today')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -158,7 +160,7 @@ export function ZenTriageModal({
                 activeOpacity={0.75}
               >
                 <Ionicons name="time-outline" size={22} color={theme.textDim} />
-                <Text style={[styles.actionBtnText, { color: theme.text }]}>Later</Text>
+                <Text style={[styles.actionBtnText, { color: theme.text }]}>{t('triage.later')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -173,7 +175,7 @@ export function ZenTriageModal({
                 activeOpacity={0.75}
               >
                 <Ionicons name="trash-outline" size={22} color={theme.danger} />
-                <Text style={[styles.actionBtnText, { color: theme.danger }]}>Delete</Text>
+                <Text style={[styles.actionBtnText, { color: theme.danger }]}>{t('triage.delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -183,11 +185,14 @@ export function ZenTriageModal({
               <Ionicons name="checkmark-done-outline" size={26} color={theme.primary} />
             </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {inboxTasks.length > 0 ? 'Caught up for now' : 'Inbox Empty'}
+              {inboxTasks.length > 0 ? t('triage.caughtUpTitle') : t('triage.empty')}
             </Text>
             {inboxTasks.length > 0 && (
               <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
-                {inboxTasks.length} {inboxTasks.length === 1 ? 'item' : 'items'} saved for later
+                {t(
+                  inboxTasks.length === 1 ? 'triage.savedForLaterOne' : 'triage.savedForLaterOther',
+                  { count: inboxTasks.length }
+                )}
               </Text>
             )}
           </View>
@@ -203,7 +208,7 @@ export function ZenTriageModal({
         }}
         activeOpacity={0.75}
       >
-        <Text style={[styles.footerBtnText, { color: theme.primary }]}>Done</Text>
+        <Text style={[styles.footerBtnText, { color: theme.primary }]}>{t('common.done')}</Text>
       </TouchableOpacity>
     </SwipeableBottomSheet>
   );

@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getActiveLanguage, translate } from '../../i18n';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -36,17 +37,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render() {
     if (this.state.hasError) {
+      const lang = getActiveLanguage();
       return (
         <View style={styles.container}>
           <View style={styles.iconCircle}>
             <Ionicons name="shield-checkmark-outline" size={32} color="#f43f5e" />
           </View>
-          <Text style={styles.title}>Something went wrong</Text>
+          <Text style={styles.title}>{translate(lang, 'errors.boundaryTitle')}</Text>
           <Text style={styles.body}>
-            Your local tasks and checklists are safe. Tap below to restore the view.
+            {translate(lang, 'errors.boundaryBody')}
           </Text>
           <TouchableOpacity style={styles.button} onPress={this.handleRecover} activeOpacity={0.85}>
-            <Text style={styles.buttonText}>Restore App</Text>
+            <Text style={styles.buttonText}>{translate(lang, 'errors.boundaryAction')}</Text>
           </TouchableOpacity>
         </View>
       );

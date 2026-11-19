@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
+import { useTranslation } from '../../i18n';
 
 interface MiniFocusPlayerProps {
   timeLeft: number;
@@ -23,6 +24,7 @@ export function MiniFocusPlayer({
   activeTaskTitle,
   theme,
 }: MiniFocusPlayerProps) {
+  const { t } = useTranslation();
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const timeFormatted = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -43,7 +45,7 @@ export function MiniFocusPlayer({
           onOpenFocus();
         }}
         activeOpacity={0.88}
-        accessibilityLabel="Open Zen Focus timer"
+        accessibilityLabel={t('focus.a11yOpenMiniPlayer')}
       >
         {/* Play / Pause Toggle Button */}
         <TouchableOpacity
@@ -54,7 +56,7 @@ export function MiniFocusPlayer({
             onToggleTimer();
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel={isTimerRunning ? 'Pause focus timer' : 'Start focus timer'}
+          accessibilityLabel={isTimerRunning ? t('focus.a11yPauseMiniPlayer') : t('focus.a11yStartMiniPlayer')}
         >
           <Ionicons
             name={isTimerRunning ? 'pause' : 'play'}
@@ -77,7 +79,7 @@ export function MiniFocusPlayer({
               ellipsizeMode="tail"
               maxFontSizeMultiplier={1.35}
             >
-              {activeTaskTitle ? activeTaskTitle : 'Zen Focus'}
+              {activeTaskTitle ? activeTaskTitle : t('focus.miniPlayerLabel')}
             </Text>
           </View>
 

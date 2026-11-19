@@ -14,6 +14,7 @@ import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHapt
 import { animateLayout, springLayout } from '../../utils/animations';
 import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
 import { useApp } from '../../context/AppContext';
+import { formatMinutesCompact, useTranslation } from '../../i18n';
 
 interface EditTaskModalProps {
   visible: boolean;
@@ -58,6 +59,7 @@ function EditTaskForm({
   onSave: EditTaskModalProps['onSave'];
 }) {
   const { customTags, addCustomTag } = useApp();
+  const { t, language } = useTranslation();
   const [title, setTitle] = useState(task.title);
   const [tag, setTag] = useState<TaskTag | undefined>(task.tag);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
@@ -109,12 +111,12 @@ function EditTaskForm({
   ];
 
   const durationOptions: { label: string; value: number | undefined }[] = [
-    { label: 'None', value: undefined },
-    { label: '15m', value: 15 },
-    { label: '30m', value: 30 },
-    { label: '45m', value: 45 },
-    { label: '1h', value: 60 },
-    { label: '2h', value: 120 },
+    { label: t('common.none'), value: undefined },
+    { label: formatMinutesCompact(15, language), value: 15 },
+    { label: formatMinutesCompact(30, language), value: 30 },
+    { label: formatMinutesCompact(45, language), value: 45 },
+    { label: formatMinutesCompact(60, language), value: 60 },
+    { label: formatMinutesCompact(120, language), value: 120 },
   ];
 
   return (
@@ -123,12 +125,12 @@ function EditTaskForm({
       <View style={styles.header}>
         <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
-            Edit Task
+            {t('tasks.editTitle')}
           </Text>
           <Text style={[styles.dateSubtitle, { color: theme.textDim }]} numberOfLines={1}>
             {task?.recurrence && task.recurrence !== 'none'
-              ? `Recurring (${task.recurrence})`
-              : 'Single Task'}
+              ? t('tasks.recurringLabel', { recurrence: t(`tasks.recurrence.${task.recurrence}`) })
+              : t('tasks.singleTaskLabel')}
           </Text>
         </View>
         <TouchableOpacity
@@ -139,7 +141,7 @@ function EditTaskForm({
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close edit task"
+          accessibilityLabel={t('tasks.a11yCloseEdit')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -156,7 +158,7 @@ function EditTaskForm({
               borderColor: theme.border,
             },
           ]}
-          placeholder="Task title..."
+          placeholder={t('tasks.editTitlePlaceholder')}
           placeholderTextColor={theme.textDim}
           value={title}
           onChangeText={setTitle}
@@ -166,7 +168,7 @@ function EditTaskForm({
         />
 
         {/* Tag Selector */}
-        <Text style={[styles.sectionLabel, { color: theme.textDim }]}>TAG</Text>
+        <Text style={[styles.sectionLabel, { color: theme.textDim }]}>{t('tasks.sectionTag')}</Text>
         <View style={styles.chipsRow}>
           {/* None Tag Option */}
           <TouchableOpacity
@@ -188,12 +190,12 @@ function EditTaskForm({
                 { color: tag === undefined ? '#ffffff' : theme.textMuted },
               ]}
             >
-              No Tag
+              {t('tasks.noTag')}
             </Text>
           </TouchableOpacity>
 
           {tagKeys.map(tKey => {
-            const conf = resolveTagConfig(tKey, customTags);
+            const conf = resolveTagConfig(tKey, customTags, language);
             const isSelected = tag === tKey;
             return (
               <TouchableOpacity
@@ -242,7 +244,7 @@ function EditTaskForm({
               setIsCreatingTag(prev => !prev);
             }}
           >
-            <Text style={[styles.chipText, { color: theme.primary }]}>+ Tag</Text>
+            <Text style={[styles.chipText, { color: theme.primary }]}>{t('tasks.addCustomTag')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -258,7 +260,7 @@ function EditTaskForm({
                     color: theme.text,
                   },
                 ]}
-                placeholder="Tag name"
+                placeholder={t('tasks.tagNamePlaceholder')}
                 placeholderTextColor={theme.textDim}
                 value={newTagName}
                 onChangeText={setNewTagName}
@@ -298,7 +300,7 @@ function EditTaskForm({
         )}
 
         {/* Estimated Duration */}
-        <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>ESTIMATED TIME</Text>
+        <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>{t('tasks.sectionEstimatedTime')}</Text>
         <View style={styles.chipsRow}>
           {durationOptions.map(opt => {
             const isSelected = estimatedMinutes === opt.value;
@@ -352,14 +354,14 @@ function EditTaskForm({
           />
           <View style={styles.pinToggleContent}>
             <Text style={[styles.pinToggleTitle, { color: isPinned ? theme.warning : theme.text }]}>
-              Focus of the Day
+              {t('tasks.focusOfTheDay')}
             </Text>
           </View>
         </TouchableOpacity>
 
         {/* Subtasks Builder */}
         <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>
-          SUBTASKS ({subtasks.length})
+          {t('tasks.sectionSubtasks', { count: subtasks.length })}
         </Text>
         <View style={styles.subtaskInputRow}>
           <TextInput
@@ -371,7 +373,7 @@ function EditTaskForm({
                 color: theme.text,
               },
             ]}
-            placeholder="Add checklist step"
+            placeholder={t('tasks.subtaskPlaceholder')}
             placeholderTextColor={theme.textDim}
             value={newSubtaskInput}
             onChangeText={setNewSubtaskInput}
@@ -428,7 +430,7 @@ function EditTaskForm({
               { color: title.trim() ? '#ffffff' : theme.textDim },
             ]}
           >
-            Save Changes
+            {t('tasks.saveChangesButton')}
           </Text>
         </TouchableOpacity>
       </BottomSheetScrollView>

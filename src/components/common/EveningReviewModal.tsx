@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated } from 'react
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSuccess, hapticLight } from '../../hooks/useHaptics';
+import { formatDurationCompact, useTranslation } from '../../i18n';
 
 interface EveningReviewModalProps {
   isOpen: boolean;
@@ -16,17 +17,6 @@ interface EveningReviewModalProps {
   onRollover: () => void;
 }
 
-function formatMinutes(seconds: number): string {
-  if (seconds <= 0) return '0m';
-  const mins = Math.round(seconds / 60);
-  if (mins >= 60) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h}h ${m}m`;
-  }
-  return `${mins}m`;
-}
-
 export function EveningReviewModal({
   isOpen,
   onClose,
@@ -38,6 +28,7 @@ export function EveningReviewModal({
   overdueCount,
   onRollover,
 }: EveningReviewModalProps) {
+  const { t, language } = useTranslation();
   const [scaleAnim] = useState(() => new Animated.Value(0.94));
 
   useEffect(() => {
@@ -88,7 +79,7 @@ export function EveningReviewModal({
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Close evening review"
+            accessibilityLabel={t('eveningReview.a11yClose')}
           >
             <Ionicons name="close" size={18} color={theme.textDim} />
           </TouchableOpacity>
@@ -99,7 +90,7 @@ export function EveningReviewModal({
               <Ionicons name="moon-outline" size={22} color={theme.primary} />
             </View>
             <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-              Evening Review
+              {t('eveningReview.title')}
             </Text>
           </View>
 
@@ -111,27 +102,27 @@ export function EveningReviewModal({
                 {completedTasks}/{totalTasks}
               </Text>
               <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-                Completed
+                {t('eveningReview.completed')}
               </Text>
             </View>
 
             <View style={[styles.kpiCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Ionicons name="timer-outline" size={16} color={theme.accent || theme.primary} />
               <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-                {formatMinutes(focusSeconds)}
+                {formatDurationCompact(focusSeconds, language)}
               </Text>
               <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-                Focus Time
+                {t('eveningReview.focusTime')}
               </Text>
             </View>
 
             <View style={[styles.kpiCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Ionicons name="flame-outline" size={16} color={theme.warning} />
               <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-                {currentStreak}d
+                {currentStreak}{t('units.dayShort')}
               </Text>
               <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-                Streak
+                {t('eveningReview.streak')}
               </Text>
             </View>
           </View>
@@ -150,7 +141,7 @@ export function EveningReviewModal({
               />
             </View>
             <Text style={[styles.progressText, { color: theme.textDim }]}>
-              {completionPercent}% completed today
+              {t('eveningReview.progressToday', { percent: completionPercent })}
             </Text>
           </View>
 
@@ -158,8 +149,8 @@ export function EveningReviewModal({
           <View style={[styles.quoteBox, { backgroundColor: theme.surfaceMuted }]}>
             <Text style={[styles.quoteText, { color: theme.text }]}>
               {isPerfect
-                ? 'All tasks completed. Rest well and recharge for tomorrow.'
-                : 'Every step forward matters. Quiet your mind for tonight.'}
+                ? t('eveningReview.quotePerfect')
+                : t('eveningReview.quoteProgress')}
             </Text>
           </View>
 
@@ -176,7 +167,7 @@ export function EveningReviewModal({
             >
               <Ionicons name="arrow-forward-circle-outline" size={17} color="#ffffff" />
               <Text style={styles.actionBtnText} numberOfLines={1}>
-                Roll over {overdueCount} remaining to tomorrow
+                {t('eveningReview.rolloverAction', { count: overdueCount })}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -188,7 +179,7 @@ export function EveningReviewModal({
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionBtnText}>Done</Text>
+              <Text style={styles.actionBtnText}>{t('common.done')}</Text>
             </TouchableOpacity>
           )}
         </Animated.View>

@@ -23,7 +23,7 @@ import {
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { ExportDataModal, type ExportFormat } from './ExportDataModal';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
-import { useTranslation, type LanguagePreference } from '../../i18n';
+import { resolveActiveLanguage, translate, useTranslation, type LanguagePreference } from '../../i18n';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -145,11 +145,10 @@ export function SettingsModal({
         : nextPref === 'tr'
         ? 'settings.languageOptions.tr'
         : 'settings.languageOptions.en';
-    const nextResolved = nextPref === 'system' ? language : nextPref;
-    const nextT = (await import('../../i18n')).translate;
+    const nextResolved = resolveActiveLanguage(nextPref);
     onShowToast(
-      nextT(nextResolved, 'settings.toasts.languageChanged', {
-        language: nextT(nextResolved, labelKey),
+      translate(nextResolved, 'settings.toasts.languageChanged', {
+        language: translate(nextResolved, labelKey),
       })
     );
   };

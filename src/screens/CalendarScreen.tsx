@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
 import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
+import { useTranslation } from '../i18n';
 
 interface CalendarScreenProps {
   theme: ThemeColors;
@@ -83,6 +84,7 @@ export function CalendarScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: CalendarScreenProps) {
+  const { t, dateLocale } = useTranslation();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<DailyTask | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<DailyTask | null>(null);
@@ -154,8 +156,8 @@ export function CalendarScreen({
         onOpenThemeModal={onOpenThemeModal}
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
-        title="Calendar"
-        subtitle="Monthly Overview"
+        title={t('calendar.title')}
+        subtitle={t('calendar.subtitle')}
       />
 
       <ScrollView
@@ -177,10 +179,13 @@ export function CalendarScreen({
         <View style={styles.agendaHeader}>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={[styles.agendaTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail" maxFontSizeMultiplier={1.35}>
-              {format(selectedDate, 'EEEE, MMMM d')}
+              {format(selectedDate, t('dates.fullWeekdayMonthDay'), { locale: dateLocale })}
             </Text>
             <Text style={[styles.agendaSubtitle, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-              {dayTasks.length} {dayTasks.length === 1 ? 'task' : 'tasks'} planned
+              {t(
+                dayTasks.length === 1 ? 'calendar.agendaPlannedOne' : 'calendar.agendaPlannedOther',
+                { count: dayTasks.length }
+              )}
             </Text>
           </View>
 
@@ -194,7 +199,7 @@ export function CalendarScreen({
           >
             <Ionicons name="add" size={16} color={theme.primary} />
             <Text style={[styles.addBtnText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
-              Add
+              {t('common.add')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -232,7 +237,7 @@ export function CalendarScreen({
             ) : (
               <View style={[styles.filterEmptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Ionicons name="search-outline" size={28} color={theme.textDim} style={{ marginBottom: 6 }} />
-                <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>No matching tasks found</Text>
+                <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>{t('calendar.noMatchingTasks')}</Text>
                 <TouchableOpacity
                   style={[styles.clearBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border }]}
                   onPress={() => {
@@ -242,7 +247,7 @@ export function CalendarScreen({
                     setSelectedTag('all');
                   }}
                 >
-                  <Text style={[styles.clearBtnText, { color: theme.primary }]}>Clear Filter</Text>
+                  <Text style={[styles.clearBtnText, { color: theme.primary }]}>{t('calendar.clearFilter')}</Text>
                 </TouchableOpacity>
               </View>
             )
@@ -250,10 +255,10 @@ export function CalendarScreen({
             <View style={styles.emptyContainer}>
               <View style={[styles.emptyHairline, { backgroundColor: theme.border }]} />
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                Nothing scheduled
+                {t('calendar.emptyDateTitle')}
               </Text>
               <Text style={[styles.emptySubtitle, { color: theme.textMuted }]} numberOfLines={2}>
-                This day is open and unscheduled.
+                {t('calendar.emptyDateSubtitle')}
               </Text>
             </View>
           )}

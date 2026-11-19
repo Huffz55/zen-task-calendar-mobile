@@ -1,8 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { ListsScreen } from '../../screens/ListsScreen';
+import { useTranslation } from '../../i18n';
 
 export default function ListsRoute() {
+  const { t } = useTranslation();
   const {
     theme,
     currentStreak,
@@ -30,8 +32,8 @@ export default function ListsRoute() {
         addList(title, folder);
         showToast({
           type: 'success',
-          title: 'List Created',
-          message: `"${title}" created`,
+          title: t('toasts.listCreatedTitle'),
+          message: t('toasts.listCreatedMessage', { title }),
         });
       }}
       onUpdateListFolder={updateListFolder}

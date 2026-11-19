@@ -1,8 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { CalendarScreen } from '../../screens/CalendarScreen';
+import { useTranslation } from '../../i18n';
 
 export default function CalendarRoute() {
+  const { t } = useTranslation();
   const {
     theme,
     currentStreak,
@@ -40,8 +42,10 @@ export default function CalendarRoute() {
         addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox);
         showToast({
           type: 'success',
-          title: isInbox ? 'Saved to Inbox' : 'Added',
-          message: isInbox ? `"${title}" added to triage queue` : `"${title}" added to plan`,
+          title: isInbox ? t('toasts.savedToInboxTitle') : t('toasts.addedTitle'),
+          message: isInbox
+            ? t('toasts.savedToInboxMessage', { title })
+            : t('toasts.addedCalendarMessage', { title }),
         });
       }}
       onEditTask={handleEditTask}

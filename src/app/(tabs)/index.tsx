@@ -2,8 +2,10 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { TodayScreen } from '../../screens/TodayScreen';
 import { ZenTriageModal } from '../../components/common/ZenTriageModal';
+import { useTranslation } from '../../i18n';
 
 export default function TodayRoute() {
+  const { t } = useTranslation();
   const {
     theme,
     currentStreak,
@@ -54,8 +56,10 @@ export default function TodayRoute() {
           addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox);
           showToast({
             type: 'success',
-            title: isInbox ? 'Saved to Inbox' : 'Added',
-            message: isInbox ? `"${title}" added to triage queue` : `"${title}" added to your plan`,
+            title: isInbox ? t('toasts.savedToInboxTitle') : t('toasts.addedTitle'),
+            message: isInbox
+              ? t('toasts.savedToInboxMessage', { title })
+              : t('toasts.addedPlanMessage', { title }),
           });
         }}
         onEditTask={handleEditTask}
