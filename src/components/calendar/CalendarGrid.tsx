@@ -59,7 +59,7 @@ export function CalendarGrid({
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
       {/* Month Navigator Header */}
       <View style={styles.header}>
-        <Text style={[styles.monthTitle, { color: theme.text }]} numberOfLines={1}>
+        <Text style={[styles.monthTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
           {format(currentMonth, 'MMMM yyyy')}
         </Text>
         <View style={styles.navRow}>
@@ -101,7 +101,7 @@ export function CalendarGrid({
       {/* Weekday Labels */}
       <View style={styles.weekDaysRow}>
         {WEEK_DAYS.map(wd => (
-          <Text key={wd} style={[styles.weekDayLabel, { color: theme.textDim }]}>
+          <Text key={wd} style={[styles.weekDayLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
             {wd}
           </Text>
         ))}
@@ -150,6 +150,7 @@ export function CalendarGrid({
                     fontWeight: isSelected || isTodayDate ? '700' : '400',
                   },
                 ]}
+                maxFontSizeMultiplier={1.35}
               >
                 {format(day, 'd')}
               </Text>
@@ -222,7 +223,7 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: '14.2857%',
-    height: 44,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 2,

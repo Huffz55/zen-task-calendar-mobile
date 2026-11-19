@@ -14,6 +14,8 @@ interface ZenBreathingModalProps {
 
 type BreathPhase = 'Inhale' | 'Hold' | 'Exhale';
 
+const BREATHING_SESSION_SECONDS = 180;
+
 export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalProps) {
   if (!isOpen) return null;
   return <ZenBreathingContent onClose={onClose} theme={theme} />;
@@ -21,8 +23,9 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
 
 function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'isOpen'>) {
   const insets = useSafeAreaInsets();
+  const [isRunning, setIsRunning] = useState(true);
   const [phase, setPhase] = useState<BreathPhase>('Inhale');
-  const [remainingSeconds, setRemainingSeconds] = useState(180); // 3-min default break
+  const [remainingSeconds, setRemainingSeconds] = useState(BREATHING_SESSION_SECONDS);
   const [scaleAnim] = useState(() => new Animated.Value(1));
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCloseRef = useRef(onClose);
@@ -31,10 +34,15 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // 4-4-4 breathing loop
+  // Auto-start 4-4-4 breathing loop; chime plays only when the 3-minute session completes
   useEffect(() => {
-    playSingingBowl();
+    if (!isRunning) {
+      scaleAnim.stopAnimation();
+      return;
+    }
+
     let isMounted = true;
+    scaleAnim.setValue(1);
 
     const runBreathingCycle = () => {
       if (!isMounted) return;
@@ -77,6 +85,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         if (prev <= 1) {
           clearInterval(ticker);
           hapticSuccess();
+          void playSingingBowl();
           onCloseRef.current();
           return 0;
         }
@@ -93,7 +102,22 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       }
       scaleAnim.stopAnimation();
     };
-  }, [scaleAnim]);
+  }, [isRunning, scaleAnim]);
+
+  const handleTogglePause = () => {
+    hapticLight();
+    setIsRunning(prev => {
+      if (!prev) {
+        setPhase('Inhale');
+      }
+      return !prev;
+    });
+  };
+
+  const handleCloseSilent = () => {
+    hapticLight();
+    onClose();
+  };
 
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
@@ -106,7 +130,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       statusBarTranslucent
       navigationBarTranslucent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleCloseSilent}
     >
       <View
         style={[
@@ -117,10 +141,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         {/* Close / Skip button */}
         <TouchableOpacity
           style={[styles.closeBtn, { top: safeCloseTop, backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
+          onPress={handleCloseSilent}
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
@@ -131,8 +152,10 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>Zen Breathing Break</Text>
-          <Text style={[styles.subtitle, { color: theme.textDim }]}>
+          <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+            Zen Breathing Break
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
             Clear your mind and restore focus • 4-4-4 rhythm
           </Text>
         </View>
@@ -158,7 +181,9 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
                 },
               ]}
             >
-              <Text style={styles.phaseText}>{phase}</Text>
+              <Text style={styles.phaseText} maxFontSizeMultiplier={1.35}>
+                {isRunning ? phase : 'Paused'}
+              </Text>
             </View>
           </Animated.View>
         </View>
@@ -166,27 +191,41 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         {/* Countdown Timer */}
         <View style={styles.timerRow}>
           <Ionicons name="hourglass-outline" size={16} color={theme.primary} />
-          <Text style={[styles.timerText, { color: theme.text }]}>
+          <Text style={[styles.timerText, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
             {mins}:{secs < 10 ? `0${secs}` : secs} remaining
           </Text>
         </View>
 
-        {/* Finish break button */}
+        {/* Pause / Resume Control */}
         <TouchableOpacity
           style={[
             styles.finishBtn,
-            {
-              backgroundColor: theme.primary,
-              borderColor: withAlpha('#ffffff', 0.18),
-            },
+            isRunning
+              ? {
+                  backgroundColor: theme.surfaceMuted,
+                  borderColor: theme.border,
+                }
+              : {
+                  backgroundColor: theme.primary,
+                  borderColor: withAlpha('#ffffff', 0.18),
+                },
           ]}
-          onPress={() => {
-            hapticSuccess();
-            onClose();
-          }}
+          onPress={handleTogglePause}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={isRunning ? 'Pause breathing session' : 'Resume breathing session'}
         >
-          <Text style={styles.finishBtnText}>Finish Break</Text>
+          <Ionicons
+            name={isRunning ? 'pause' : 'play'}
+            size={15}
+            color={isRunning ? theme.text : '#ffffff'}
+          />
+          <Text
+            style={[styles.finishBtnText, { color: isRunning ? theme.text : '#ffffff' }]}
+            maxFontSizeMultiplier={1.35}
+          >
+            {isRunning ? 'Pause' : 'Resume'}
+          </Text>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -266,6 +305,11 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   finishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
     paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 20,

@@ -23,7 +23,7 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
   const [activeSounds, setActiveSounds] = useState<AmbientSoundType[]>(() => getActiveAmbientSounds());
   const [volume, setVolumeState] = useState<number>(getAmbientVolume());
 
-  const soundKeys: AmbientSoundType[] = ['none', 'rain', 'waves', 'forest', 'wind', 'fire'];
+  const soundKeys: AmbientSoundType[] = ['none', 'rain', 'waves', 'forest', 'wind'];
 
   const handleSelect = async (sound: AmbientSoundType) => {
     hapticSelection();
@@ -190,6 +190,7 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 38,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,
@@ -212,6 +213,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   volBtn: {
+    minWidth: 44,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,

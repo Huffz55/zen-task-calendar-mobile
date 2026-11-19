@@ -2,7 +2,6 @@ import { AppTheme } from '../types';
 
 export interface ThemeColors {
   name: string;
-  subtitle: string;
   icon: string;
   isDark: boolean;
   background: string;
@@ -27,7 +26,6 @@ export interface ThemeColors {
 export const THEMES: Record<AppTheme, ThemeColors> = {
   sakura: {
     name: 'Sakura Rose',
-    subtitle: 'Soft pink & warm peach',
     icon: '🌸',
     isDark: false,
     background: '#fff7fa',
@@ -50,7 +48,6 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
   },
   matcha: {
     name: 'Matcha Garden',
-    subtitle: 'Calm sage green & ivory milk',
     icon: '🍵',
     isDark: false,
     background: '#f2f7f3',
@@ -73,7 +70,6 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
   },
   nordic: {
     name: 'Nordic Breeze',
-    subtitle: 'Minimalist foggy blue & slate',
     icon: '🌊',
     isDark: false,
     background: '#f1f6fa',
@@ -96,7 +92,6 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
   },
   midnight: {
     name: 'Midnight Silk',
-    subtitle: 'Deep dark mode & lavender',
     icon: '🌙',
     isDark: true,
     background: '#121019',

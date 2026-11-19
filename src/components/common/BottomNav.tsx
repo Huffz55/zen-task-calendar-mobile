@@ -91,6 +91,7 @@ function NavTabButton({
           },
         ]}
         numberOfLines={1}
+        maxFontSizeMultiplier={1.35}
       >
         {item.label}
       </Text>

@@ -13,6 +13,7 @@ import { db, ensureAuth } from '../firebase/firebaseClient';
 import { mergeItemsWithTombstones, cleanUndefined } from './syncEngine';
 import { getSyncKey, setSyncKey, generateSyncKey, isValidSyncKey, SYNC_KEY_STORAGE } from './syncKeyManager';
 import { defaultFocusStorage, FOCUS_SESSIONS_STORAGE_KEY } from './focusStorage';
+import { atomicWriteJson, getBackupKey, safeReadJsonArray } from './atomicStorage';
 
 export const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
 export const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
@@ -20,6 +21,7 @@ export const THEME_STORAGE_KEY = '@noteapp_mobile_theme_v1';
 export const TASKS_DELETED_KEY = '@noteapp_mobile_tasks_deleted_ids_v1';
 export const LISTS_DELETED_KEY = '@noteapp_mobile_lists_deleted_ids_v1';
 export const CUSTOM_TAGS_STORAGE_KEY = '@noteapp_custom_tags';
+export const CUSTOM_FOLDERS_STORAGE_KEY = '@noteapp_custom_folders';
 
 export interface ITaskStorage {
   loadTasks(): Promise<Task[]>;
@@ -61,38 +63,19 @@ export class MobileTaskStorage implements ITaskStorage {
   private activeSubscriber: ((tasks: Task[]) => void) | null = null;
 
   async loadTasks(): Promise<Task[]> {
-    try {
-      const stored = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
-      if (!stored) return [];
-      const raw = safeJsonParse<unknown>(stored);
-      if (Array.isArray(raw)) {
-        const validated: Task[] = [];
-        for (const item of raw.slice(0, MAX_TASKS_LIMIT)) {
-          const v = validateTask(item);
-          if (v) validated.push(v);
-        }
-        return validated;
-      }
-      return [];
-    } catch (e) {
-      if (__DEV__) console.error('[SyncError Mobile Tasks] Failed to load tasks from AsyncStorage', e);
-      return [];
-    }
+    return safeReadJsonArray(AsyncStorage, TASKS_STORAGE_KEY, validateTask, MAX_TASKS_LIMIT);
   }
 
   async saveTasks(tasks: Task[]): Promise<void> {
     try {
-      const prevStored = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
-      const parsedPrev = prevStored ? safeJsonParse<unknown>(prevStored) : [];
-      const prevTasks: Task[] = Array.isArray(parsedPrev)
-        ? parsedPrev.map(validateTask).filter((t): t is Task => t !== null)
-        : [];
+      const prevStored = await AsyncStorage.getItem(TASKS_STORAGE_KEY).catch(() => null);
+      const prevTasks = await this.loadTasks();
       const prevMap = new Map(prevTasks.map(t => [t.id, t]));
 
       const currentIds = new Set(tasks.map(t => t.id));
       const newlyDeletedIds = prevTasks.filter(t => !currentIds.has(t.id)).map(t => t.id);
       const existingDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
-      if (!prevStored && tasks.length === 0 && existingDeletedIds.length === 0) {
+      if (!prevStored && prevTasks.length === 0 && tasks.length === 0 && existingDeletedIds.length === 0) {
         return;
       }
       const updatedDeletedIds = sanitizeDeletedIds([...existingDeletedIds, ...newlyDeletedIds], 1000);
@@ -109,8 +92,7 @@ export class MobileTaskStorage implements ITaskStorage {
         return { ...t, updatedAt: t.updatedAt || now };
       });
 
-      const newSerialized = JSON.stringify(tasksWithTimestamps);
-      await AsyncStorage.setItem(TASKS_STORAGE_KEY, newSerialized);
+      const newSerialized = await atomicWriteJson(AsyncStorage, TASKS_STORAGE_KEY, tasksWithTimestamps);
 
       if (this.isApplyingRemoteUpdate || newSerialized === this.lastPushedHash) {
         return;
@@ -201,7 +183,7 @@ export class MobileTaskStorage implements ITaskStorage {
               }
               this.isApplyingRemoteUpdate = true;
               this.lastPushedHash = mergedSerialized;
-              await AsyncStorage.setItem(TASKS_STORAGE_KEY, mergedSerialized);
+              await atomicWriteJson(AsyncStorage, TASKS_STORAGE_KEY, merged);
 
               callback(merged);
 
@@ -263,38 +245,19 @@ export class MobileListStorage implements IListStorage {
   private activeSubscriber: ((lists: CustomList[]) => void) | null = null;
 
   async loadLists(): Promise<CustomList[]> {
-    try {
-      const stored = await AsyncStorage.getItem(LISTS_STORAGE_KEY);
-      if (!stored) return [];
-      const raw = safeJsonParse<unknown>(stored);
-      if (Array.isArray(raw)) {
-        const validated: CustomList[] = [];
-        for (const item of raw.slice(0, MAX_LISTS_LIMIT)) {
-          const v = validateCustomList(item);
-          if (v) validated.push(v);
-        }
-        return validated;
-      }
-      return [];
-    } catch (e) {
-      if (__DEV__) console.error('[SyncError Mobile Lists] Failed to load lists from AsyncStorage', e);
-      return [];
-    }
+    return safeReadJsonArray(AsyncStorage, LISTS_STORAGE_KEY, validateCustomList, MAX_LISTS_LIMIT);
   }
 
   async saveLists(lists: CustomList[]): Promise<void> {
     try {
-      const prevStored = await AsyncStorage.getItem(LISTS_STORAGE_KEY);
-      const parsedPrev = prevStored ? safeJsonParse<unknown>(prevStored) : [];
-      const prevLists: CustomList[] = Array.isArray(parsedPrev)
-        ? parsedPrev.map(validateCustomList).filter((l): l is CustomList => l !== null)
-        : [];
+      const prevStored = await AsyncStorage.getItem(LISTS_STORAGE_KEY).catch(() => null);
+      const prevLists = await this.loadLists();
       const prevMap = new Map(prevLists.map(l => [l.id, l]));
 
       const currentIds = new Set(lists.map(l => l.id));
       const newlyDeletedIds = prevLists.filter(l => !currentIds.has(l.id)).map(l => l.id);
       const existingDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
-      if (!prevStored && lists.length === 0 && existingDeletedIds.length === 0) {
+      if (!prevStored && prevLists.length === 0 && lists.length === 0 && existingDeletedIds.length === 0) {
         return;
       }
       const updatedDeletedIds = sanitizeDeletedIds([...existingDeletedIds, ...newlyDeletedIds], 1000);
@@ -311,8 +274,7 @@ export class MobileListStorage implements IListStorage {
         return { ...l, updatedAt: l.updatedAt || now };
       });
 
-      const newSerialized = JSON.stringify(listsWithTimestamps);
-      await AsyncStorage.setItem(LISTS_STORAGE_KEY, newSerialized);
+      const newSerialized = await atomicWriteJson(AsyncStorage, LISTS_STORAGE_KEY, listsWithTimestamps);
 
       if (this.isApplyingRemoteUpdate || newSerialized === this.lastPushedHash) {
         return;
@@ -402,7 +364,7 @@ export class MobileListStorage implements IListStorage {
               }
               this.isApplyingRemoteUpdate = true;
               this.lastPushedHash = mergedSerialized;
-              await AsyncStorage.setItem(LISTS_STORAGE_KEY, mergedSerialized);
+              await atomicWriteJson(AsyncStorage, LISTS_STORAGE_KEY, merged);
 
               callback(merged);
 
@@ -489,11 +451,15 @@ export async function clearAllWorkspaceData(): Promise<void> {
 
   await AsyncStorage.multiRemove([
     TASKS_STORAGE_KEY,
+    getBackupKey(TASKS_STORAGE_KEY),
     LISTS_STORAGE_KEY,
+    getBackupKey(LISTS_STORAGE_KEY),
     TASKS_DELETED_KEY,
     LISTS_DELETED_KEY,
     FOCUS_SESSIONS_STORAGE_KEY,
+    getBackupKey(FOCUS_SESSIONS_STORAGE_KEY),
     CUSTOM_TAGS_STORAGE_KEY,
+    CUSTOM_FOLDERS_STORAGE_KEY,
     SYNC_KEY_STORAGE,
   ]);
 

@@ -178,7 +178,7 @@ export default function ListDetailRoute() {
                 animateLayout();
                 toggleListItem(list.id, item.id);
               }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={{ top: 13, bottom: 13, left: 13, right: 13 }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: item.completed }}
               accessibilityLabel={item.text}

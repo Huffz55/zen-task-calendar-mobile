@@ -35,7 +35,6 @@ function createHarness(options?: { failAudioMode?: boolean; failResolve?: boolea
     waves: 2,
     forest: 3,
     wind: 4,
-    fire: 5,
   };
 
   const createPlayer = vi.fn((source: AudioSource): AudioPlayer => {
@@ -89,9 +88,9 @@ function createHarness(options?: { failAudioMode?: boolean; failResolve?: boolea
 }
 
 describe('ambientPlaybackEngine reliability', () => {
-  it('starts all 5 ambient tracks immediately at target volume with loop=true and switches cleanly', async () => {
+  it('starts all 4 ambient tracks immediately at target volume with loop=true and switches cleanly', async () => {
     const { engine, players } = createHarness();
-    const tracks: PlayableAmbientTrackId[] = ['rain', 'waves', 'fire', 'forest', 'wind'];
+    const tracks: PlayableAmbientTrackId[] = ['rain', 'waves', 'forest', 'wind'];
 
     for (const track of tracks) {
       const started = await engine.toggle(track, 0.65);
@@ -105,7 +104,7 @@ describe('ambientPlaybackEngine reliability', () => {
       expect(player.playCount).toBe(1);
     }
 
-    // All 4 previous players should have been paused and removed on track switch
+    // All 3 previous players should have been paused and removed on track switch
     for (let i = 0; i < players.length - 1; i++) {
       expect(players[i].pauseCount).toBe(1);
       expect(players[i].removeCount).toBe(1);
@@ -169,5 +168,28 @@ describe('ambientPlaybackEngine reliability', () => {
     expect(await pending).toBe(false);
     expect(players).toHaveLength(0);
     expect(engine.getActiveSounds()).toEqual([]);
+  });
+
+  it('pauses active playback on background and resumes cleanly on foreground unless stopped', async () => {
+    const { engine, players } = createHarness();
+    await engine.toggle('forest', 0.6);
+    expect(players[0].playCount).toBe(1);
+    expect(players[0].pauseCount).toBe(0);
+
+    engine.pauseForBackground();
+    expect(engine.isPausedForBackground()).toBe(true);
+    expect(players[0].pauseCount).toBe(1);
+
+    engine.resumeFromBackground();
+    expect(engine.isPausedForBackground()).toBe(false);
+    expect(players[0].playCount).toBe(2);
+    expect(players[0].volume).toBe(0.6);
+
+    // If user stops while paused or active, resumeFromBackground should be a no-op
+    engine.pauseForBackground();
+    engine.stopAll();
+    expect(engine.isPausedForBackground()).toBe(false);
+    engine.resumeFromBackground();
+    expect(players[0].playCount).toBe(2);
   });
 });

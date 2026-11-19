@@ -67,11 +67,16 @@ export function MiniFocusPlayer({
         {/* Info & Micro Progress */}
         <View style={styles.centerInfo}>
           <View style={styles.titleRow}>
-            <Text style={[styles.timerText, { color: theme.primary }]}>
+            <Text style={[styles.timerText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
               {timeFormatted}
             </Text>
             <Text style={[styles.dot, { color: theme.textDim }]}>•</Text>
-            <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={[styles.taskTitle, { color: theme.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              maxFontSizeMultiplier={1.35}
+            >
               {activeTaskTitle ? activeTaskTitle : 'Zen Focus'}
             </Text>
           </View>

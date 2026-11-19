@@ -271,7 +271,7 @@ export const TaskCard = memo(function TaskCard({
                 onToggle(task.taskId);
               }}
               activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: task.isCompleted }}
               accessibilityLabel={`Mark ${task.title} as ${task.isCompleted ? 'incomplete' : 'completed'}`}
@@ -747,13 +747,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   focusActionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionBtn: {
+    minWidth: 32,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 6,
   },
   subtasksList: {

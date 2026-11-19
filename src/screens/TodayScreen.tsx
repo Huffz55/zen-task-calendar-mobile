@@ -242,12 +242,14 @@ export function TodayScreen({
           >
             <View style={styles.rolloverLeft}>
               <Ionicons name="sparkles" size={16} color={theme.primary} />
-              <Text style={[styles.rolloverText, { color: theme.text }]} numberOfLines={1}>
+              <Text style={[styles.rolloverText, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                 {overdueCount} overdue {overdueCount === 1 ? 'task' : 'tasks'}
               </Text>
             </View>
             <View style={[styles.rolloverPill, { backgroundColor: theme.primaryLight }]}>
-              <Text style={[styles.rolloverPillText, { color: theme.primary }]}>Roll over</Text>
+              <Text style={[styles.rolloverPillText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
+                Roll over
+              </Text>
             </View>
           </TouchableOpacity>
         )}
@@ -257,17 +259,21 @@ export function TodayScreen({
           <View style={styles.summaryRow}>
             <View style={styles.summaryLeft}>
               {totalTasks > 0 && (
-                <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1}>
+                <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                   {completedTasks} of {totalTasks} completed
                 </Text>
               )}
               {plannedTotalStr && (
-                <Text style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]} numberOfLines={1}>
+                <Text
+                  style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.35}
+                >
                   {plannedTotalStr}
                 </Text>
               )}
               {totalTasks > 0 && completedTasks === totalTasks && (
-                <Text style={[styles.perfectBadge, { color: theme.success }]}>
+                <Text style={[styles.perfectBadge, { color: theme.success }]} maxFontSizeMultiplier={1.35}>
                   All done
                 </Text>
               )}
@@ -286,7 +292,7 @@ export function TodayScreen({
                   onOpenTriage();
                 }}
                 activeOpacity={0.75}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons
                   name="file-tray-full-outline"
@@ -299,6 +305,7 @@ export function TodayScreen({
                     { color: inboxCount > 0 ? theme.primary : theme.textMuted },
                   ]}
                   numberOfLines={1}
+                  maxFontSizeMultiplier={1.35}
                 >
                   Inbox{inboxCount > 0 ? ` (${inboxCount})` : ''}
                 </Text>
@@ -464,6 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 48,
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,

@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
 import type { Ionicons } from '@expo/vector-icons';
 import type { BuiltinTaskTag, CustomTag, TaskTag } from '../types';
+import { getActiveLanguage, translate, type AppLanguage } from '../i18n';
 
 export type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -71,9 +72,19 @@ function hashTagColor(tag: string) {
   return CUSTOM_TAG_COLORS[hash % CUSTOM_TAG_COLORS.length];
 }
 
-export function resolveTagConfig(tag: TaskTag, customTags: CustomTag[] = []): TagConfig {
+export function resolveTagConfig(
+  tag: TaskTag,
+  customTags: CustomTag[] = [],
+  language?: AppLanguage
+): TagConfig {
   if (tag in TAGS) {
-    return TAGS[tag as BuiltinTaskTag];
+    const builtinKey = tag as BuiltinTaskTag;
+    const base = TAGS[builtinKey];
+    const lang = language ?? getActiveLanguage();
+    return {
+      ...base,
+      label: translate(lang, `tasks.tags.${builtinKey}`),
+    };
   }
   const found = customTags.find(t => t.id === tag || t.label.toLowerCase() === tag.toLowerCase());
   const palette = found

@@ -98,33 +98,41 @@ export function EveningReviewModal({
             <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
               <Ionicons name="moon-outline" size={22} color={theme.primary} />
             </View>
-            <Text style={[styles.title, { color: theme.text }]}>Evening Review</Text>
+            <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+              Evening Review
+            </Text>
           </View>
 
           {/* KPI Summary Cards */}
           <View style={styles.kpiGrid}>
             <View style={[styles.kpiCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Ionicons name="checkmark-circle-outline" size={16} color={theme.primary} />
-              <Text style={[styles.kpiValue, { color: theme.text }]}>
+              <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
                 {completedTasks}/{totalTasks}
               </Text>
-              <Text style={[styles.kpiLabel, { color: theme.textDim }]}>Completed</Text>
+              <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+                Completed
+              </Text>
             </View>
 
             <View style={[styles.kpiCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Ionicons name="timer-outline" size={16} color={theme.accent || theme.primary} />
-              <Text style={[styles.kpiValue, { color: theme.text }]}>
+              <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
                 {formatMinutes(focusSeconds)}
               </Text>
-              <Text style={[styles.kpiLabel, { color: theme.textDim }]}>Focus Time</Text>
+              <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+                Focus Time
+              </Text>
             </View>
 
             <View style={[styles.kpiCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Ionicons name="flame-outline" size={16} color={theme.warning} />
-              <Text style={[styles.kpiValue, { color: theme.text }]}>
+              <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
                 {currentStreak}d
               </Text>
-              <Text style={[styles.kpiLabel, { color: theme.textDim }]}>Streak</Text>
+              <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+                Streak
+              </Text>
             </View>
           </View>
 
@@ -291,6 +299,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 48,
     gap: 8,
     paddingVertical: 13,
     paddingHorizontal: 14,

@@ -37,9 +37,14 @@ export function FocusAnalyticsCard({
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Ionicons name="bar-chart-outline" size={17} color={theme.primary} />
-          <Text style={[styles.title, { color: theme.text }]}>Weekly Focus Analytics</Text>
+          <Text style={[styles.title, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+            Weekly Focus Analytics
+          </Text>
         </View>
-        <Text style={[styles.badge, { color: theme.primary, backgroundColor: theme.primaryLight }]}>
+        <Text
+          style={[styles.badge, { color: theme.primary, backgroundColor: theme.primaryLight }]}
+          maxFontSizeMultiplier={1.35}
+        >
           {totalSessionsCount} Sessions
         </Text>
       </View>
@@ -47,8 +52,10 @@ export function FocusAnalyticsCard({
       {/* KPI Row */}
       <View style={[styles.kpiRow, { borderBottomColor: theme.border }]}>
         <View style={styles.kpiItem}>
-          <Text style={[styles.kpiLabel, { color: theme.textDim }]}>TODAY</Text>
-          <Text style={[styles.kpiValue, { color: theme.text }]}>
+          <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+            TODAY
+          </Text>
+          <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
             {formatDuration(todayFocusSeconds)}
           </Text>
         </View>
@@ -56,8 +63,10 @@ export function FocusAnalyticsCard({
         <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
         <View style={styles.kpiItem}>
-          <Text style={[styles.kpiLabel, { color: theme.textDim }]}>TOTAL FOCUS</Text>
-          <Text style={[styles.kpiValue, { color: theme.text }]}>
+          <Text style={[styles.kpiLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+            TOTAL FOCUS
+          </Text>
+          <Text style={[styles.kpiValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
             {formatDuration(totalFocusSeconds)}
           </Text>
         </View>

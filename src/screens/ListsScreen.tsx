@@ -12,6 +12,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CustomList } from '../types';
 import { ThemeColors } from '../constants/colors';
+import { CUSTOM_FOLDERS_STORAGE_KEY } from '../services/storage/taskStorage';
+import { safeJsonParse, sanitizeText } from '../services/validation/validator';
 import { Header } from '../components/common/Header';
 import { ListCard } from '../components/lists/ListCard';
 import { AddListModal } from '../components/lists/AddListModal';
@@ -21,13 +23,11 @@ import { hapticLight, hapticSelection } from '../hooks/useHaptics';
 import { animateLayout } from '../utils/animations';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 
-const DEFAULT_FOLDERS = ['Study', 'Work', 'Market'];
-const CUSTOM_FOLDERS_KEY = '@noteapp_custom_folders';
-
 interface ListsScreenProps {
   theme: ThemeColors;
   currentStreak: number;
   lists: CustomList[];
+  workspaceResetCount?: number;
   onAddList: (title: string, folder?: string) => void;
   onUpdateListFolder?: (listId: string, folder?: string) => void;
   onDeleteList: (listId: string) => void;
@@ -43,6 +43,7 @@ export function ListsScreen({
   theme,
   currentStreak,
   lists,
+  workspaceResetCount = 0,
   onAddList,
   onUpdateListFolder,
   onDeleteList,
@@ -55,26 +56,43 @@ export function ListsScreen({
 }: ListsScreenProps) {
   const [isAddListOpen, setIsAddListOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>('ALL');
-  const [savedFolders, setSavedFolders] = useState<string[]>(DEFAULT_FOLDERS);
+  const [savedFolders, setSavedFolders] = useState<string[]>([]);
   const [isAddFolderOpen, setIsAddFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [movingList, setMovingList] = useState<CustomList | null>(null);
   const swipeHandlers = useSwipeTabNavigation('lists');
 
   useEffect(() => {
-    AsyncStorage.getItem(CUSTOM_FOLDERS_KEY).then(raw => {
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setSavedFolders(parsed);
-          }
-        } catch {
-          // Keep default folders
+    let mounted = true;
+    AsyncStorage.getItem(CUSTOM_FOLDERS_STORAGE_KEY)
+      .then(raw => {
+        if (!mounted) return;
+        if (!raw) {
+          setSavedFolders([]);
+          setSelectedFolder('ALL');
+          return;
         }
-      }
-    });
-  }, []);
+        const parsed = safeJsonParse<unknown>(raw);
+        if (Array.isArray(parsed)) {
+          const valid = parsed
+            .filter((item): item is string => typeof item === 'string')
+            .map(item => sanitizeText(item, 40))
+            .filter(Boolean);
+          setSavedFolders(Array.from(new Set(valid)));
+        } else {
+          setSavedFolders([]);
+          setSelectedFolder('ALL');
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setSavedFolders([]);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [workspaceResetCount]);
 
   const allFolders = useMemo(() => {
     const set = new Set<string>(savedFolders);
@@ -95,7 +113,7 @@ export function ListsScreen({
     hapticLight();
     const updated = Array.from(new Set([...allFolders, clean]));
     setSavedFolders(updated);
-    AsyncStorage.setItem(CUSTOM_FOLDERS_KEY, JSON.stringify(updated)).catch(() => {});
+    AsyncStorage.setItem(CUSTOM_FOLDERS_STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
     setSelectedFolder(clean);
     setNewFolderName('');
     setIsAddFolderOpen(false);
@@ -105,7 +123,7 @@ export function ListsScreen({
     if (folder && !allFolders.includes(folder)) {
       const updated = Array.from(new Set([...allFolders, folder]));
       setSavedFolders(updated);
-      AsyncStorage.setItem(CUSTOM_FOLDERS_KEY, JSON.stringify(updated)).catch(() => {});
+      AsyncStorage.setItem(CUSTOM_FOLDERS_STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
     }
     onAddList(title, folder);
   };
@@ -166,6 +184,7 @@ export function ListsScreen({
                     styles.folderCount,
                     { color: selectedFolder === 'ALL' ? theme.primary : theme.textDim },
                   ]}
+                  maxFontSizeMultiplier={1.35}
                 >
                   {lists.length}
                 </Text>
@@ -177,6 +196,7 @@ export function ListsScreen({
                 ]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.35}
               >
                 All
               </Text>
@@ -215,6 +235,7 @@ export function ListsScreen({
                         styles.folderCount,
                         { color: isActive ? theme.primary : theme.textDim },
                       ]}
+                      maxFontSizeMultiplier={1.35}
                     >
                       {count}
                     </Text>
@@ -226,6 +247,7 @@ export function ListsScreen({
                     ]}
                     numberOfLines={1}
                     ellipsizeMode="tail"
+                    maxFontSizeMultiplier={1.35}
                   >
                     {folder}
                   </Text>
@@ -557,6 +579,7 @@ const styles = StyleSheet.create({
   moveOptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 48,
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,

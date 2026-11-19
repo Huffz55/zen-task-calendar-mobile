@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
   Animated,
+  BackHandler,
   Easing,
   Keyboard,
   KeyboardAvoidingView,
@@ -277,6 +278,15 @@ export function SwipeableBottomSheet({
     if (visible) {
       controller.playOpen();
     }
+  }, [controller, visible]);
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      controller.dismissWithAnimation();
+      return true;
+    });
+    return () => sub.remove();
   }, [controller, visible]);
 
   const safeBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 18) + 8;

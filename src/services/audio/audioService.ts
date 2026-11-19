@@ -24,7 +24,6 @@ const ambientSources: Record<PlayableAmbientTrackId, PlayableAudioSource> = {
   waves: require('../../../assets/ambient_waves.m4a'),
   forest: require('../../../assets/ambient_forest.m4a'),
   wind: require('../../../assets/ambient_wind.m4a'),
-  fire: require('../../../assets/ambient_fire.m4a'),
 };
 
 export type AmbientSoundType = AmbientTrackId;
@@ -60,11 +59,6 @@ export const AMBIENT_TRACKS: Record<AmbientSoundType, AmbientTrackConfig> = {
     id: 'wind',
     label: 'Gentle Wind',
     icon: 'cloudy-outline',
-  },
-  fire: {
-    id: 'fire',
-    label: 'Cozy Fireplace',
-    icon: 'flame-outline',
   },
 };
 
@@ -239,4 +233,26 @@ export function getActiveAmbientSound(): AmbientSoundType {
 
 export function getAmbientVolume(): number {
   return ambientEngine.getVolume();
+}
+
+/**
+ * Pauses active ambient loops and short SFX players when the app enters the background.
+ */
+export function pauseAudioForBackground(): void {
+  ambientEngine.pauseForBackground();
+  try {
+    chimePlayer?.pause();
+  } catch {}
+  for (const key of Object.keys(sfxPlayers)) {
+    try {
+      sfxPlayers[key]?.pause();
+    } catch {}
+  }
+}
+
+/**
+ * Resumes ambient soundscape playback that was interrupted solely by backgrounding.
+ */
+export function resumeAudioFromBackground(): void {
+  ambientEngine.resumeFromBackground();
 }

@@ -12,6 +12,7 @@ import {
   MAX_LISTS_LIMIT,
 } from '../validation/validator';
 import { generateICSContent, generateMarkdownContent } from '../../utils/zenExport';
+import { getActiveLanguage, translate } from '../../i18n';
 
 export class BackupService {
   async exportICS(tasks: Task[]): Promise<boolean> {
@@ -27,7 +28,7 @@ export class BackupService {
       if (isAvailable) {
         await Sharing.shareAsync(file.uri, {
           mimeType: 'text/calendar',
-          dialogTitle: 'Export Zen Calendar (.ics)',
+          dialogTitle: translate(getActiveLanguage(), 'exportModal.shareIcsTitle'),
           UTI: 'public.calendar',
         });
         return true;
@@ -52,7 +53,7 @@ export class BackupService {
       if (isAvailable) {
         await Sharing.shareAsync(file.uri, {
           mimeType: 'text/markdown',
-          dialogTitle: 'Export Obsidian Markdown (.md)',
+          dialogTitle: translate(getActiveLanguage(), 'exportModal.shareMdTitle'),
           UTI: 'net.daringfireball.markdown',
         });
         return true;
@@ -84,7 +85,7 @@ export class BackupService {
       if (isAvailable) {
         await Sharing.shareAsync(file.uri, {
           mimeType: 'application/json',
-          dialogTitle: 'Zen Plan Backup File',
+          dialogTitle: translate(getActiveLanguage(), 'exportModal.shareBackupTitle'),
           UTI: 'public.json',
         });
         return true;

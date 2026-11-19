@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { hapticSuccess, hapticMedium } from './useHaptics';
 import { defaultNotificationService } from '../services/notifications/notificationService';
@@ -11,6 +12,7 @@ export function useZenTimer(
   const [initialTime, setInitialTime] = useState(defaultMinutes * 60);
   const [timeLeft, setTimeLeft] = useState(defaultMinutes * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isAppActive, setIsAppActive] = useState(() => AppState.currentState !== 'background');
 
   const endTimeRef = useRef<number | null>(null);
   const timeLeftMsRef = useRef<number | null>(null);
@@ -30,9 +32,21 @@ export function useZenTimer(
     onTimerCompleteRef.current = onTimerComplete;
   }, [onTimerComplete]);
 
-  // Keep screen awake while focusing on mobile
+  // Track foreground/background transitions so JS intervals and keep-awake pause safely
   useEffect(() => {
-    if (isTimerRunning) {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background') {
+        setIsAppActive(false);
+      } else if (nextState === 'active') {
+        setIsAppActive(true);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // Keep screen awake only while actively running in foreground
+  useEffect(() => {
+    if (isTimerRunning && isAppActive) {
       activateKeepAwakeAsync('zen-timer-tag').catch(() => {});
     } else {
       deactivateKeepAwake('zen-timer-tag').catch(() => {});
@@ -40,7 +54,7 @@ export function useZenTimer(
     return () => {
       deactivateKeepAwake('zen-timer-tag').catch(() => {});
     };
-  }, [isTimerRunning]);
+  }, [isTimerRunning, isAppActive]);
 
   const startTimer = useCallback(() => {
     const currentInitial = initialTimeRef.current;
@@ -114,9 +128,9 @@ export function useZenTimer(
     defaultNotificationService.cancelNotification('zen-timer-end');
   }, []);
 
-  // High-precision interval ticker with background drift compensation
+  // Foreground interval ticker with wall-clock background drift compensation
   useEffect(() => {
-    if (!isTimerRunning) return;
+    if (!isTimerRunning || !isAppActive) return;
 
     if (endTimeRef.current === null) {
       const currentInitial = initialTimeRef.current;
@@ -126,8 +140,8 @@ export function useZenTimer(
       timeLeftMsRef.current = null;
     }
 
-    const interval = setInterval(() => {
-      if (endTimeRef.current === null) return;
+    const syncTick = (): boolean => {
+      if (endTimeRef.current === null) return true;
       const remainingMs = Math.max(0, endTimeRef.current - Date.now());
       const remainingSecs = Math.max(0, Math.ceil(remainingMs / 1000));
 
@@ -141,11 +155,24 @@ export function useZenTimer(
         setIsTimerRunning(false);
         endTimeRef.current = null;
         timeLeftMsRef.current = null;
+        return true;
+      }
+      return false;
+    };
+
+    // Immediately reconcile elapsed background time on foreground return
+    if (syncTick()) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (syncTick()) {
+        clearInterval(interval);
       }
     }, 500);
 
     return () => clearInterval(interval);
-  }, [isTimerRunning]);
+  }, [isTimerRunning, isAppActive]);
 
   const finishEarlySession = useCallback(() => {
     const currentInitial = initialTimeRef.current;

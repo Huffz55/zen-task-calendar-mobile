@@ -17,6 +17,7 @@ import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptic
 import { getSyncKey, isValidSyncKey, generateSyncKey } from '../../services/storage/syncKeyManager';
 import { switchGlobalSyncKey } from '../../services/storage/taskStorage';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { useTranslation } from '../../i18n';
 
 interface SyncModalProps {
   visible: boolean;
@@ -26,6 +27,7 @@ interface SyncModalProps {
 }
 
 export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalProps) {
+  const { t } = useTranslation();
   const [currentKey, setCurrentKey] = useState('');
   const [inputKey, setInputKey] = useState('');
   const [copied, setCopied] = useState(false);
@@ -71,8 +73,8 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
       scheduleResetCopied();
       onShowToast({
         type: 'info',
-        title: 'Copied',
-        message: 'Sync key copied to clipboard',
+        title: t('sync.toasts.copiedTitle'),
+        message: t('sync.toasts.copiedMessage'),
       });
     } catch {
       setCopied(true);
@@ -90,16 +92,16 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
         setShowUnlinkConfirm(false);
         onShowToast({
           type: 'success',
-          title: 'New Key Active',
-          message: `Connected to ${newKey}`,
+          title: t('sync.toasts.newKeyTitle'),
+          message: t('sync.toasts.newKeyMessage', { key: newKey }),
         });
       } else {
         hapticWarning();
-        setErrorMsg('Failed to generate key.');
+        setErrorMsg(t('sync.errors.generateFailed'));
       }
     } catch {
       hapticWarning();
-      setErrorMsg('Failed to unlink.');
+      setErrorMsg(t('sync.errors.unlinkFailed'));
     }
   };
 
@@ -110,19 +112,19 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
 
     if (!cleaned) {
       hapticWarning();
-      setErrorMsg('Please enter a sync key.');
+      setErrorMsg(t('sync.errors.emptyKey'));
       return;
     }
 
     if (cleaned === currentKey) {
       hapticWarning();
-      setErrorMsg('This key is already active.');
+      setErrorMsg(t('sync.errors.alreadyActive'));
       return;
     }
 
     if (!isValidSyncKey(cleaned)) {
       hapticWarning();
-      setErrorMsg('Invalid format. Use ZEN-XXXX-XXXX.');
+      setErrorMsg(t('sync.errors.invalidFormat'));
       return;
     }
 
@@ -134,17 +136,17 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
         setCurrentKey(cleaned);
         onShowToast({
           type: 'success',
-          title: 'Devices Synced',
-          message: `Connected to ${cleaned}`,
+          title: t('sync.toasts.syncedTitle'),
+          message: t('sync.toasts.syncedMessage', { key: cleaned }),
         });
         onClose();
       } else {
         hapticWarning();
-        setErrorMsg('Connection failed. Please check the key.');
+        setErrorMsg(t('sync.errors.connectFailed'));
       }
     } catch {
       hapticWarning();
-      setErrorMsg('Could not connect. Please try again.');
+      setErrorMsg(t('sync.errors.genericConnect'));
     } finally {
       setIsConnecting(false);
     }
@@ -158,7 +160,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
             <Ionicons name="cloud-outline" size={22} color={theme.primary} />
           </View>
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>Cloud Sync</Text>
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>{t('sync.title')}</Text>
         </View>
         <TouchableOpacity
           onPress={() => {
@@ -169,7 +171,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close cloud sync"
+          accessibilityLabel={t('sync.a11yClose')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -181,13 +183,13 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="key-outline" size={15} color={theme.primary} />
             <Text style={[styles.sectionHeading, { color: theme.text }]}>
-              DEVICE KEY
+              {t('sync.deviceKeyHeading')}
             </Text>
           </View>
 
           <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.codeText, { color: theme.primary }]} numberOfLines={1} ellipsizeMode="middle">
-              {currentKey || 'Loading...'}
+              {currentKey || t('common.loading')}
             </Text>
             <TouchableOpacity
               style={[
@@ -213,7 +215,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                   { color: copied ? theme.success : theme.primary },
                 ]}
               >
-                {copied ? 'Copied' : 'Copy'}
+                {copied ? t('common.copied') : t('common.copy')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -230,7 +232,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               ]}
             >
               <Text style={[styles.confirmText, { color: theme.danger }]}>
-                Generate a new key? Current paired devices will disconnect.
+                {t('sync.generateConfirm')}
               </Text>
               <View style={styles.confirmActions}>
                 <TouchableOpacity
@@ -243,13 +245,13 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                     setShowUnlinkConfirm(false);
                   }}
                 >
-                  <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>Cancel</Text>
+                  <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.unlinkBtn, { backgroundColor: theme.danger }]}
                   onPress={handleGenerateNewKey}
                 >
-                  <Text style={styles.unlinkBtnText}>New Key</Text>
+                  <Text style={styles.unlinkBtnText}>{t('sync.newKeyButton')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -265,7 +267,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
             >
               <Ionicons name="refresh-outline" size={13} color={theme.textDim} />
               <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
-                Generate New Key
+                {t('sync.generateNewKey')}
               </Text>
             </TouchableOpacity>
           )}
@@ -276,7 +278,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="sync-outline" size={15} color={theme.accent || theme.primary} />
             <Text style={[styles.sectionHeading, { color: theme.text }]}>
-              PAIR ANOTHER DEVICE
+              {t('sync.pairHeading')}
             </Text>
           </View>
 
@@ -295,7 +297,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 setInputKey(text.toUpperCase());
                 if (errorMsg) setErrorMsg('');
               }}
-              placeholder="ZEN-XXXX-XXXX"
+              placeholder={t('sync.placeholder')}
               placeholderTextColor={theme.textDim}
               autoCapitalize="characters"
               autoCorrect={false}
@@ -317,7 +319,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.connectBtnText}>Connect</Text>
+                  <Text style={styles.connectBtnText}>{t('sync.connect')}</Text>
                   <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
                 </>
               )}

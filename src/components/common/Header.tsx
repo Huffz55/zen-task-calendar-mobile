@@ -45,19 +45,27 @@ export function Header({
             style={[styles.subtitle, { color: theme.accent }]}
             numberOfLines={1}
             ellipsizeMode="tail"
+            maxFontSizeMultiplier={1.35}
           >
             {subtitle || getGreeting()}
           </Text>
           {currentStreak > 0 && (
             <View style={[styles.streakBadge, { backgroundColor: theme.primaryLight }]}>
               <Ionicons name="flame-outline" size={12} color={theme.primary} />
-              <Text style={[styles.streakText, { color: theme.primary }]}>
+              <Text style={[styles.streakText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
                 {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
               </Text>
             </View>
           )}
         </View>
-        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+        <Text
+          style={[styles.title, { color: theme.text }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+          ellipsizeMode="tail"
+          maxFontSizeMultiplier={1.35}
+        >
           {title}
         </Text>
       </View>
@@ -141,7 +149,7 @@ const styles = StyleSheet.create({
   },
   left: {
     flex: 1,
-    marginRight: 10,
+    marginRight: 8,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -177,24 +185,25 @@ const styles = StyleSheet.create({
   themeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    minHeight: 32,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 16,
     borderWidth: 1,
   },
   themeIcon: {
-    fontSize: 14,
+    fontSize: 13,
   },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 5,
   },
   headerIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

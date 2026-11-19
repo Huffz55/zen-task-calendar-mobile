@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
 import { hapticLight } from '../../hooks/useHaptics';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { useTranslation } from '../../i18n';
 
 interface PrivacyPolicyModalProps {
   visible: boolean;
@@ -16,39 +17,41 @@ interface PrivacyPolicyModalProps {
   onClose: () => void;
 }
 
-const SECTIONS = [
-  {
-    icon: 'phone-portrait-outline' as const,
-    title: 'Local-First Storage',
-    body: 'Your tasks, checklists, preferences, and focus sessions are stored directly on your device so everything stays fast and works offline.',
-  },
-  {
-    icon: 'cloud-outline' as const,
-    title: 'Optional Cloud Sync',
-    body: 'Cross-device sync stores workspace data over HTTPS in Google Firebase Cloud Firestore using a randomly generated pairing key (ZEN-XXXX-XXXX) secured in hardware key storage and anonymous authentication. No name, email, or password is required.',
-  },
-  {
-    icon: 'shield-checkmark-outline' as const,
-    title: 'Zero Tracking or Ads',
-    body: 'Zen Task Calendar contains no third-party advertising SDKs, behavioral profiling, or data brokers. Your notes remain private.',
-  },
-  {
-    icon: 'trash-outline' as const,
-    title: 'Export & Full Deletion',
-    body: 'You can export your data anytime (JSON, ICS, or Markdown) or permanently erase both local and synced cloud records directly from Settings.',
-  },
-];
-
 export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyModalProps) {
+  const { t } = useTranslation();
+
+  const sections = [
+    {
+      icon: 'phone-portrait-outline' as const,
+      title: t('privacy.localTitle'),
+      body: t('privacy.localBody'),
+    },
+    {
+      icon: 'cloud-outline' as const,
+      title: t('privacy.syncTitle'),
+      body: t('privacy.syncBody'),
+    },
+    {
+      icon: 'shield-checkmark-outline' as const,
+      title: t('privacy.trackingTitle'),
+      body: t('privacy.trackingBody'),
+    },
+    {
+      icon: 'trash-outline' as const,
+      title: t('privacy.exportTitle'),
+      body: t('privacy.exportBody'),
+    },
+  ];
+
   return (
     <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="82%">
       <View style={styles.header}>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-            Privacy Policy
+            {t('privacy.title')}
           </Text>
           <Text style={[styles.subtitle, { color: theme.textDim }]} numberOfLines={1}>
-            Zen Task Calendar • Last updated 2026
+            {t('privacy.subtitle')}
           </Text>
         </View>
         <TouchableOpacity
@@ -59,14 +62,14 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close privacy policy"
+          accessibilityLabel={t('privacy.a11yClose')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {SECTIONS.map((sec) => (
+        {sections.map((sec) => (
           <View
             key={sec.title}
             style={[
@@ -95,7 +98,7 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
         }}
         activeOpacity={0.85}
       >
-        <Text style={styles.doneBtnText}>Close</Text>
+        <Text style={styles.doneBtnText}>{t('common.close')}</Text>
       </TouchableOpacity>
     </SwipeableBottomSheet>
   );

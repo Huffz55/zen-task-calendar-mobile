@@ -173,10 +173,10 @@ export function CalendarScreen({
         {/* Selected Day Agenda Header */}
         <View style={styles.agendaHeader}>
           <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={[styles.agendaTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[styles.agendaTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail" maxFontSizeMultiplier={1.35}>
               {format(selectedDate, 'EEEE, MMMM d')}
             </Text>
-            <Text style={[styles.agendaSubtitle, { color: theme.textDim }]} numberOfLines={1}>
+            <Text style={[styles.agendaSubtitle, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
               {dayTasks.length} {dayTasks.length === 1 ? 'task' : 'tasks'} planned
             </Text>
           </View>
@@ -190,7 +190,9 @@ export function CalendarScreen({
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
             <Ionicons name="add" size={16} color={theme.primary} />
-            <Text style={[styles.addBtnText, { color: theme.primary }]}>Add</Text>
+            <Text style={[styles.addBtnText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
+              Add
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -312,6 +314,7 @@ const styles = StyleSheet.create({
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 36,
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { router } from 'expo-router';
@@ -8,6 +9,8 @@ import { TAGS, normalizeTagId } from '../constants/tags';
 import { THEMES, ThemeColors } from '../constants/colors';
 import { THEME_STORAGE_KEY, CUSTOM_TAGS_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
+import { createReminderCoordinator } from '../services/notifications/reminderScheduler';
+import { pauseAudioForBackground, resumeAudioFromBackground } from '../services/audio/audioService';
 import { defaultBackupService } from '../services/storage/backupService';
 import { validateCustomTag, safeJsonParse, sanitizeText } from '../services/validation/validator';
 
@@ -16,8 +19,24 @@ import { useLists } from '../hooks/useLists';
 import { useZenTimer } from '../hooks/useZenTimer';
 import { useFocusStats, DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { hapticSuccess, hapticWarning } from '../hooks/useHaptics';
+import {
+  LANGUAGE_STORAGE_KEY,
+  LanguageContext,
+  isLanguagePreference,
+  resolveActiveLanguage,
+  resolveDeviceLanguage,
+  setCurrentActiveLanguage,
+  translate,
+  type AppLanguage,
+  type LanguagePreference,
+} from '../i18n';
 
 interface AppContextValue {
+  // Language
+  language: AppLanguage;
+  languagePreference: LanguagePreference;
+  setLanguagePreference: (preference: LanguagePreference) => Promise<void>;
+
   // Theme
   theme: ThemeColors;
   currentThemeKey: AppTheme;
@@ -28,6 +47,12 @@ interface AppContextValue {
   toggleAutoNightShift: (enabled: boolean) => void;
 
   // Settings & Backup
+  isHydrated: boolean;
+  workspaceResetCount: number;
+  morningBriefingEnabled: boolean;
+  eveningReviewEnabled: boolean;
+  toggleMorningBriefing: (enabled: boolean) => Promise<void>;
+  toggleEveningReview: (enabled: boolean) => Promise<void>;
   isSettingsModalOpen: boolean;
   setIsSettingsModalOpen: (open: boolean) => void;
   isSyncModalOpen: boolean;
@@ -140,9 +165,15 @@ const AUTO_NIGHT_STORAGE_KEY = '@noteapp_auto_night_shift';
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [languagePreference, setLanguagePreferenceState] = useState<LanguagePreference>('system');
+  const [deviceLanguage, setDeviceLanguage] = useState<AppLanguage>(() => resolveDeviceLanguage());
   const [daytimeThemeKey, setDaytimeThemeKey] = useState<AppTheme>('sakura');
   const [autoNightShift, setAutoNightShift] = useState(false);
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
+  const [morningBriefingEnabled, setMorningBriefingEnabled] = useState(false);
+  const [eveningReviewEnabled, setEveningReviewEnabled] = useState(false);
+  const [isPrefsLoaded, setIsPrefsLoaded] = useState(false);
+  const [workspaceResetCount, setWorkspaceResetCount] = useState(0);
   const [isNightTime, setIsNightTime] = useState(() => {
     const h = new Date().getHours();
     return h >= 20 || h < 7;
@@ -152,30 +183,80 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [toast, setToast] = useState<AppToast | null>(null);
 
-  // Focus sessions and analytics engine
-  const { stats: focusStats, recordSession: recordFocusSession, clearAllSessions } = useFocusStats();
+  const language = useMemo<AppLanguage>(
+    () => resolveActiveLanguage(languagePreference, deviceLanguage),
+    [languagePreference, deviceLanguage]
+  );
 
-  // Load theme and auto night preferences from AsyncStorage
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then(saved => {
-      if (saved && saved in THEMES) {
-        setDaytimeThemeKey(saved as AppTheme);
-      }
-    });
-    AsyncStorage.getItem(AUTO_NIGHT_STORAGE_KEY).then(saved => {
-      if (saved !== null) {
-        setAutoNightShift(saved === 'true');
-      }
-    });
-    AsyncStorage.getItem(CUSTOM_TAGS_STORAGE_KEY).then(saved => {
-      if (saved) {
-        const parsed = safeJsonParse<unknown>(saved);
-        if (Array.isArray(parsed)) {
-          const valid = parsed.map(validateCustomTag).filter((t): t is CustomTag => t !== null).slice(0, 50);
-          setCustomTags(valid);
+    setCurrentActiveLanguage(language);
+  }, [language]);
+
+  const reminderCoordinatorRef = useRef(
+    createReminderCoordinator(AsyncStorage, defaultNotificationService)
+  );
+
+  // Focus sessions and analytics engine
+  const { stats: focusStats, isLoaded: isFocusLoaded, recordSession: recordFocusSession, clearAllSessions } = useFocusStats();
+
+  // Load theme, auto night, custom tags, language, and notification preferences atomically
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      AsyncStorage.getItem(THEME_STORAGE_KEY).catch(() => null),
+      AsyncStorage.getItem(AUTO_NIGHT_STORAGE_KEY).catch(() => null),
+      AsyncStorage.getItem(CUSTOM_TAGS_STORAGE_KEY).catch(() => null),
+      AsyncStorage.getItem(LANGUAGE_STORAGE_KEY).catch(() => null),
+      reminderCoordinatorRef.current.loadPreferences(),
+    ])
+      .then(([savedTheme, savedAutoNight, savedTags, savedLanguage, reminderPrefs]) => {
+        if (!mounted) return;
+        if (savedTheme && savedTheme in THEMES) {
+          setDaytimeThemeKey(savedTheme as AppTheme);
         }
+        if (savedAutoNight !== null) {
+          setAutoNightShift(savedAutoNight === 'true');
+        }
+        if (savedTags) {
+          const parsed = safeJsonParse<unknown>(savedTags);
+          if (Array.isArray(parsed)) {
+            const valid = parsed.map(validateCustomTag).filter((t): t is CustomTag => t !== null).slice(0, 50);
+            setCustomTags(valid);
+          }
+        }
+        if (isLanguagePreference(savedLanguage)) {
+          setLanguagePreferenceState(savedLanguage);
+          setCurrentActiveLanguage(resolveActiveLanguage(savedLanguage, resolveDeviceLanguage()));
+        }
+        setMorningBriefingEnabled(reminderPrefs.morningBriefingEnabled);
+        setEveningReviewEnabled(reminderPrefs.eveningReviewEnabled);
+      })
+      .finally(() => {
+        if (mounted) {
+          setIsPrefsLoaded(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Pause/resume active audio and refresh OS locale safely on AppState transitions
+  useEffect(() => {
+    let previousState: AppStateStatus = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background' && previousState !== 'background') {
+        pauseAudioForBackground();
+      } else if (nextState === 'active' && previousState === 'background') {
+        resumeAudioFromBackground();
+        setDeviceLanguage(resolveDeviceLanguage());
+      } else if (nextState === 'active') {
+        setDeviceLanguage(resolveDeviceLanguage());
       }
+      previousState = nextState;
     });
+    return () => subscription.remove();
   }, []);
 
   const addCustomTag = useCallback((label: string, color: string): TaskTag | null => {
@@ -227,12 +308,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(AUTO_NIGHT_STORAGE_KEY, String(enabled)).catch(() => {});
     showToast({
       type: 'info',
-      title: enabled ? 'Auto Dark Mode On' : 'Auto Dark Mode Off',
-      message: enabled
-        ? 'Theme will switch to dark mode between 20:00 and 07:00'
-        : 'App will stay on your selected theme',
+      title: translate(language, enabled ? 'toasts.autoNightOnTitle' : 'toasts.autoNightOffTitle'),
+      message: translate(language, enabled ? 'toasts.autoNightOnMessage' : 'toasts.autoNightOffMessage'),
     });
-  }, [showToast]);
+  }, [language, showToast]);
 
   const handleSelectTheme = useCallback((selectedTheme: AppTheme) => {
     setDaytimeThemeKey(selectedTheme);
@@ -245,10 +324,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(THEME_STORAGE_KEY, selectedTheme).catch(() => {});
     showToast({
       type: 'info',
-      title: 'Theme Changed',
-      message: `Switched to ${THEMES[selectedTheme].name}`,
+      title: translate(language, 'toasts.themeChangedTitle'),
+      message: translate(language, 'toasts.themeChangedMessage', {
+        theme: translate(language, `themes.${selectedTheme}`),
+      }),
     });
-  }, [autoNightShift, isNightTime, showToast]);
+  }, [autoNightShift, isNightTime, language, showToast]);
 
   const currentThemeKey: AppTheme = (autoNightShift && isNightTime) ? 'midnight' : daytimeThemeKey;
   const theme: ThemeColors = THEMES[currentThemeKey] || THEMES.sakura;
@@ -256,6 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Task Management Engine
   const {
     tasks,
+    isLoaded: isTasksLoaded,
     addTask,
     clearAllTasks,
     deleteTask,
@@ -287,6 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Custom Lists Management Engine
   const {
     lists,
+    isLoaded: isListsLoaded,
     addList,
     updateListFolder,
     clearAllLists,
@@ -316,23 +399,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const mins = Math.max(1, Math.round(elapsedSeconds / 60));
       showToast({
         type: 'success',
-        title: 'Focus Logged',
-        message: `${mins}m dedicated to "${activeFocusTask.title}"`,
+        title: translate(language, 'toasts.focusLoggedTitle'),
+        message: translate(language, 'toasts.focusLoggedMessage', {
+          minutes: mins,
+          title: activeFocusTask.title,
+        }),
       });
     }
     // Offer / trigger Zen Breathing break
     setIsZenBreathingOpen(true);
-  }, [recordFocusSession, activeFocusTask, addTaskFocusTime, showToast]);
+  }, [recordFocusSession, activeFocusTask, addTaskFocusTime, language, showToast]);
 
   const startTaskFocus = useCallback((task: { id: string; title: string }) => {
     setActiveFocusTask(task);
     router.navigate('/(tabs)/focus');
     showToast({
       type: 'info',
-      title: 'Target Set',
-      message: `Focusing on "${task.title}"`,
+      title: translate(language, 'toasts.targetSetTitle'),
+      message: translate(language, 'toasts.targetSetMessage', { title: task.title }),
     });
-  }, [showToast]);
+  }, [language, showToast]);
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -353,41 +439,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [getTasksForDate, todayStr]);
 
-  // Debounced sync for daily notifications when today's task counts actually change
+  const isHydrated = isPrefsLoaded && isTasksLoaded && isListsLoaded && isFocusLoaded;
+
+  const toggleMorningBriefing = useCallback(
+    async (enabled: boolean) => {
+      setMorningBriefingEnabled(enabled);
+      await reminderCoordinatorRef.current.setMorningEnabled(enabled, todayTasksSnapshot.total, language);
+    },
+    [todayTasksSnapshot.total, language]
+  );
+
+  const toggleEveningReview = useCallback(
+    async (enabled: boolean) => {
+      setEveningReviewEnabled(enabled);
+      await reminderCoordinatorRef.current.setEveningEnabled(enabled, todayTasksSnapshot.pending, language);
+    },
+    [todayTasksSnapshot.pending, language]
+  );
+
+  const setLanguagePreference = useCallback(
+    async (nextPref: LanguagePreference) => {
+      setLanguagePreferenceState(nextPref);
+      const currentDeviceLang = resolveDeviceLanguage();
+      setDeviceLanguage(currentDeviceLang);
+      const nextLang = resolveActiveLanguage(nextPref, currentDeviceLang);
+      setCurrentActiveLanguage(nextLang);
+      await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, nextPref).catch(() => {});
+
+      if (isTasksLoaded && isPrefsLoaded) {
+        await reminderCoordinatorRef.current.syncForTaskState({
+          isLoaded: true,
+          morningBriefingEnabled,
+          eveningReviewEnabled,
+          totalTodayTasks: todayTasksSnapshot.total,
+          pendingTodayTasks: todayTasksSnapshot.pending,
+          language: nextLang,
+        });
+      }
+    },
+    [
+      isTasksLoaded,
+      isPrefsLoaded,
+      morningBriefingEnabled,
+      eveningReviewEnabled,
+      todayTasksSnapshot.total,
+      todayTasksSnapshot.pending,
+    ]
+  );
+
+  // Debounced sync for daily notifications only after hydration and only when enabled
   useEffect(() => {
+    if (!isTasksLoaded || !isPrefsLoaded) return;
+
     let active = true;
     const timer = setTimeout(async () => {
-      try {
-        const pairs = await AsyncStorage.multiGet([
-          '@noteapp_setting_morning_summary',
-          '@noteapp_setting_evening_winddown',
-        ]);
-        if (!active) return;
-
-        const morningEnabled = pairs[0]?.[1] === 'true';
-        const eveningEnabled = pairs[1]?.[1] === 'true';
-
-        if (morningEnabled) {
-          await defaultNotificationService.scheduleDailySummary(9, 0, todayTasksSnapshot.total);
-        } else {
-          await defaultNotificationService.cancelNotification('daily-summary');
-        }
-
-        if (eveningEnabled) {
-          await defaultNotificationService.scheduleEveningWindDown(20, 30, todayTasksSnapshot.pending);
-        } else {
-          await defaultNotificationService.cancelNotification('evening-winddown');
-        }
-      } catch {
-        // Ignore storage read errors silently
-      }
+      if (!active) return;
+      await reminderCoordinatorRef.current.syncForTaskState({
+        isLoaded: true,
+        morningBriefingEnabled,
+        eveningReviewEnabled,
+        totalTodayTasks: todayTasksSnapshot.total,
+        pendingTodayTasks: todayTasksSnapshot.pending,
+        language,
+      });
     }, 450);
 
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [todayTasksSnapshot]);
+  }, [isTasksLoaded, isPrefsLoaded, morningBriefingEnabled, eveningReviewEnabled, todayTasksSnapshot, language]);
 
   const handleSingleDelete = useCallback(
     (taskId: string) => {
@@ -397,14 +518,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteTask(taskId);
         showToast({
           type: 'undo',
-          title: 'Task Deleted',
-          message: `"${taskToDelete.title}" removed`,
-          actionLabel: 'Undo',
+          title: translate(language, 'toasts.taskDeletedTitle'),
+          message: translate(language, 'toasts.taskDeletedMessage', { title: taskToDelete.title }),
+          actionLabel: translate(language, 'common.undo'),
           onAction: () => restoreTask(taskToDelete),
         });
       }
     },
-    [tasks, deleteTask, restoreTask, showToast]
+    [tasks, deleteTask, restoreTask, language, showToast]
   );
 
   const handleInstanceDelete = useCallback(
@@ -415,14 +536,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteTaskInstance(taskId, dateStr);
         showToast({
           type: 'undo',
-          title: 'Deleted from Day',
-          message: `"${taskToModify.title}" skipped for this date`,
-          actionLabel: 'Undo',
+          title: translate(language, 'toasts.instanceDeletedTitle'),
+          message: translate(language, 'toasts.instanceDeletedMessage', { title: taskToModify.title }),
+          actionLabel: translate(language, 'common.undo'),
           onAction: () => restoreTask(taskToModify),
         });
       }
     },
-    [tasks, deleteTaskInstance, restoreTask, showToast]
+    [tasks, deleteTaskInstance, restoreTask, language, showToast]
   );
 
   const handleFutureDelete = useCallback(
@@ -433,14 +554,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteTaskFuture(taskId, dateStr);
         showToast({
           type: 'undo',
-          title: 'Future Occurrences Deleted',
-          message: `"${taskToModify.title}" stopped from this date onwards`,
-          actionLabel: 'Undo',
+          title: translate(language, 'toasts.futureDeletedTitle'),
+          message: translate(language, 'toasts.futureDeletedMessage', { title: taskToModify.title }),
+          actionLabel: translate(language, 'common.undo'),
           onAction: () => restoreTask(taskToModify),
         });
       }
     },
-    [tasks, deleteTaskFuture, restoreTask, showToast]
+    [tasks, deleteTaskFuture, restoreTask, language, showToast]
   );
 
   const handleEditTask = useCallback(
@@ -455,11 +576,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       editTask(taskId, newTitle, newTag, subtasks, estimatedMinutes, isPinned);
       showToast({
         type: 'info',
-        title: 'Task Updated',
-        message: `"${newTitle}" updated`,
+        title: translate(language, 'toasts.taskUpdatedTitle'),
+        message: translate(language, 'toasts.taskUpdatedMessage', { title: newTitle }),
       });
     },
-    [editTask, showToast]
+    [editTask, language, showToast]
   );
 
   const handleDeleteList = useCallback(
@@ -470,14 +591,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteList(listId);
         showToast({
           type: 'undo',
-          title: 'List Deleted',
-          message: `"${listToDelete.title}" removed`,
-          actionLabel: 'Undo',
+          title: translate(language, 'toasts.listDeletedTitle'),
+          message: translate(language, 'toasts.listDeletedMessage', { title: listToDelete.title }),
+          actionLabel: translate(language, 'common.undo'),
           onAction: () => restoreList(listToDelete),
         });
       }
     },
-    [lists, deleteList, restoreList, showToast]
+    [lists, deleteList, restoreList, language, showToast]
   );
 
   const handleRollover = useCallback(() => {
@@ -486,11 +607,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hapticSuccess();
       showToast({
         type: 'success',
-        title: 'Tasks Rolled Over',
-        message: `${count} overdue task${count > 1 ? 's' : ''} moved to today`,
+        title: translate(language, 'toasts.rolloverTitle'),
+        message: translate(
+          language,
+          count === 1 ? 'toasts.rolloverOneMessage' : 'toasts.rolloverOtherMessage',
+          { count }
+        ),
       });
     }
-  }, [rolloverOverdueTasks, todayStr, showToast]);
+  }, [rolloverOverdueTasks, todayStr, language, showToast]);
 
   const handleExportBackup = useCallback(async () => {
     try {
@@ -498,18 +623,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (success) {
         showToast({
           type: 'success',
-          title: 'Backup Exported',
-          message: `${tasks.length} tasks and ${lists.length} lists exported`,
+          title: translate(language, 'toasts.backupExportedTitle'),
+          message: translate(language, 'toasts.backupExportedMessage', {
+            tasks: tasks.length,
+            lists: lists.length,
+          }),
         });
       }
     } catch {
       showToast({
         type: 'error',
-        title: 'Backup Error',
-        message: 'Backup file could not be exported.',
+        title: translate(language, 'toasts.backupErrorTitle'),
+        message: translate(language, 'toasts.backupErrorMessage'),
       });
     }
-  }, [tasks, lists, showToast]);
+  }, [tasks, lists, language, showToast]);
 
   const handleImportBackup = useCallback(async () => {
     try {
@@ -525,42 +653,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       showToast({
         type: 'success',
-        title: 'Backup Restored',
-        message: `${imported.tasks.length} tasks and ${imported.lists.length} lists restored`,
+        title: translate(language, 'toasts.backupRestoredTitle'),
+        message: translate(language, 'toasts.backupRestoredMessage', {
+          tasks: imported.tasks.length,
+          lists: imported.lists.length,
+        }),
       });
       setIsSettingsModalOpen(false);
     } catch {
       showToast({
         type: 'error',
-        title: 'Import Error',
-        message: 'Invalid or corrupted backup file.',
+        title: translate(language, 'toasts.importErrorTitle'),
+        message: translate(language, 'toasts.importErrorMessage'),
       });
     }
-  }, [restoreTask, restoreList, showToast]);
+  }, [restoreTask, restoreList, language, showToast]);
 
   const handleClearAllData = useCallback(async () => {
     try {
+      setMorningBriefingEnabled(false);
+      setEveningReviewEnabled(false);
+      await reminderCoordinatorRef.current.resetAll();
       await clearAllWorkspaceData();
       clearAllTasks();
       clearAllLists();
       clearAllSessions();
       setCustomTags([]);
       setActiveFocusTask(null);
+      setWorkspaceResetCount(prev => prev + 1);
       await defaultNotificationService.cancelAll();
       hapticWarning();
       showToast({
         type: 'info',
-        title: 'Data Cleared',
-        message: 'All local and synced data has been erased',
+        title: translate(language, 'toasts.dataClearedTitle'),
+        message: translate(language, 'toasts.dataClearedMessage'),
       });
     } catch {
       showToast({
         type: 'error',
-        title: 'Reset Error',
-        message: 'Could not erase all workspace data.',
+        title: translate(language, 'toasts.resetErrorTitle'),
+        message: translate(language, 'toasts.resetErrorMessage'),
       });
     }
-  }, [clearAllTasks, clearAllLists, clearAllSessions, showToast]);
+  }, [clearAllTasks, clearAllLists, clearAllSessions, language, showToast]);
 
   const getTaskCountForDate = useCallback(
     (dateStr: string) => {
@@ -569,8 +704,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [getTasksForDate]
   );
 
+  const languageContextValue = useMemo(
+    () => ({
+      language,
+      languagePreference,
+      setLanguagePreference,
+    }),
+    [language, languagePreference, setLanguagePreference]
+  );
+
   const appValue = useMemo<AppContextValue>(
     () => ({
+      language,
+      languagePreference,
+      setLanguagePreference,
       theme,
       currentThemeKey,
       setTheme: handleSelectTheme,
@@ -580,6 +727,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleAutoNightShift,
       isSettingsModalOpen,
       setIsSettingsModalOpen,
+      isHydrated,
+      workspaceResetCount,
+      morningBriefingEnabled,
+      eveningReviewEnabled,
+      toggleMorningBriefing,
+      toggleEveningReview,
       isSyncModalOpen,
       setIsSyncModalOpen,
       handleExportBackup,
@@ -651,6 +804,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hasActiveTimerSession,
     }),
     [
+      language,
+      languagePreference,
+      setLanguagePreference,
       theme,
       currentThemeKey,
       handleSelectTheme,
@@ -658,6 +814,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       autoNightShift,
       toggleAutoNightShift,
       isSettingsModalOpen,
+      isHydrated,
+      workspaceResetCount,
+      morningBriefingEnabled,
+      eveningReviewEnabled,
+      toggleMorningBriefing,
+      toggleEveningReview,
       isSyncModalOpen,
       handleExportBackup,
       handleImportBackup,
@@ -725,14 +887,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AppContext.Provider value={appValue}>
-      <TimerProvider
-        onTimerComplete={handleTimerComplete}
-        onActiveSessionChange={setHasActiveTimerSession}
-      >
-        {children}
-      </TimerProvider>
-    </AppContext.Provider>
+    <LanguageContext.Provider value={languageContextValue}>
+      <AppContext.Provider value={appValue}>
+        <TimerProvider
+          onTimerComplete={handleTimerComplete}
+          onActiveSessionChange={setHasActiveTimerSession}
+        >
+          {children}
+        </TimerProvider>
+      </AppContext.Provider>
+    </LanguageContext.Provider>
   );
 }
 

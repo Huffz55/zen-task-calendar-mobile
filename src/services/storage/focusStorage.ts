@@ -4,7 +4,8 @@ import { FocusSession } from '../../types';
 import { db, ensureAuth } from '../firebase/firebaseClient';
 import { getSyncKey, isValidSyncKey } from './syncKeyManager';
 import { cleanUndefined } from './syncEngine';
-import { validateFocusSession, safeJsonParse, MAX_FOCUS_SESSIONS_LIMIT } from '../validation/validator';
+import { validateFocusSession, MAX_FOCUS_SESSIONS_LIMIT } from '../validation/validator';
+import { atomicWriteJson, safeReadJsonArray } from './atomicStorage';
 
 export const FOCUS_SESSIONS_STORAGE_KEY = '@noteapp_mobile_focus_sessions_v1';
 
@@ -16,20 +17,12 @@ export class MobileFocusStorage {
   private activeSubscriber: ((sessions: FocusSession[]) => void) | null = null;
 
   async loadSessions(): Promise<FocusSession[]> {
-    try {
-      const stored = await AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY);
-      if (!stored) return [];
-      const raw = safeJsonParse<unknown>(stored);
-      if (Array.isArray(raw)) {
-        const valid: FocusSession[] = [];
-        for (const item of raw.slice(0, MAX_FOCUS_SESSIONS_LIMIT)) {
-          const v = validateFocusSession(item);
-          if (v) valid.push(v);
-        }
-        return valid;
-      }
-    } catch {}
-    return [];
+    return safeReadJsonArray(
+      AsyncStorage,
+      FOCUS_SESSIONS_STORAGE_KEY,
+      validateFocusSession,
+      MAX_FOCUS_SESSIONS_LIMIT
+    );
   }
 
   cancelPendingPush(): void {
@@ -42,13 +35,12 @@ export class MobileFocusStorage {
 
   async saveSessions(sessions: FocusSession[]): Promise<void> {
     try {
-      const prevStored = await AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY);
+      const prevStored = await AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY).catch(() => null);
       if (!prevStored && sessions.length === 0) {
         return;
       }
       const bounded = sessions.slice(0, MAX_FOCUS_SESSIONS_LIMIT);
-      const serialized = JSON.stringify(bounded);
-      await AsyncStorage.setItem(FOCUS_SESSIONS_STORAGE_KEY, serialized);
+      const serialized = await atomicWriteJson(AsyncStorage, FOCUS_SESSIONS_STORAGE_KEY, bounded);
 
       if (this.isApplyingRemoteUpdate || serialized === this.lastPushedHash) {
         return;
@@ -112,7 +104,7 @@ export class MobileFocusStorage {
             if (serializedMerged !== serializedLocal) {
               this.isApplyingRemoteUpdate = true;
               this.lastPushedHash = serializedMerged;
-              await AsyncStorage.setItem(FOCUS_SESSIONS_STORAGE_KEY, serializedMerged);
+              await atomicWriteJson(AsyncStorage, FOCUS_SESSIONS_STORAGE_KEY, merged);
               this.isApplyingRemoteUpdate = false;
               this.activeSubscriber?.(merged);
             }

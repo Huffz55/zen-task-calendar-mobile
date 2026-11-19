@@ -1,6 +1,6 @@
 import type { AudioPlayer, AudioSource, AudioStatus } from 'expo-audio';
 
-export type AmbientTrackId = 'none' | 'rain' | 'waves' | 'forest' | 'wind' | 'fire';
+export type AmbientTrackId = 'none' | 'rain' | 'waves' | 'forest' | 'wind';
 export type PlayableAmbientTrackId = Exclude<AmbientTrackId, 'none'>;
 export type PlayableAudioSource = NonNullable<AudioSource>;
 
@@ -22,6 +22,7 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
   let currentVolume = 0.4;
   let audioModeConfigured = false;
   let transitionSeq = 0;
+  let pausedByBackground = false;
 
   async function ensureAudioModeConfigured(): Promise<void> {
     if (audioModeConfigured) return;
@@ -67,6 +68,7 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
 
   function stopAll(): void {
     transitionSeq++;
+    pausedByBackground = false;
     clearActivePlayers();
   }
 
@@ -77,6 +79,7 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
     }
 
     transitionSeq++;
+    pausedByBackground = false;
     const player = activePlayers.get(type);
     if (player) {
       activePlayers.delete(type);
@@ -91,6 +94,7 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
     }
 
     currentVolume = Math.max(0, Math.min(1, volume));
+    pausedByBackground = false;
 
     if (activePlayers.has(type)) {
       transitionSeq++;
@@ -168,6 +172,41 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
     return currentVolume;
   }
 
+  function pauseForBackground(): void {
+    if (activePlayers.size === 0) {
+      pausedByBackground = false;
+      return;
+    }
+    pausedByBackground = true;
+    for (const player of activePlayers.values()) {
+      try {
+        player.pause();
+      } catch {
+        // Ignore platform pause errors during background transition
+      }
+    }
+  }
+
+  function resumeFromBackground(): void {
+    if (!pausedByBackground || activePlayers.size === 0) {
+      pausedByBackground = false;
+      return;
+    }
+    pausedByBackground = false;
+    for (const player of activePlayers.values()) {
+      try {
+        player.volume = currentVolume;
+        player.play();
+      } catch {
+        // Ignore platform resume errors
+      }
+    }
+  }
+
+  function isPausedForBackground(): boolean {
+    return pausedByBackground;
+  }
+
   return {
     ensureAudioModeConfigured,
     getActiveSounds,
@@ -178,5 +217,8 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
     setVolume,
     getActiveSound,
     getVolume,
+    pauseForBackground,
+    resumeFromBackground,
+    isPausedForBackground,
   };
 }

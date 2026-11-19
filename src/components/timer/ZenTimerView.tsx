@@ -42,7 +42,7 @@ export function ZenTimerView({
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.08,
+          toValue: 1.055,
           duration: 3000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
@@ -69,15 +69,15 @@ export function ZenTimerView({
 
   return (
     <View style={styles.container}>
-      {/* Big Circular Clock Card with Breathing Glow Aura */}
+      {/* Compact Circular Clock Dial with Breathing Glow Aura */}
       <View style={styles.clockCardWrapper}>
         {isTimerRunning && (
           <Animated.View
             style={[
               styles.glowAura,
               {
-                backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.14 : 0.10),
-                borderColor: withAlpha(theme.primary, theme.isDark ? 0.24 : 0.16),
+                backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.12 : 0.09),
+                borderColor: withAlpha(theme.primary, theme.isDark ? 0.2 : 0.14),
                 transform: [{ scale: pulseAnim }],
               },
             ]}
@@ -88,18 +88,19 @@ export function ZenTimerView({
             styles.clockCard,
             {
               backgroundColor: theme.card,
-              borderColor: isTimerRunning ? theme.primary : theme.border,
+              borderColor: isTimerRunning ? withAlpha(theme.primary, 0.72) : theme.border,
+              borderWidth: isTimerRunning ? 1.5 : 1,
             },
           ]}
         >
-          {/* Inner hairline concentric ring for minimal luxury depth */}
+          {/* Inner hairline concentric ring for quiet dial refinement */}
           <View
             style={[
               styles.innerConcentricRing,
               {
-                borderColor: isTimerRunning
-                  ? (theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
-                  : theme.border,
+                borderColor: theme.isDark
+                  ? 'rgba(255,255,255,0.06)'
+                  : withAlpha(theme.primary, 0.12),
               },
             ]}
           >
@@ -112,10 +113,14 @@ export function ZenTimerView({
                     fontVariant: ['tabular-nums'],
                   },
                 ]}
+                maxFontSizeMultiplier={1.25}
               >
                 {timeFormatted}
               </Text>
-              <Text style={[styles.timeSub, { color: isTimerRunning ? theme.primary : theme.textDim }]}>
+              <Text
+                style={[styles.timeSub, { color: isTimerRunning ? theme.primary : theme.textDim }]}
+                maxFontSizeMultiplier={1.25}
+              >
                 {isTimerRunning ? 'DEEP FOCUS' : 'READY'}
               </Text>
             </View>
@@ -148,6 +153,7 @@ export function ZenTimerView({
             onResetTimer();
           }}
           activeOpacity={0.7}
+          accessibilityRole="button"
           accessibilityLabel="Reset timer"
         >
           <Ionicons name="reload-outline" size={20} color={theme.textDim} />
@@ -164,13 +170,14 @@ export function ZenTimerView({
           ]}
           onPress={handlePlayToggle}
           activeOpacity={0.85}
+          accessibilityRole="button"
           accessibilityLabel={isTimerRunning ? 'Pause timer' : 'Start timer'}
         >
           <Ionicons
             name={isTimerRunning ? 'pause' : 'play'}
-            size={30}
+            size={26}
             color="#ffffff"
-            style={{ marginLeft: isTimerRunning ? 0 : 3 }}
+            style={{ marginLeft: isTimerRunning ? 0 : 2 }}
           />
         </TouchableOpacity>
 
@@ -183,6 +190,7 @@ export function ZenTimerView({
               onFinishEarly();
             }}
             activeOpacity={0.75}
+            accessibilityRole="button"
             accessibilityLabel="Finish and log session"
           >
             <Ionicons name="checkmark" size={20} color={theme.primary} />
@@ -211,8 +219,10 @@ export function ZenTimerView({
                 onSetMinutes(mins);
               }}
               activeOpacity={0.75}
+              hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`${mins} minutes`}
             >
               <Text
                 style={[
@@ -222,6 +232,7 @@ export function ZenTimerView({
                     fontWeight: isSelected ? '700' : '500',
                   },
                 ]}
+                maxFontSizeMultiplier={1.35}
               >
                 {mins}m
               </Text>
@@ -236,13 +247,12 @@ export function ZenTimerView({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 20,
   },
   clockCardWrapper: {
-    width: '100%',
-    maxWidth: 290,
-    aspectRatio: 1,
+    width: 214,
+    height: 214,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -250,25 +260,24 @@ const styles = StyleSheet.create({
   },
   glowAura: {
     position: 'absolute',
-    width: '92%',
-    height: '92%',
+    width: 218,
+    height: 218,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   clockCard: {
     width: '100%',
     height: '100%',
     borderRadius: 999,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
+    padding: 7,
   },
   innerConcentricRing: {
     width: '100%',
     height: '100%',
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -277,17 +286,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   timeDigits: {
-    fontSize: 58,
+    fontSize: 44,
     fontWeight: '300',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
     includeFontPadding: false,
     textAlign: 'center',
   },
   timeSub: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
-    marginTop: 6,
-    letterSpacing: 1.5,
+    marginTop: 5,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
   progressTrack: {
@@ -295,7 +304,7 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 1.5,
     overflow: 'hidden',
-    marginBottom: 20,
+    marginBottom: 18,
   },
   progressBar: {
     height: '100%',
@@ -305,28 +314,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
-    marginBottom: 22,
+    gap: 18,
+    marginBottom: 18,
   },
   playBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryPlaceholder: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
   },
   presetBar: {
     flexDirection: 'row',
@@ -337,8 +346,10 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   presetPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
+    minHeight: 38,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: 13,
     borderWidth: 1,
     borderColor: 'transparent',

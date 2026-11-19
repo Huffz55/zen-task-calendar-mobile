@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { en, getActiveLanguage, tr, translate, type AppLanguage } from '../../i18n';
 
 export interface INotificationService {
   readonly isSupported: boolean;
   requestPermissions(): Promise<boolean>;
-  scheduleDailySummary(hour?: number, minute?: number, taskCount?: number): Promise<string | null>;
-  scheduleEveningWindDown(hour?: number, minute?: number, pendingCount?: number): Promise<string | null>;
-  scheduleFocusTimerEnd(seconds: number, sessionTitle?: string): Promise<string | null>;
+  scheduleDailySummary(hour?: number, minute?: number, taskCount?: number, language?: AppLanguage): Promise<string | null>;
+  scheduleEveningWindDown(hour?: number, minute?: number, pendingCount?: number, language?: AppLanguage): Promise<string | null>;
+  scheduleFocusTimerEnd(seconds: number, sessionTitle?: string, language?: AppLanguage): Promise<string | null>;
+  cancelMorningBriefing(): Promise<void>;
+  cancelEveningReview(): Promise<void>;
   cancelNotification(identifier: string): Promise<void>;
   cancelAll(): Promise<void>;
 }
@@ -53,15 +56,16 @@ export class MobileNotificationService implements INotificationService {
     if (!this.isSupported || this.hasInitializedChannels || Platform.OS !== 'android' || !Notifications) return;
 
     try {
+      const lang = getActiveLanguage();
       await Notifications.setNotificationChannelAsync('zen-general', {
-        name: 'Zen Task Notifications',
+        name: translate(lang, 'notifications.channelGeneralName'),
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#fb7185',
       });
 
       await Notifications.setNotificationChannelAsync('zen-focus', {
-        name: 'Zen Focus Session',
+        name: translate(lang, 'notifications.channelFocusName'),
         importance: Notifications.AndroidImportance.HIGH,
         sound: 'default',
         vibrationPattern: [0, 350, 200, 350],
@@ -97,24 +101,34 @@ export class MobileNotificationService implements INotificationService {
     }
   }
 
-  async scheduleDailySummary(hour = 9, minute = 0, taskCount = 0): Promise<string | null> {
+  async scheduleDailySummary(
+    hour = 9,
+    minute = 0,
+    taskCount = 0,
+    language?: AppLanguage
+  ): Promise<string | null> {
     if (!this.isSupported || !Notifications || !SchedulableTriggerInputTypes) return null;
 
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return null;
 
-      await this.cancelNotification('daily-summary');
+      await this.cancelMorningBriefing();
 
+      const lang = language ?? getActiveLanguage();
       const bodyText =
         taskCount > 0
-          ? `You have ${taskCount} task${taskCount > 1 ? 's' : ''} scheduled for today. Have a calm and productive day.`
-          : 'Your schedule is open today. Add your top priority when ready.';
+          ? translate(
+              lang,
+              taskCount === 1 ? 'notifications.morningBodyOne' : 'notifications.morningBodyOther',
+              { count: taskCount }
+            )
+          : translate(lang, 'notifications.morningBodyEmpty');
 
       const id = await Notifications.scheduleNotificationAsync({
         identifier: 'daily-summary',
         content: {
-          title: 'Daily Zen Plan',
+          title: translate(lang, 'notifications.morningTitle'),
           body: bodyText,
           sound: true,
           data: { type: 'daily-summary' },
@@ -134,24 +148,34 @@ export class MobileNotificationService implements INotificationService {
     }
   }
 
-  async scheduleEveningWindDown(hour = 20, minute = 30, pendingCount = 0): Promise<string | null> {
+  async scheduleEveningWindDown(
+    hour = 20,
+    minute = 30,
+    pendingCount = 0,
+    language?: AppLanguage
+  ): Promise<string | null> {
     if (!this.isSupported || !Notifications || !SchedulableTriggerInputTypes) return null;
 
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return null;
 
-      await this.cancelNotification('evening-winddown');
+      await this.cancelEveningReview();
 
+      const lang = language ?? getActiveLanguage();
       const bodyText =
         pendingCount > 0
-          ? `Ready to wind down? You have ${pendingCount} task${pendingCount > 1 ? 's' : ''} left today. Finish up or roll over to tomorrow.`
-          : 'All daily tasks complete. Unwind and rest well tonight.';
+          ? translate(
+              lang,
+              pendingCount === 1 ? 'notifications.eveningBodyOne' : 'notifications.eveningBodyOther',
+              { count: pendingCount }
+            )
+          : translate(lang, 'notifications.eveningBodyEmpty');
 
       const id = await Notifications.scheduleNotificationAsync({
         identifier: 'evening-winddown',
         content: {
-          title: 'Evening Wind-Down',
+          title: translate(lang, 'notifications.eveningTitle'),
           body: bodyText,
           sound: true,
           data: { type: 'evening-winddown' },
@@ -171,7 +195,11 @@ export class MobileNotificationService implements INotificationService {
     }
   }
 
-  async scheduleFocusTimerEnd(seconds: number, sessionTitle = 'Focus Session'): Promise<string | null> {
+  async scheduleFocusTimerEnd(
+    seconds: number,
+    sessionTitle?: string,
+    language?: AppLanguage
+  ): Promise<string | null> {
     if (!this.isSupported || !Notifications || !SchedulableTriggerInputTypes) return null;
 
     try {
@@ -181,12 +209,14 @@ export class MobileNotificationService implements INotificationService {
       await this.cancelNotification('zen-timer-end');
 
       const safeSeconds = Math.max(1, Math.round(seconds));
+      const lang = language ?? getActiveLanguage();
+      const resolvedTitle = sessionTitle ?? translate(lang, 'notifications.defaultFocusSession');
 
       const id = await Notifications.scheduleNotificationAsync({
         identifier: 'zen-timer-end',
         content: {
-          title: 'Focus Session Complete',
-          body: `${sessionTitle} ended. Take a short break before your next block.`,
+          title: translate(lang, 'notifications.focusCompleteTitle'),
+          body: translate(lang, 'notifications.focusCompleteBody', { sessionTitle: resolvedTitle }),
           sound: true,
           data: { type: 'focus-timer-complete' },
         },
@@ -203,6 +233,57 @@ export class MobileNotificationService implements INotificationService {
       console.warn('Failed to schedule focus timer notification', e);
       return null;
     }
+  }
+
+  private async cancelByIdentifierAndType(
+    identifier: string,
+    dataType: string,
+    legacyTitles: string[]
+  ): Promise<void> {
+    if (!this.isSupported || !Notifications) return;
+
+    await this.cancelNotification(identifier);
+
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync?.();
+      if (!Array.isArray(scheduled)) return;
+
+      for (const item of scheduled) {
+        const itemDataType =
+          item?.content?.data && typeof item.content.data === 'object'
+            ? (item.content.data as Record<string, unknown>).type
+            : undefined;
+        const itemTitle = typeof item?.content?.title === 'string' ? item.content.title : '';
+        const matches =
+          item?.identifier === identifier ||
+          itemDataType === dataType ||
+          legacyTitles.includes(itemTitle);
+
+        if (matches && typeof item?.identifier === 'string') {
+          try {
+            await Notifications.cancelScheduledNotificationAsync(item.identifier);
+          } catch {
+            // Ignore individual cancellation failure
+          }
+        }
+      }
+    } catch {
+      // Ignore if enumerating scheduled notifications is unavailable
+    }
+  }
+
+  async cancelMorningBriefing(): Promise<void> {
+    await this.cancelByIdentifierAndType('daily-summary', 'daily-summary', [
+      en.notifications.morningTitle,
+      tr.notifications.morningTitle,
+    ]);
+  }
+
+  async cancelEveningReview(): Promise<void> {
+    await this.cancelByIdentifierAndType('evening-winddown', 'evening-winddown', [
+      en.notifications.eveningTitle,
+      tr.notifications.eveningTitle,
+    ]);
   }
 
   async cancelNotification(identifier: string): Promise<void> {

@@ -89,7 +89,8 @@
       "expo-sharing",
       "expo-updates",
       "expo-secure-store",
-      "./plugins/withPlayStoreSecurity"
+      "./plugins/withPlayStoreSecurity",
+      "expo-localization"
     ],
     "extra": {
       "router": {},

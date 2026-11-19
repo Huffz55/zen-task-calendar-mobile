@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AppTheme } from '../../types';
-import { THEMES, ThemeColors } from '../../constants/colors';
+import { THEMES, ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
 import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { useTranslation } from '../../i18n';
 
 interface ThemeModalProps {
   visible: boolean;
@@ -21,13 +22,14 @@ export function ThemeModal({
   onSelectTheme,
   onClose,
 }: ThemeModalProps) {
+  const { t } = useTranslation();
   const themeEntries = Object.entries(THEMES) as [AppTheme, ThemeColors][];
 
   return (
     <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%">
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-          Color Palette
+        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+          {t('themes.modalTitle')}
         </Text>
         <TouchableOpacity
           onPress={() => {
@@ -37,7 +39,7 @@ export function ThemeModal({
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
-          accessibilityLabel="Close theme picker"
+          accessibilityLabel={t('themes.a11yClose')}
         >
           <Ionicons name="close" size={20} color={theme.textDim} />
         </TouchableOpacity>
@@ -46,6 +48,7 @@ export function ThemeModal({
       <View style={styles.optionsList}>
         {themeEntries.map(([key, item]) => {
           const isSelected = currentTheme === key;
+          const localizedName = t(`themes.${key}`);
           return (
             <TouchableOpacity
               key={key}
@@ -64,25 +67,53 @@ export function ThemeModal({
               activeOpacity={0.75}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={`${item.name} theme`}
+              accessibilityLabel={t('themes.a11ySelectTheme', { name: localizedName })}
             >
               <View style={styles.optionLeft}>
                 <Text style={styles.optionIcon}>{item.icon}</Text>
-                <View style={{ flexShrink: 1 }}>
-                  <Text style={[styles.optionName, { color: theme.text }]} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={[styles.optionSubtitle, { color: theme.textDim }]} numberOfLines={1}>
-                    {item.subtitle}
-                  </Text>
-                </View>
+                <Text
+                  style={[styles.optionName, { color: theme.text }]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.35}
+                >
+                  {localizedName}
+                </Text>
               </View>
 
-              {isSelected ? (
-                <Ionicons name="checkmark-circle" size={22} color={theme.primary} />
-              ) : (
-                <View style={[styles.colorPreviewDot, { backgroundColor: item.primary }]} />
-              )}
+              <View style={styles.optionRight}>
+                <View style={styles.swatchRow}>
+                  <View
+                    style={[
+                      styles.colorPreviewDot,
+                      {
+                        backgroundColor: item.background,
+                        borderColor: withAlpha(theme.text, 0.14),
+                      },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.colorPreviewDot,
+                      {
+                        backgroundColor: item.accent,
+                        borderColor: withAlpha(theme.text, 0.14),
+                      },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.colorPreviewDot,
+                      {
+                        backgroundColor: item.primary,
+                        borderColor: withAlpha(theme.text, 0.14),
+                      },
+                    ]}
+                  />
+                </View>
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={22} color={theme.primary} />
+                )}
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -103,7 +134,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   closeBtn: {
-    padding: 6,
+    padding: 8,
   },
   optionsList: {
     gap: 10,
@@ -112,7 +143,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 16,
     borderWidth: 1.5,
   },
@@ -129,14 +162,22 @@ const styles = StyleSheet.create({
   optionName: {
     fontSize: 15,
     fontWeight: '600',
+    flexShrink: 1,
   },
-  optionSubtitle: {
-    fontSize: 11,
-    marginTop: 1,
+  optionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   colorPreviewDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
   },
 });

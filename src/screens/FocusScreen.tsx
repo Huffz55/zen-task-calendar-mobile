@@ -96,8 +96,15 @@ export function FocusScreen({
             <View style={styles.targetBannerLeft}>
               <Ionicons name="locate-outline" size={20} color={theme.primary} />
               <View style={styles.targetTexts}>
-                <Text style={[styles.targetSubtitle, { color: theme.primary }]}>FOCUSING ON TARGET</Text>
-                <Text style={[styles.targetTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+                <Text style={[styles.targetSubtitle, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
+                  FOCUSING ON TARGET
+                </Text>
+                <Text
+                  style={[styles.targetTitle, { color: theme.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  maxFontSizeMultiplier={1.35}
+                >
                   {activeFocusTask.title}
                 </Text>
               </View>
@@ -110,7 +117,7 @@ export function FocusScreen({
                   onClearActiveFocusTask();
                 }}
                 style={styles.targetClearBtn}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
                 accessibilityLabel="Clear focus target"
               >
@@ -135,24 +142,30 @@ export function FocusScreen({
         {/* Daily Focus Summary Card */}
         <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.text }]}>
+            <Text style={[styles.summaryValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
               {formatFocusTime(focusStats.todayFocusSeconds)}
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.textDim }]}>Today</Text>
+            <Text style={[styles.summaryLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+              Today
+            </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.text }]}>
+            <Text style={[styles.summaryValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
               {focusStats.totalSessionsCount}
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.textDim }]}>Sessions</Text>
+            <Text style={[styles.summaryLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+              Sessions
+            </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: theme.text }]}>
+            <Text style={[styles.summaryValue, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
               {currentStreak}d
             </Text>
-            <Text style={[styles.summaryLabel, { color: theme.textDim }]}>Streak</Text>
+            <Text style={[styles.summaryLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+              Streak
+            </Text>
           </View>
         </View>
 
@@ -292,6 +305,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 48,
     marginHorizontal: 20,
     marginTop: 14,
     paddingHorizontal: 16,
@@ -351,6 +365,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 48,
     marginHorizontal: 20,
     marginTop: 14,
     paddingHorizontal: 16,

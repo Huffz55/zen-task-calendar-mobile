@@ -13,11 +13,12 @@ import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Task } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, setGlobalHapticsEnabled } from '../../hooks/useHaptics';
-import { defaultNotificationService } from '../../services/notifications/notificationService';
 import { defaultBackupService } from '../../services/storage/backupService';
 import { isSoundEffectsEnabled, setSoundEffectsEnabled } from '../../services/audio/audioService';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
+import { ExportDataModal, type ExportFormat } from './ExportDataModal';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { useTranslation, type LanguagePreference } from '../../i18n';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -31,6 +32,10 @@ interface SettingsModalProps {
   onUnarchiveTask?: (taskId: string) => void;
   autoNightShift?: boolean;
   onToggleAutoNightShift?: (enabled: boolean) => void;
+  morningBriefingEnabled: boolean;
+  eveningReviewEnabled: boolean;
+  onToggleMorningBriefing: (enabled: boolean) => Promise<void>;
+  onToggleEveningReview: (enabled: boolean) => Promise<void>;
   onClose: () => void;
   onOpenSyncModal?: () => void;
   onOpenThemeModal?: () => void;
@@ -40,8 +45,6 @@ interface SettingsModalProps {
   onShowToast: (msg: string) => void;
 }
 
-const SETTINGS_MORNING_KEY = '@noteapp_setting_morning_summary';
-const SETTINGS_EVENING_KEY = '@noteapp_setting_evening_winddown';
 const SETTINGS_HAPTIC_KEY = '@noteapp_setting_haptic';
 const SETTINGS_CHIME_KEY = '@noteapp_setting_chime';
 
@@ -53,6 +56,10 @@ export function SettingsModal({
   tasks = [],
   autoNightShift = false,
   onToggleAutoNightShift,
+  morningBriefingEnabled,
+  eveningReviewEnabled,
+  onToggleMorningBriefing,
+  onToggleEveningReview,
   onClose,
   onOpenThemeModal,
   onExportBackup,
@@ -60,24 +67,18 @@ export function SettingsModal({
   onClearAllData,
   onShowToast,
 }: SettingsModalProps) {
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isClearingData, setIsClearingData] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
-  const [morningSummaryEnabled, setMorningSummaryEnabled] = useState(false);
-  const [eveningWindDownEnabled, setEveningWindDownEnabled] = useState(false);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [sfxEnabled, setSfxEnabled] = useState(() => isSoundEffectsEnabled());
+  const { t, language, languagePreference, setLanguagePreference } = useTranslation();
 
   useEffect(() => {
     if (!visible) return;
-    AsyncStorage.getItem(SETTINGS_MORNING_KEY).then(val => {
-      setMorningSummaryEnabled(val === 'true');
-    });
-    AsyncStorage.getItem(SETTINGS_EVENING_KEY).then(val => {
-      setEveningWindDownEnabled(val === 'true');
-    });
     AsyncStorage.getItem(SETTINGS_HAPTIC_KEY).then(val => {
       if (val !== null) {
         const enabled = val === 'true';
@@ -93,33 +94,19 @@ export function SettingsModal({
   const handleToggleSfx = async (enabled: boolean) => {
     setSfxEnabled(enabled);
     await setSoundEffectsEnabled(enabled);
-    onShowToast(enabled ? 'Sound effects enabled' : 'Sound effects muted');
+    onShowToast(t(enabled ? 'settings.toasts.sfxOn' : 'settings.toasts.sfxOff'));
   };
 
   const handleToggleMorning = async (enabled: boolean) => {
     hapticLight();
-    setMorningSummaryEnabled(enabled);
-    await AsyncStorage.setItem(SETTINGS_MORNING_KEY, String(enabled));
-    if (enabled) {
-      await defaultNotificationService.scheduleDailySummary(9, 0, totalTasks);
-      onShowToast('Morning briefing scheduled for 9:00 AM');
-    } else {
-      await defaultNotificationService.cancelNotification('daily-summary');
-      onShowToast('Morning briefing turned off');
-    }
+    await onToggleMorningBriefing(enabled);
+    onShowToast(t(enabled ? 'settings.toasts.morningOn' : 'settings.toasts.morningOff'));
   };
 
   const handleToggleEvening = async (enabled: boolean) => {
     hapticLight();
-    setEveningWindDownEnabled(enabled);
-    await AsyncStorage.setItem(SETTINGS_EVENING_KEY, String(enabled));
-    if (enabled) {
-      await defaultNotificationService.scheduleEveningWindDown(20, 30, totalTasks);
-      onShowToast('Evening review scheduled for 8:30 PM');
-    } else {
-      await defaultNotificationService.cancelNotification('evening-winddown');
-      onShowToast('Evening review turned off');
-    }
+    await onToggleEveningReview(enabled);
+    onShowToast(t(enabled ? 'settings.toasts.eveningOn' : 'settings.toasts.eveningOff'));
   };
 
   const handleToggleHaptics = async (enabled: boolean) => {
@@ -127,60 +114,60 @@ export function SettingsModal({
     if (enabled) hapticLight();
     setHapticsEnabled(enabled);
     await AsyncStorage.setItem(SETTINGS_HAPTIC_KEY, String(enabled));
-    onShowToast(enabled ? 'Haptics enabled' : 'Haptics disabled');
+    onShowToast(t(enabled ? 'settings.toasts.hapticsOn' : 'settings.toasts.hapticsOff'));
   };
 
   const handleToggleChime = async (enabled: boolean) => {
     hapticLight();
     setChimeEnabled(enabled);
     await AsyncStorage.setItem(SETTINGS_CHIME_KEY, String(enabled));
-    onShowToast(enabled ? 'Completion chime enabled' : 'Completion chime disabled');
+    onShowToast(t(enabled ? 'settings.toasts.chimeOn' : 'settings.toasts.chimeOff'));
   };
 
-  const handleExport = () => {
-    hapticLight();
-    Alert.alert('Export Data', 'Choose format', [
-      {
-        text: 'Backup (.json)',
-        onPress: async () => {
-          setIsExporting(true);
-          try {
-            await onExportBackup();
-          } finally {
-            setIsExporting(false);
-          }
-        },
-      },
-      {
-        text: 'Calendar (.ics)',
-        onPress: async () => {
-          setIsExporting(true);
-          try {
-            await defaultBackupService.exportICS(tasks);
-            onShowToast('Calendar exported');
-          } catch {
-            onShowToast('Failed to export calendar');
-          } finally {
-            setIsExporting(false);
-          }
-        },
-      },
-      {
-        text: 'Markdown (.md)',
-        onPress: async () => {
-          setIsExporting(true);
-          try {
-            await defaultBackupService.exportMarkdown(tasks);
-            onShowToast('Markdown exported');
-          } catch {
-            onShowToast('Failed to export markdown');
-          } finally {
-            setIsExporting(false);
-          }
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const handleSelectLanguage = async (nextPref: LanguagePreference) => {
+    if (nextPref === languagePreference) return;
+    hapticSelection();
+    await setLanguagePreference(nextPref);
+    const labelKey =
+      nextPref === 'system'
+        ? 'settings.languageOptions.system'
+        : nextPref === 'tr'
+        ? 'settings.languageOptions.tr'
+        : 'settings.languageOptions.en';
+    const nextResolved = nextPref === 'system' ? language : nextPref;
+    const nextT = (await import('../../i18n')).translate;
+    onShowToast(
+      nextT(nextResolved, 'settings.toasts.languageChanged', {
+        language: nextT(nextResolved, labelKey),
+      })
+    );
+  };
+
+  const handleSelectExportFormat = async (format: ExportFormat) => {
+    if (exportingFormat !== null) return;
+    setExportingFormat(format);
+    try {
+      if (format === 'json') {
+        await onExportBackup();
+      } else if (format === 'ics') {
+        await defaultBackupService.exportICS(tasks);
+        onShowToast(t('settings.toasts.exportIcsOk'));
+      } else {
+        await defaultBackupService.exportMarkdown(tasks);
+        onShowToast(t('settings.toasts.exportMdOk'));
+      }
+      setIsExportModalOpen(false);
+    } catch {
+      if (format === 'ics') {
+        onShowToast(t('settings.toasts.exportIcsErr'));
+      } else if (format === 'md') {
+        onShowToast(t('settings.toasts.exportMdErr'));
+      } else {
+        onShowToast(t('settings.toasts.exportBackupErr'));
+      }
+    } finally {
+      setExportingFormat(null);
+    }
   };
 
   const handleImport = async () => {
@@ -197,12 +184,12 @@ export function SettingsModal({
     if (!onClearAllData || isClearingData) return;
     hapticLight();
     Alert.alert(
-      'Clear All Data?',
-      'All tasks, checklists, focus history, and synced workspace data will be permanently deleted.',
+      t('settings.clearConfirmTitle'),
+      t('settings.clearConfirmMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             setIsClearingData(true);
@@ -218,17 +205,46 @@ export function SettingsModal({
     );
   };
 
+  const languageOptions: { id: LanguagePreference; label: string }[] = [
+    { id: 'system', label: t('settings.languageOptions.system') },
+    { id: 'tr', label: t('settings.languageOptions.tr') },
+    { id: 'en', label: t('settings.languageOptions.en') },
+  ];
+
+  const activeLanguageDisplay =
+    languagePreference === 'system'
+      ? `${t('settings.languageOptions.system')} (${t(
+          language === 'tr' ? 'settings.languageOptions.tr' : 'settings.languageOptions.en'
+        )})`
+      : t(languagePreference === 'tr' ? 'settings.languageOptions.tr' : 'settings.languageOptions.en');
+
+  const activeThemeName =
+    theme.name === 'Sakura Rose'
+      ? t('themes.sakura')
+      : theme.name === 'Matcha Garden'
+      ? t('themes.matcha')
+      : theme.name === 'Nordic Breeze'
+      ? t('themes.nordic')
+      : theme.name === 'Midnight Silk'
+      ? t('themes.midnight')
+      : theme.name;
+
   return (
     <>
-      <SwipeableBottomSheet visible={visible && !isPrivacyOpen} onClose={onClose} theme={theme} maxHeight="88%">
+      <SwipeableBottomSheet
+        visible={visible && !isPrivacyOpen && !isExportModalOpen}
+        onClose={onClose}
+        theme={theme}
+        maxHeight="88%"
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
-              Settings
+            <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+              {t('settings.title')}
             </Text>
-            <Text style={[styles.subtitle, { color: theme.textDim }]} numberOfLines={1}>
-              {totalTasks} tasks • {totalLists} lists
+            <Text style={[styles.subtitle, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+              {t('settings.subtitleCounts', { tasks: totalTasks, lists: totalLists })}
             </Text>
           </View>
           <TouchableOpacity
@@ -239,7 +255,7 @@ export function SettingsModal({
             style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Close settings"
+            accessibilityLabel={t('settings.a11yClose')}
           >
             <Ionicons name="close" size={18} color={theme.textDim} />
           </TouchableOpacity>
@@ -247,7 +263,9 @@ export function SettingsModal({
 
         <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* Preferences */}
-          <Text style={[styles.sectionTitle, { color: theme.textDim }]}>PREFERENCES</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+            {t('settings.sectionPreferences')}
+          </Text>
           <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
             {onOpenThemeModal && (
               <>
@@ -264,11 +282,11 @@ export function SettingsModal({
                     <Ionicons name="color-palette-outline" size={18} color={theme.primary} />
                   </View>
                   <View style={styles.actionContent}>
-                    <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1}>
-                      Appearance
+                    <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                      {t('settings.appearance')}
                     </Text>
-                    <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1}>
-                      {theme.name}
+                    <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                      {activeThemeName}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
@@ -277,12 +295,68 @@ export function SettingsModal({
               </>
             )}
 
+            {/* Language Picker */}
+            <View style={styles.languageBlock}>
+              <View style={styles.languageHeaderRow}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="globe-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                    {t('settings.language')}
+                  </Text>
+                  <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                    {activeLanguageDisplay}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.languageSegmented, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                {languageOptions.map(opt => {
+                  const isSelected = languagePreference === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[
+                        styles.languageOptionBtn,
+                        isSelected && { backgroundColor: theme.primaryLight, borderColor: theme.primary },
+                      ]}
+                      onPress={() => {
+                        void handleSelectLanguage(opt.id);
+                      }}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityLabel={opt.label}
+                    >
+                      <Text
+                        style={[
+                          styles.languageOptionText,
+                          {
+                            color: isSelected ? theme.primary : theme.textDim,
+                            fontWeight: isSelected ? '700' : '500',
+                          },
+                        ]}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.35}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+
             <View style={styles.groupRow}>
               <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
                 <Ionicons name="volume-medium-outline" size={18} color={theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Sound Effects</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.soundEffects')}
+                </Text>
               </View>
               <Switch
                 value={sfxEnabled}
@@ -299,7 +373,9 @@ export function SettingsModal({
                 <Ionicons name="musical-notes-outline" size={18} color={theme.accent || theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Completion Chime</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.completionChime')}
+                </Text>
               </View>
               <Switch
                 value={chimeEnabled}
@@ -316,7 +392,9 @@ export function SettingsModal({
                 <Ionicons name="radio-outline" size={18} color={theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Haptic Feedback</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.hapticFeedback')}
+                </Text>
               </View>
               <Switch
                 value={hapticsEnabled}
@@ -333,7 +411,9 @@ export function SettingsModal({
                 <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Auto Dark Mode</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.autoDarkMode')}
+                </Text>
               </View>
               <Switch
                 value={autoNightShift}
@@ -348,17 +428,21 @@ export function SettingsModal({
           </View>
 
           {/* Daily Notifications */}
-          <Text style={[styles.sectionTitle, { color: theme.textDim }]}>NOTIFICATIONS</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+            {t('settings.sectionNotifications')}
+          </Text>
           <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
             <View style={styles.groupRow}>
               <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
                 <Ionicons name="sunny-outline" size={18} color={theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Morning Briefing</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.morningBriefing')}
+                </Text>
               </View>
               <Switch
-                value={morningSummaryEnabled}
+                value={morningBriefingEnabled}
                 onValueChange={handleToggleMorning}
                 trackColor={{ false: theme.border, true: theme.primary }}
                 thumbColor="#ffffff"
@@ -372,10 +456,12 @@ export function SettingsModal({
                 <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Evening Review</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.eveningReview')}
+                </Text>
               </View>
               <Switch
-                value={eveningWindDownEnabled}
+                value={eveningReviewEnabled}
                 onValueChange={handleToggleEvening}
                 trackColor={{ false: theme.border, true: theme.primary }}
                 thumbColor="#ffffff"
@@ -384,23 +470,30 @@ export function SettingsModal({
           </View>
 
           {/* Backup & Data */}
-          <Text style={[styles.sectionTitle, { color: theme.textDim }]}>DATA</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+            {t('settings.sectionData')}
+          </Text>
           <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
             <TouchableOpacity
               style={styles.groupRow}
-              onPress={handleExport}
-              disabled={isExporting}
+              onPress={() => {
+                hapticLight();
+                setIsExportModalOpen(true);
+              }}
+              disabled={exportingFormat !== null}
               activeOpacity={0.7}
             >
               <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                {isExporting ? (
+                {exportingFormat !== null ? (
                   <ActivityIndicator size="small" color={theme.primary} />
                 ) : (
                   <Ionicons name="share-outline" size={18} color={theme.primary} />
                 )}
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Export Data</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.exportData')}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
@@ -421,7 +514,9 @@ export function SettingsModal({
                 )}
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Restore Backup</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.restoreBackup')}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
@@ -440,7 +535,9 @@ export function SettingsModal({
                 <Ionicons name="shield-checkmark-outline" size={18} color={theme.primary} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]}>Privacy Policy</Text>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.privacyPolicy')}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
             </TouchableOpacity>
@@ -462,8 +559,8 @@ export function SettingsModal({
                     )}
                   </View>
                   <View style={styles.actionContent}>
-                    <Text style={[styles.actionTitle, { color: theme.danger }]} numberOfLines={1}>
-                      Clear All Data
+                    <Text style={[styles.actionTitle, { color: theme.danger }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                      {t('settings.clearAllData')}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
@@ -474,11 +571,27 @@ export function SettingsModal({
 
           {/* App Footer */}
           <View style={styles.footer}>
-            <Text style={[styles.footerTitle, { color: theme.textDim }]}>Zen Task Calendar</Text>
-            <Text style={[styles.footerSub, { color: theme.textDim }]}>Version 1.0.0</Text>
+            <Text style={[styles.footerTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+              {t('settings.footerTitle')}
+            </Text>
+            <Text style={[styles.footerSub, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+              {t('settings.footerVersion')}
+            </Text>
           </View>
         </BottomSheetScrollView>
       </SwipeableBottomSheet>
+
+      <ExportDataModal
+        visible={isExportModalOpen}
+        theme={theme}
+        exportingFormat={exportingFormat}
+        onSelectFormat={handleSelectExportFormat}
+        onClose={() => {
+          if (exportingFormat === null) {
+            setIsExportModalOpen(false);
+          }
+        }}
+      />
 
       <PrivacyPolicyModal
         visible={isPrivacyOpen}
@@ -533,7 +646,8 @@ const styles = StyleSheet.create({
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    minHeight: 50,
+    paddingVertical: 11,
     paddingHorizontal: 14,
     gap: 12,
   },
@@ -558,6 +672,38 @@ const styles = StyleSheet.create({
   actionDesc: {
     fontSize: 11,
     marginTop: 1,
+  },
+  languageBlock: {
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  languageHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  languageSegmented: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 3,
+    gap: 4,
+    marginLeft: 46,
+  },
+  languageOptionBtn: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  languageOptionText: {
+    fontSize: 12,
   },
   footer: {
     alignItems: 'center',

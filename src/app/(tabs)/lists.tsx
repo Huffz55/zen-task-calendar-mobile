@@ -7,6 +7,7 @@ export default function ListsRoute() {
     theme,
     currentStreak,
     lists,
+    workspaceResetCount,
     addList,
     updateListFolder,
     handleDeleteList,
@@ -24,6 +25,7 @@ export default function ListsRoute() {
       theme={theme}
       currentStreak={currentStreak}
       lists={lists}
+      workspaceResetCount={workspaceResetCount}
       onAddList={(title, folder) => {
         addList(title, folder);
         showToast({

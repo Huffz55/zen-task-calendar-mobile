@@ -202,6 +202,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   closeButton: {
-    padding: 4,
+    minWidth: 32,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
   },
 });

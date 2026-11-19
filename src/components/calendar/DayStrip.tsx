@@ -31,7 +31,7 @@ export function DayStrip({
       return {
         date,
         dateStr: format(date, 'yyyy-MM-dd'),
-        dayOfWeek: format(date, 'EEE'),
+        dayOfWeek: format(date, 'EEE').toLocaleUpperCase('en-US'),
         dayNum: format(date, 'd'),
       };
     });
@@ -90,6 +90,7 @@ export function DayStrip({
                   styles.dayOfWeek,
                   { color: isSelected ? '#ffffff' : theme.textDim },
                 ]}
+                maxFontSizeMultiplier={1.35}
               >
                 {item.dayOfWeek}
               </Text>
@@ -98,6 +99,7 @@ export function DayStrip({
                   styles.dayNumber,
                   { color: isSelected ? '#ffffff' : theme.text },
                 ]}
+                maxFontSizeMultiplier={1.35}
               >
                 {item.dayNum}
               </Text>
@@ -147,7 +149,6 @@ const styles = StyleSheet.create({
   dayOfWeek: {
     fontSize: 10,
     fontWeight: '600',
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   dayNumber: {

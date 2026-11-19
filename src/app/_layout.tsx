@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 
 import { AppProvider, useApp } from '../context/AppContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -11,11 +14,22 @@ import { ThemeModal } from '../components/common/ThemeModal';
 import { SettingsModal } from '../components/common/SettingsModal';
 import { SyncModal } from '../components/common/SyncModal';
 
+try {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+} catch {
+  // Ignore if native splash controller is unavailable (e.g., web or older host)
+}
+
 function RootLayoutContent() {
   const {
     theme,
     currentThemeKey,
     setTheme,
+    isHydrated,
+    morningBriefingEnabled,
+    eveningReviewEnabled,
+    toggleMorningBriefing,
+    toggleEveningReview,
     isThemeModalOpen,
     setIsThemeModalOpen,
     isSettingsModalOpen,
@@ -40,6 +54,29 @@ function RootLayoutContent() {
   } = useApp();
   const pathname = usePathname();
 
+  const [fontsLoaded, fontError] = useFonts(Ionicons.font);
+  const [splashTimedOut, setSplashTimedOut] = useState(false);
+  const hasHiddenSplashRef = useRef(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSplashTimedOut(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isAppReady = (isHydrated && (fontsLoaded || Boolean(fontError))) || splashTimedOut;
+
+  const hideSplashIfReady = useCallback(() => {
+    if (!isAppReady || hasHiddenSplashRef.current) return;
+    hasHiddenSplashRef.current = true;
+    SplashScreen.hideAsync().catch(() => {});
+  }, [isAppReady]);
+
+  useEffect(() => {
+    hideSplashIfReady();
+  }, [hideSplashIfReady]);
+
   // Keep native Android/iOS root window background aligned with active theme when supported by the binary
   useEffect(() => {
     try {
@@ -58,8 +95,12 @@ function RootLayoutContent() {
 
   const isMiniPlayerVisible = hasActiveTimerSession && !pathname.includes('/focus') && !pathname.includes('/list/');
 
+  if (!isAppReady) {
+    return <View style={[styles.root, { backgroundColor: theme.background }]} />;
+  }
+
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
+    <View style={[styles.root, { backgroundColor: theme.background }]} onLayout={hideSplashIfReady}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'} animated />
 
       <Stack
@@ -119,6 +160,10 @@ function RootLayoutContent() {
         onUnarchiveTask={unarchiveTask}
         autoNightShift={autoNightShift}
         onToggleAutoNightShift={toggleAutoNightShift}
+        morningBriefingEnabled={morningBriefingEnabled}
+        eveningReviewEnabled={eveningReviewEnabled}
+        onToggleMorningBriefing={toggleMorningBriefing}
+        onToggleEveningReview={toggleEveningReview}
         onClose={() => setIsSettingsModalOpen(false)}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
