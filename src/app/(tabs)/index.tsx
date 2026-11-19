@@ -10,6 +10,7 @@ export default function TodayRoute() {
     currentDayTasks,
     selectedDate,
     setSelectedDate,
+    todayStr,
     getTaskCountForDate,
     toggleTaskCompletion,
     selectedDateStr,
@@ -45,6 +46,7 @@ export default function TodayRoute() {
         currentStreak={currentStreak}
         tasks={currentDayTasks}
         selectedDate={selectedDate}
+        todayStr={todayStr}
         onSelectDate={setSelectedDate}
         getTaskCountForDate={getTaskCountForDate}
         onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}

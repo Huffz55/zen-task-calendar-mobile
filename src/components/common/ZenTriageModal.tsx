@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -32,7 +32,18 @@ export function ZenTriageModal({
   onClose,
 }: ZenTriageModalProps) {
   const [newTitle, setNewTitle] = useState('');
-  const currentTask = inboxTasks[0];
+  const [skippedIds, setSkippedIds] = useState<string[]>([]);
+
+  const handleClose = () => {
+    setSkippedIds([]);
+    onClose();
+  };
+
+  const pendingTasks = useMemo(
+    () => inboxTasks.filter(t => !skippedIds.includes(t.id)),
+    [inboxTasks, skippedIds]
+  );
+  const currentTask = pendingTasks[0];
 
   const handleDecision = (taskId: string, decision: 'today' | 'someday' | 'delete') => {
     animateLayout();
@@ -45,6 +56,7 @@ export function ZenTriageModal({
     } else {
       playBambooTap();
       hapticLight();
+      setSkippedIds(prev => (prev.includes(taskId) ? prev : [...prev, taskId]));
     }
     onTriageDecision(taskId, decision);
   };
@@ -60,7 +72,7 @@ export function ZenTriageModal({
   };
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="85%" useKeyboardAvoiding>
+    <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="85%" useKeyboardAvoiding>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -73,7 +85,7 @@ export function ZenTriageModal({
             </Text>
             <View style={[styles.badge, { backgroundColor: theme.primaryLight }]}>
               <Text style={[styles.badgeText, { color: theme.primary }]}>
-                {inboxTasks.length}
+                {pendingTasks.length}
               </Text>
             </View>
           </View>
@@ -81,7 +93,7 @@ export function ZenTriageModal({
         <TouchableOpacity
           onPress={() => {
             hapticLight();
-            onClose();
+            handleClose();
           }}
           style={styles.closeBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -118,11 +130,11 @@ export function ZenTriageModal({
         </View>
 
         {/* Focused Task / Empty State */}
-        {inboxTasks.length > 0 && currentTask ? (
+        {pendingTasks.length > 0 && currentTask ? (
           <View style={styles.cardContainer}>
             <View style={[styles.taskCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
               <Text style={[styles.taskOrder, { color: theme.textDim }]}>
-                {inboxTasks.length} REMAINING
+                {pendingTasks.length} REMAINING
               </Text>
               <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={4} ellipsizeMode="tail">
                 {currentTask.title}
@@ -170,7 +182,14 @@ export function ZenTriageModal({
             <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
               <Ionicons name="checkmark-done-outline" size={26} color={theme.primary} />
             </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Inbox Empty</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              {inboxTasks.length > 0 ? 'Caught up for now' : 'Inbox Empty'}
+            </Text>
+            {inboxTasks.length > 0 && (
+              <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
+                {inboxTasks.length} {inboxTasks.length === 1 ? 'item' : 'items'} saved for later
+              </Text>
+            )}
           </View>
         )}
       </BottomSheetScrollView>
@@ -180,7 +199,7 @@ export function ZenTriageModal({
         style={[styles.footerBtn, { backgroundColor: theme.primaryLight }]}
         onPress={() => {
           hapticLight();
-          onClose();
+          handleClose();
         }}
         activeOpacity={0.75}
       >
@@ -310,6 +329,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
   },
   footerBtn: {
     marginTop: 14,

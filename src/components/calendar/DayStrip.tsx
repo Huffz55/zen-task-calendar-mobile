@@ -6,6 +6,7 @@ import { hapticSelection } from '../../hooks/useHaptics';
 
 interface DayStripProps {
   selectedDate: Date;
+  todayStr?: string;
   onSelectDate: (date: Date) => void;
   getTaskCountForDate: (dateStr: string) => number;
   theme: ThemeColors;
@@ -15,17 +16,18 @@ const DAY_CARD_STRIDE = 58; // width (50) + gap (8)
 
 export function DayStrip({
   selectedDate,
+  todayStr,
   onSelectDate,
   getTaskCountForDate,
   theme,
 }: DayStripProps) {
   const scrollRef = useRef<ScrollView | null>(null);
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
   const selectedStr = format(selectedDate, 'yyyy-MM-dd');
 
   // Generate 14 days centered around today (-3 to +10 days)
   const days = useMemo(() => {
-    const base = parseISO(todayStr);
+    const base = parseISO(resolvedTodayStr);
     return Array.from({ length: 14 }, (_, i) => {
       const date = addDays(subDays(base, 3), i);
       return {
@@ -35,7 +37,7 @@ export function DayStrip({
         dayNum: format(date, 'd'),
       };
     });
-  }, [todayStr]);
+  }, [resolvedTodayStr]);
 
   useEffect(() => {
     const index = days.findIndex(d => d.dateStr === selectedStr);
@@ -55,7 +57,7 @@ export function DayStrip({
       >
         {days.map(item => {
           const isSelected = item.dateStr === selectedStr;
-          const isToday = item.dateStr === todayStr;
+          const isToday = item.dateStr === resolvedTodayStr;
           const taskCount = getTaskCountForDate(item.dateStr);
 
           return (

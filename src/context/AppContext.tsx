@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { format } from 'date-fns';
+import { addDays, format, startOfDay } from 'date-fns';
 import { router } from 'expo-router';
 
 import { AppTheme, AppToast, Task, CustomList, CustomTag, BuiltinTaskTag, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
@@ -420,7 +420,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [language, showToast]);
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [todayStr, setTodayStr] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+
+  const refreshTodayDate = useCallback(() => {
+    const now = new Date();
+    const nextTodayStr = format(now, 'yyyy-MM-dd');
+    if (nextTodayStr !== todayStr) {
+      setTodayStr(nextTodayStr);
+      setSelectedDate(prevSelected =>
+        format(prevSelected, 'yyyy-MM-dd') === todayStr ? now : prevSelected
+      );
+    }
+  }, [todayStr]);
+
+  // Automatically refresh todayStr at local midnight (00:00)
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const scheduleMidnightCheck = () => {
+      const now = new Date();
+      const nextMidnight = startOfDay(addDays(now, 1));
+      const msUntilMidnight = Math.max(1000, nextMidnight.getTime() - now.getTime() + 100);
+      timeoutId = setTimeout(() => {
+        refreshTodayDate();
+        scheduleMidnightCheck();
+      }, msUntilMidnight);
+    };
+
+    scheduleMidnightCheck();
+    return () => clearTimeout(timeoutId);
+  }, [todayStr, refreshTodayDate]);
+
+  // Refresh todayStr (and night-mode state) when returning to foreground on a new day
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        refreshTodayDate();
+        const h = new Date().getHours();
+        const night = h >= 20 || h < 7;
+        setIsNightTime(prev => (prev !== night ? night : prev));
+      }
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [refreshTodayDate]);
+
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const currentDayTasks = useMemo(
     () => getTasksForDate(selectedDateStr),

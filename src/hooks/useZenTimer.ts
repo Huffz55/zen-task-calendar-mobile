@@ -3,7 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { hapticSuccess, hapticMedium } from './useHaptics';
 import { defaultNotificationService } from '../services/notifications/notificationService';
-import { playZenChime } from '../services/audio/audioService';
+import { isCompletionChimeEnabled, playZenChime } from '../services/audio/audioService';
 
 export function useZenTimer(
   defaultMinutes = 25,
@@ -149,7 +149,9 @@ export function useZenTimer(
 
       if (remainingMs <= 0) {
         hapticSuccess();
-        playZenChime();
+        if (isCompletionChimeEnabled()) {
+          void playZenChime();
+        }
         defaultNotificationService.cancelNotification('zen-timer-end');
         onTimerCompleteRef.current?.(initialTimeRef.current);
         setIsTimerRunning(false);
@@ -188,7 +190,9 @@ export function useZenTimer(
     if (elapsedSeconds >= 10 && onTimerCompleteRef.current) {
       onTimerCompleteRef.current(elapsedSeconds);
       hapticSuccess();
-      playZenChime();
+      if (isCompletionChimeEnabled()) {
+        void playZenChime();
+      }
     } else {
       hapticMedium();
     }
