@@ -93,4 +93,20 @@ describe('i18n', () => {
     expect(formatDurationCompact(5400, 'tr')).toBe('1sa 30dk');
     expect(formatMinutesCompact(45, 'tr')).toBe('45dk');
   });
+
+  it('formats TodayScreen subtitle and keeps concise Focus/Settings Turkish copy', () => {
+    const sampleDate = new Date(2026, 10, 20); // Friday, Nov 20, 2026
+    expect(format(sampleDate, tr.dates.todaySubtitle, { locale: getDateFnsLocale('tr') })).toBe(
+      '20 Kasım, Cuma'
+    );
+    expect(format(sampleDate, en.dates.todaySubtitle, { locale: getDateFnsLocale('en') })).toBe(
+      'Friday, Nov 20'
+    );
+    expect(tr.focus.title).toBe('Odak');
+    expect(en.focus.title).toBe('Focus');
+    expect(tr.focus.boxBreathing).toBe('Nefes Egzersizi');
+    expect(tr.focus.boxBreathingSub).toBe('3 dakikalık odak molası');
+    expect(tr.settings.hapticFeedback).toBe('Titreşim');
+    expect(tr.settings.completionChime).toBe('Bitiş Sesi');
+  });
 });

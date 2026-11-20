@@ -263,9 +263,9 @@ export function SettingsModal({
         </View>
 
         <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* Preferences */}
+          {/* 1. Appearance */}
           <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-            {t('settings.sectionPreferences')}
+            {t('settings.sectionAppearance')}
           </Text>
           <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
             {onOpenThemeModal && (
@@ -284,7 +284,7 @@ export function SettingsModal({
                   </View>
                   <View style={styles.actionContent}>
                     <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                      {t('settings.appearance')}
+                      {t('settings.theme')}
                     </Text>
                     <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                       {activeThemeName}
@@ -321,6 +321,32 @@ export function SettingsModal({
 
             <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
 
+            <View style={styles.groupRow}>
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+                  {t('settings.autoDarkMode')}
+                </Text>
+              </View>
+              <Switch
+                value={autoNightShift}
+                onValueChange={(enabled) => {
+                  hapticSelection();
+                  onToggleAutoNightShift?.(enabled);
+                }}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+          </View>
+
+          {/* 2. Sound & Haptics */}
+          <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+            {t('settings.sectionSoundHaptics')}
+          </Text>
+          <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
             <View style={styles.groupRow}>
               <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
                 <Ionicons name="volume-medium-outline" size={18} color={theme.primary} />
@@ -375,42 +401,23 @@ export function SettingsModal({
                 thumbColor="#ffffff"
               />
             </View>
-
-            <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
-
-            <View style={styles.groupRow}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
-                  {t('settings.autoDarkMode')}
-                </Text>
-              </View>
-              <Switch
-                value={autoNightShift}
-                onValueChange={(enabled) => {
-                  hapticSelection();
-                  onToggleAutoNightShift?.(enabled);
-                }}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
           </View>
 
-          {/* Daily Notifications */}
+          {/* 3. Notifications (compact single card) */}
           <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
             {t('settings.sectionNotifications')}
           </Text>
           <View style={[styles.groupCard, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-            <View style={styles.groupRow}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="sunny-outline" size={18} color={theme.primary} />
+            <View style={styles.compactRow}>
+              <View style={[styles.compactIconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="sunny-outline" size={16} color={theme.primary} />
               </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+              <View style={styles.compactLabelRow}>
+                <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                   {t('settings.morningBriefing')}
+                </Text>
+                <Text style={[styles.timeHint, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+                  09:00
                 </Text>
               </View>
               <Switch
@@ -421,15 +428,18 @@ export function SettingsModal({
               />
             </View>
 
-            <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
+            <View style={[styles.compactDivider, { backgroundColor: theme.border }]} />
 
-            <View style={styles.groupRow}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                <Ionicons name="moon-outline" size={18} color={theme.accent || theme.primary} />
+            <View style={styles.compactRow}>
+              <View style={[styles.compactIconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="moon-outline" size={16} color={theme.accent || theme.primary} />
               </View>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: theme.text }]} maxFontSizeMultiplier={1.35}>
+              <View style={styles.compactLabelRow}>
+                <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                   {t('settings.eveningReview')}
+                </Text>
+                <Text style={[styles.timeHint, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
+                  20:30
                 </Text>
               </View>
               <Switch
@@ -441,7 +451,7 @@ export function SettingsModal({
             </View>
           </View>
 
-          {/* Backup & Data */}
+          {/* 4. Data */}
           <Text style={[styles.sectionTitle, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
             {t('settings.sectionData')}
           </Text>
@@ -634,6 +644,36 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 60,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  compactIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactLabelRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    fontVariant: ['tabular-nums'],
+  },
+  compactDivider: {
     height: StyleSheet.hairlineWidth,
     marginLeft: 54,
   },

@@ -31,37 +31,33 @@ export function Header({
   const safeTopPadding = Math.max(insets.top, Platform.OS === 'android' ? 28 : 20) + 6;
   const resolvedTitle = title ?? t('header.defaultTitle');
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return t('header.greetingMorning');
-    if (hour >= 12 && hour < 18) return t('header.greetingAfternoon');
-    if (hour >= 18 && hour < 22) return t('header.greetingEvening');
-    return t('header.greetingNight');
-  };
-
   return (
     <View style={[styles.container, { borderBottomColor: theme.border, paddingTop: safeTopPadding }]}>
       <View style={styles.left}>
-        <View style={styles.greetingRow}>
-          <Text
-            style={[styles.subtitle, { color: theme.accent }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            maxFontSizeMultiplier={1.35}
-          >
-            {subtitle || getGreeting()}
-          </Text>
-          {currentStreak > 0 && (
-            <View style={[styles.streakBadge, { backgroundColor: theme.primaryLight }]}>
-              <Ionicons name="flame-outline" size={12} color={theme.primary} />
-              <Text style={[styles.streakText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
-                {t(currentStreak === 1 ? 'header.streakOne' : 'header.streakOther', {
-                  count: currentStreak,
-                })}
+        {(Boolean(subtitle) || currentStreak > 0) && (
+          <View style={styles.greetingRow}>
+            {subtitle ? (
+              <Text
+                style={[styles.subtitle, { color: theme.textSecondary }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.35}
+              >
+                {subtitle}
               </Text>
-            </View>
-          )}
-        </View>
+            ) : null}
+            {currentStreak > 0 && (
+              <View style={[styles.streakBadge, { backgroundColor: theme.primaryLight }]}>
+                <Ionicons name="flame-outline" size={12} color={theme.primary} />
+                <Text style={[styles.streakText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
+                  {t(currentStreak === 1 ? 'header.streakOne' : 'header.streakOther', {
+                    count: currentStreak,
+                  })}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
         <Text
           style={[styles.title, { color: theme.text }]}
           numberOfLines={1}

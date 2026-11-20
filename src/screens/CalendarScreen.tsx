@@ -154,7 +154,6 @@ export function CalendarScreen({
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
         title={t('calendar.title')}
-        subtitle={t('calendar.subtitle')}
       />
 
       <ScrollView

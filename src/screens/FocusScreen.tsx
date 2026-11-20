@@ -75,7 +75,6 @@ export function FocusScreen({
         onOpenSettingsModal={onOpenSettingsModal}
         onOpenSyncModal={onOpenSyncModal}
         title={t('focus.title')}
-        subtitle={t('focus.subtitle')}
       />
 
       <ScrollView

@@ -82,6 +82,7 @@ export function DayStrip({
                 },
               ]}
               onPress={() => {
+                if (isSelected) return;
                 hapticSelection();
                 onSelectDate(item.date);
               }}

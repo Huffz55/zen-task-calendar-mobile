@@ -10,6 +10,7 @@ export interface ThemeColors {
   card: string;
   border: string;
   text: string;
+  textSecondary: string;
   textMuted: string;
   textDim: string;
   primary: string;
@@ -34,6 +35,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     card: '#ffffff',
     border: '#fce7f3',
     text: '#1f2937',
+    textSecondary: '#6b7280',
     textMuted: '#6b7280',
     textDim: '#9ca3af',
     primary: '#ec4899',
@@ -56,6 +58,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     card: '#ffffff',
     border: '#dbeade',
     text: '#193022',
+    textSecondary: '#5c6660',
     textMuted: '#587462',
     textDim: '#8ea797',
     primary: '#387e4c',
@@ -78,6 +81,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     card: '#ffffff',
     border: '#d6e6f2',
     text: '#17283c',
+    textSecondary: '#5b6670',
     textMuted: '#576c82',
     textDim: '#899fb6',
     primary: '#2d6fa4',
@@ -100,6 +104,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     card: '#1e1c29',
     border: '#2e293f',
     text: '#f3f4f6',
+    textSecondary: '#9ca3af',
     textMuted: '#9ca3af',
     textDim: '#6b6580',
     primary: '#c084fc',

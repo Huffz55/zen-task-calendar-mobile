@@ -19,7 +19,6 @@ import { DeleteTaskModal } from '../components/tasks/DeleteTaskModal';
 import { EditTaskModal } from '../components/tasks/EditTaskModal';
 import { TaskFilterBar } from '../components/tasks/TaskFilterBar';
 import { EveningReviewModal } from '../components/common/EveningReviewModal';
-import { SakuraPetalsOverlay } from '../components/common/SakuraPetalsOverlay';
 import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../hooks/useHaptics';
@@ -99,7 +98,6 @@ export function TodayScreen({
   const [taskToEdit, setTaskToEdit] = useState<DailyTask | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<TaskTag | 'all'>('all');
-  const [showSakura, setShowSakura] = useState(false);
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
@@ -126,27 +124,14 @@ export function TodayScreen({
     return t('today.plannedMinutes', { minutes: m });
   }, [totalEstimatedMinutes, t]);
 
-  const handleToggle = useCallback(
-    (taskId: string) => {
-      const target = tasks.find(t => t.taskId === taskId);
-      if (target && !target.isCompleted) {
-        const willBeAllDone = completedTasks + 1 === totalTasks && totalTasks > 0;
-        if (willBeAllDone) {
-          setShowSakura(true);
-        }
-      }
-      onToggleTask(taskId);
-    },
-    [tasks, completedTasks, totalTasks, onToggleTask]
-  );
-
   const handleDateSelect = useCallback(
     (date: Date) => {
+      if (format(date, 'yyyy-MM-dd') === selectedDateStr) return;
       playWaterDrop();
       animateLayout();
       onSelectDate(date);
     },
-    [onSelectDate]
+    [onSelectDate, selectedDateStr]
   );
 
   const handleDeferForDate = useCallback(
@@ -212,7 +197,7 @@ export function TodayScreen({
         onOpenSyncModal={onOpenSyncModal}
         onOpenEveningReview={onOpenEveningReview}
         title={isToday ? t('today.title') : format(selectedDate, t('dates.monthDay'), { locale: dateLocale })}
-        subtitle={format(selectedDate, t('dates.weekdayYear'), { locale: dateLocale })}
+        subtitle={format(selectedDate, t('dates.todaySubtitle'), { locale: dateLocale })}
       />
 
       {/* Horizontal Day Strip */}
@@ -300,7 +285,7 @@ export function TodayScreen({
                   key={task.id}
                   task={task}
                   theme={theme}
-                  onToggle={handleToggle}
+                  onToggle={onToggleTask}
                   onDelete={handleDeleteRequest}
                   onEdit={handleEditRequest}
                   onTogglePin={onTogglePin}
@@ -405,11 +390,6 @@ export function TodayScreen({
           onRollover={onRolloverTasks}
         />
       )}
-      {/* Sakura Petals Celebration Overlay */}
-      <SakuraPetalsOverlay
-        active={showSakura}
-        onFinished={() => setShowSakura(false)}
-      />
     </KeyboardAvoidingView>
   );
 }

@@ -23,7 +23,7 @@ import { formatDurationCompact, formatMinutesCompact, useTranslation } from '../
 interface TaskCardProps {
   task: DailyTask;
   theme: ThemeColors;
-  onToggle: (taskId: string) => void;
+  onToggle: (taskId: string, options?: { skipSound?: boolean }) => void;
   onDelete: (task: DailyTask) => void;
   onEdit?: (task: DailyTask) => void;
   onTogglePin?: (taskId: string) => void;
@@ -88,6 +88,24 @@ export const TaskCard = memo(function TaskCard({
     ]).start();
   }, [checkScale]);
 
+  const handleToggleFromGesture = useCallback(
+    (source: 'checkbox' | 'swipe') => {
+      triggerCheckBounce();
+      const skipSound = source === 'swipe';
+      if (skipSound) {
+        playSoftSwoosh();
+        hapticSuccess();
+      } else if (!task.isCompleted) {
+        playBambooTap();
+        hapticSuccess();
+      } else {
+        hapticLight();
+      }
+      onToggle(task.taskId, { skipSound });
+    },
+    [onToggle, task.isCompleted, task.taskId, triggerCheckBounce]
+  );
+
   const handleCardPressIn = () => {
     if (!onEdit) return;
     Animated.spring(cardScale, { toValue: 0.985, ...PRESS_SPRING_CONFIG }).start();
@@ -131,12 +149,8 @@ export const TaskCard = memo(function TaskCard({
         onPanResponderRelease: (_, gestureState) => {
           swipeThresholdRef.current = null;
           if (gestureState.dx > 78) {
-            // Swiped right -> Complete
-            playSoftSwoosh();
-            playBambooTap();
-            hapticSuccess();
-            triggerCheckBounce();
-            onToggle(task.taskId);
+            // Swiped right -> Complete (swoosh sound only; suppress checkbox tap sound)
+            handleToggleFromGesture('swipe');
           } else if (gestureState.dx < -78) {
             // Swiped left -> Delete
             playSoftSwoosh();
@@ -161,7 +175,7 @@ export const TaskCard = memo(function TaskCard({
           }).start();
         },
       }),
-    [onDelete, onToggle, panX, task, triggerCheckBounce]
+    [handleToggleFromGesture, onDelete, panX, task]
   );
 
   const subtasks = task.subtasks || [];
@@ -250,16 +264,7 @@ export const TaskCard = memo(function TaskCard({
                   backgroundColor: task.isCompleted ? theme.primary : 'transparent',
                 },
               ]}
-              onPress={() => {
-                triggerCheckBounce();
-                if (!task.isCompleted) {
-                  playBambooTap();
-                  hapticSuccess();
-                } else {
-                  hapticLight();
-                }
-                onToggle(task.taskId);
-              }}
+              onPress={() => handleToggleFromGesture('checkbox')}
               activeOpacity={0.7}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="checkbox"
