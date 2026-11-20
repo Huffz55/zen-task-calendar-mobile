@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -41,12 +41,8 @@ function RootLayoutContent() {
     handleClearAllData,
     tasks,
     lists,
-    currentStreak,
-    focusStats,
     autoNightShift,
     toggleAutoNightShift,
-    unarchiveTask,
-    getArchivedTasks,
     toast,
     showToast,
     dismissToast,
@@ -87,11 +83,6 @@ function RootLayoutContent() {
       // Older APKs without ExpoSystemUI native module ignore gracefully during OTA
     }
   }, [theme.background]);
-
-  const archivedTasks = useMemo(
-    () => (isSettingsModalOpen ? getArchivedTasks() : []),
-    [isSettingsModalOpen, getArchivedTasks]
-  );
 
   const isMiniPlayerVisible = hasActiveTimerSession && !pathname.includes('/focus') && !pathname.includes('/list/');
 
@@ -153,11 +144,7 @@ function RootLayoutContent() {
         theme={theme}
         totalTasks={tasks.length}
         totalLists={lists.length}
-        currentStreak={currentStreak}
-        totalFocusSeconds={focusStats.totalFocusSeconds}
         tasks={tasks}
-        archivedTasks={archivedTasks}
-        onUnarchiveTask={unarchiveTask}
         autoNightShift={autoNightShift}
         onToggleAutoNightShift={toggleAutoNightShift}
         morningBriefingEnabled={morningBriefingEnabled}
@@ -165,7 +152,6 @@ function RootLayoutContent() {
         onToggleMorningBriefing={toggleMorningBriefing}
         onToggleEveningReview={toggleEveningReview}
         onClose={() => setIsSettingsModalOpen(false)}
-        onOpenSyncModal={() => setIsSyncModalOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}

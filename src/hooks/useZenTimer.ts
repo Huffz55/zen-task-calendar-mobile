@@ -100,23 +100,6 @@ export function useZenTimer(
     defaultNotificationService.cancelNotification('zen-timer-end');
   }, []);
 
-  const adjustTime = useCallback((deltaSeconds: number) => {
-    setInitialTime(prev => Math.max(60, prev + deltaSeconds));
-    if (isTimerRunning) {
-      const currentEnd = endTimeRef.current ?? (Date.now() + (timeLeftMsRef.current ?? timeLeftRef.current * 1000));
-      const newEnd = Math.max(Date.now(), currentEnd + deltaSeconds * 1000);
-      endTimeRef.current = newEnd;
-      timeLeftMsRef.current = null;
-      const remainingMs = Math.max(0, newEnd - Date.now());
-      setTimeLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
-      defaultNotificationService.scheduleFocusTimerEnd(remainingMs / 1000);
-    } else {
-      timeLeftMsRef.current = null;
-      setTimeLeft(prev => Math.max(60, prev + deltaSeconds));
-    }
-    hapticMedium();
-  }, [isTimerRunning]);
-
   const setTimerMinutes = useCallback((minutes: number) => {
     const newSeconds = minutes * 60;
     endTimeRef.current = null;
@@ -210,7 +193,6 @@ export function useZenTimer(
     isTimerRunning,
     toggleTimer,
     resetTimer,
-    adjustTime,
     setTimerMinutes,
     finishEarlySession,
   };

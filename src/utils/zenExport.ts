@@ -40,8 +40,6 @@ export function generateICSContent(tasks: Task[]): string {
       const descParts = [];
       if (t.tag) descParts.push(`Tag: ${sanitizeIcsValue(String(t.tag))}`);
       if (t.estimatedMinutes) descParts.push(`Est: ${Math.floor(t.estimatedMinutes)}m`);
-      if (t.isEvening) descParts.push('This Evening');
-      if (t.isGhost) descParts.push('Ghost Block');
       const description = descParts.join(' | ');
 
       return [
@@ -102,8 +100,6 @@ export function generateMarkdownContent(tasks: Task[]): string {
       let meta = '';
       if (t.tag) meta += ` #${sanitizeMarkdownInline(String(t.tag))}`;
       if (t.estimatedMinutes) meta += ` (${Math.floor(t.estimatedMinutes)}m)`;
-      if (t.isEvening) meta += ' [This Evening]';
-      if (t.isGhost) meta += ' [Ghost]';
       lines.push(`- [${mark}] ${sanitizeMarkdownInline(t.title || 'Untitled')}${meta}`);
     }
     lines.push('');

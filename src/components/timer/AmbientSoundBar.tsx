@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import {
@@ -17,7 +17,6 @@ import { useTranslation } from '../../i18n';
 
 interface AmbientSoundBarProps {
   theme: ThemeColors;
-  isTimerRunning: boolean;
 }
 
 export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {

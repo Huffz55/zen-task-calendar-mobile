@@ -22,10 +22,6 @@ export function setGlobalHapticsEnabled(enabled: boolean) {
   AsyncStorage.setItem(SETTINGS_HAPTIC_KEY, String(enabled)).catch(() => {});
 }
 
-export function isHapticsGloballyEnabled(): boolean {
-  return isHapticsEnabled;
-}
-
 export function hapticLight() {
   if (!isHapticsEnabled || Platform.OS === 'web') return;
   try {

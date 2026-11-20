@@ -3,7 +3,7 @@ import { isRunningInExpoGo } from 'expo';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { en, getActiveLanguage, tr, translate, type AppLanguage } from '../../i18n';
 
-export interface INotificationService {
+interface INotificationService {
   readonly isSupported: boolean;
   requestPermissions(): Promise<boolean>;
   scheduleDailySummary(hour?: number, minute?: number, taskCount?: number, language?: AppLanguage): Promise<string | null>;
@@ -45,7 +45,7 @@ if (!isAndroidExpoGo) {
   }
 }
 
-export class MobileNotificationService implements INotificationService {
+class MobileNotificationService implements INotificationService {
   private hasInitializedChannels = false;
 
   get isSupported(): boolean {

@@ -137,7 +137,6 @@ export function useFocusStats() {
   }, []);
 
   return {
-    sessions,
     isLoaded,
     recordSession,
     clearAllSessions,

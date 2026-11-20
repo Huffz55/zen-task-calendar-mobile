@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -503,10 +503,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 2,
-  },
-  pinToggleDesc: {
-    fontSize: 11,
-    lineHeight: 15,
   },
   submitBtn: {
     marginTop: 20,

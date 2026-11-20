@@ -12,7 +12,7 @@ export const MAX_TASKS_LIMIT = 3000;
 export const MAX_LISTS_LIMIT = 500;
 export const MAX_FOCUS_SESSIONS_LIMIT = 10000;
 export const MAX_SUBTASKS_PER_TASK = 100;
-export const MAX_LIST_ITEMS = 500;
+const MAX_LIST_ITEMS = 500;
 export const MAX_DATES_LIST = 2000;
 
 export function isValidDateString(str: unknown): str is string {
@@ -21,7 +21,7 @@ export function isValidDateString(str: unknown): str is string {
   return isValid(parsed);
 }
 
-export function sanitizeId(raw: unknown): string | null {
+function sanitizeId(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   if (!trimmed || FORBIDDEN_KEYS.has(trimmed)) return null;

@@ -11,7 +11,6 @@ const sampleTasks: Task[] = [
     tag: 'work',
     completedDates: ['2026-11-15'],
     estimatedMinutes: 45,
-    isEvening: true,
   },
   {
     id: 'm2',
@@ -41,7 +40,7 @@ describe('mobile zenExport', () => {
     expect(ics).toContain('UID:m1@zen.app');
     expect(ics).toContain('SUMMARY:Plan  sprint  review notes');
     expect(ics).toContain('STATUS:COMPLETED');
-    expect(ics).toContain('DESCRIPTION:Tag: work | Est: 45m | This Evening');
+    expect(ics).toContain('DESCRIPTION:Tag: work | Est: 45m');
     expect(ics).not.toContain('Archived item');
   });
 
@@ -49,7 +48,7 @@ describe('mobile zenExport', () => {
     const md = generateMarkdownContent(sampleTasks);
 
     expect(md).toContain('## 2026-11-15');
-    expect(md).toContain('- [x] Plan, sprint; review\\notes #work (45m) [This Evening]');
+    expect(md).toContain('- [x] Plan, sprint; review\\notes #work (45m)');
     expect(md).toContain('## Inbox / Triage');
     expect(md).toContain('- [ ] Triage thought #ideas');
     expect(md).not.toContain('Archived item');

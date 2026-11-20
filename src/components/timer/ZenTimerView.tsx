@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +12,6 @@ interface ZenTimerViewProps {
   theme: ThemeColors;
   onToggleTimer: () => void;
   onResetTimer: () => void;
-  onAdjustTime?: (deltaSeconds: number) => void;
   onSetMinutes: (minutes: number) => void;
   onFinishEarly?: () => void;
 }

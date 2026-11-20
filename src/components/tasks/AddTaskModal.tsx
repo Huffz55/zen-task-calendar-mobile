@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,6 @@ interface AddTaskModalProps {
     subtasks?: Subtask[],
     estimatedMinutes?: number,
     isPinned?: boolean,
-    isEvening?: boolean,
-    isGhost?: boolean,
     isInbox?: boolean
   ) => void;
 }
@@ -96,8 +94,6 @@ export function AddTaskModal({
       subtasks,
       estimatedMinutes,
       isPinned,
-      false,
-      false,
       isInbox
     );
     setTitle('');

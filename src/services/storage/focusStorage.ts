@@ -9,7 +9,7 @@ import { atomicWriteJson, safeReadJsonArray } from './atomicStorage';
 
 export const FOCUS_SESSIONS_STORAGE_KEY = '@noteapp_mobile_focus_sessions_v1';
 
-export class MobileFocusStorage {
+class MobileFocusStorage {
   private isApplyingRemoteUpdate = false;
   private lastPushedHash = '';
   private pushTimer: ReturnType<typeof setTimeout> | null = null;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BackHandler,
   View,
@@ -42,8 +42,6 @@ interface CalendarScreenProps {
     subtasks?: Subtask[],
     estimatedMinutes?: number,
     isPinned?: boolean,
-    isEvening?: boolean,
-    isGhost?: boolean,
     isInbox?: boolean
   ) => void;
   onEditTask: (

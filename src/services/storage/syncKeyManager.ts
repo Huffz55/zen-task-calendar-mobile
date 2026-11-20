@@ -94,13 +94,6 @@ export async function getSyncKey(): Promise<string> {
 }
 
 /**
- * Synchronous accessor for in-memory cached key, if already loaded.
- */
-export function getCachedSyncKey(): string | null {
-  return cachedSyncKey;
-}
-
-/**
  * Persists a new sync key after strict format validation.
  */
 export async function setSyncKey(newKey: string): Promise<boolean> {

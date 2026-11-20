@@ -15,11 +15,11 @@ import { getSyncKey, setSyncKey, generateSyncKey, isValidSyncKey, SYNC_KEY_STORA
 import { defaultFocusStorage, FOCUS_SESSIONS_STORAGE_KEY } from './focusStorage';
 import { atomicWriteJson, getBackupKey, safeReadJsonArray } from './atomicStorage';
 
-export const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
-export const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
+const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
+const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
 export const THEME_STORAGE_KEY = '@noteapp_mobile_theme_v1';
-export const TASKS_DELETED_KEY = '@noteapp_mobile_tasks_deleted_ids_v1';
-export const LISTS_DELETED_KEY = '@noteapp_mobile_lists_deleted_ids_v1';
+const TASKS_DELETED_KEY = '@noteapp_mobile_tasks_deleted_ids_v1';
+const LISTS_DELETED_KEY = '@noteapp_mobile_lists_deleted_ids_v1';
 export const CUSTOM_TAGS_STORAGE_KEY = '@noteapp_custom_tags';
 export const CUSTOM_FOLDERS_STORAGE_KEY = '@noteapp_custom_folders';
 
@@ -55,7 +55,7 @@ async function saveDeletedIds(key: string, ids: string[]): Promise<void> {
   } catch {}
 }
 
-export class MobileTaskStorage implements ITaskStorage {
+class MobileTaskStorage implements ITaskStorage {
   private isApplyingRemoteUpdate = false;
   private lastPushedHash = '';
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -237,7 +237,7 @@ export class MobileTaskStorage implements ITaskStorage {
   }
 }
 
-export class MobileListStorage implements IListStorage {
+class MobileListStorage implements IListStorage {
   private isApplyingRemoteUpdate = false;
   private lastPushedHash = '';
   private pushTimer: ReturnType<typeof setTimeout> | null = null;

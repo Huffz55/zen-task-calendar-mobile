@@ -4,7 +4,7 @@ import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { initializeAuth, getReactNativePersistence, getAuth, signInAnonymously } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const firebaseConfig = {
+const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyCSnWuNSR4KWIX79xomrJnzplFTpB5Qqgk",
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "noteapp-sync-8d335.firebaseapp.com",
   databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL || "https://noteapp-sync-8d335-default-rtdb.europe-west1.firebasedatabase.app",
@@ -25,7 +25,7 @@ try {
 } catch {
   authInstance = getAuth(app);
 }
-export const auth = authInstance;
+const auth = authInstance;
 
 // React Native Firestore with long-polling and ignoreUndefinedProperties
 let dbInstance: ReturnType<typeof getFirestore>;

@@ -3,7 +3,7 @@ import type { AppLanguage } from '../../i18n';
 export const SETTINGS_MORNING_KEY = '@noteapp_setting_morning_summary';
 export const SETTINGS_EVENING_KEY = '@noteapp_setting_evening_winddown';
 
-export interface ReminderPreferences {
+interface ReminderPreferences {
   morningBriefingEnabled: boolean;
   eveningReviewEnabled: boolean;
 }
@@ -20,7 +20,7 @@ export interface ReminderNotificationClient {
   cancelEveningReview(): Promise<void>;
 }
 
-export interface SyncTaskStateParams {
+interface SyncTaskStateParams {
   isLoaded: boolean;
   morningBriefingEnabled: boolean;
   eveningReviewEnabled: boolean;

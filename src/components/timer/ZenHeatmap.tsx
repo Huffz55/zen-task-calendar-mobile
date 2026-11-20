@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { format, isValid, parseISO } from 'date-fns';
 import { ThemeColors, withAlpha } from '../../constants/colors';

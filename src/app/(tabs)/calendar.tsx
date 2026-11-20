@@ -1,4 +1,3 @@
-import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { CalendarScreen } from '../../screens/CalendarScreen';
 import { useTranslation } from '../../i18n';
@@ -38,8 +37,8 @@ export default function CalendarRoute() {
       getTasksForDate={getTasksForDate}
       getTaskCountForDate={getTaskCountForDate}
       onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox) => {
-        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox);
+      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox) => {
+        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox);
         showToast({
           type: 'success',
           title: isInbox ? t('toasts.savedToInboxTitle') : t('toasts.addedTitle'),

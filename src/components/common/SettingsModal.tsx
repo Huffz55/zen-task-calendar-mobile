@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,11 +30,7 @@ interface SettingsModalProps {
   theme: ThemeColors;
   totalTasks: number;
   totalLists: number;
-  currentStreak?: number;
-  totalFocusSeconds?: number;
   tasks?: Task[];
-  archivedTasks?: Task[];
-  onUnarchiveTask?: (taskId: string) => void;
   autoNightShift?: boolean;
   onToggleAutoNightShift?: (enabled: boolean) => void;
   morningBriefingEnabled: boolean;
@@ -42,7 +38,6 @@ interface SettingsModalProps {
   onToggleMorningBriefing: (enabled: boolean) => Promise<void>;
   onToggleEveningReview: (enabled: boolean) => Promise<void>;
   onClose: () => void;
-  onOpenSyncModal?: () => void;
   onOpenThemeModal?: () => void;
   onExportBackup: () => Promise<void>;
   onImportBackup: () => Promise<void>;

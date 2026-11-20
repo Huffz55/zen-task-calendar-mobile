@@ -4,7 +4,7 @@ export type AmbientTrackId = 'none' | 'rain' | 'waves' | 'forest' | 'wind';
 export type PlayableAmbientTrackId = Exclude<AmbientTrackId, 'none'>;
 export type PlayableAudioSource = NonNullable<AudioSource>;
 
-export interface AmbientPlaybackEngineDeps {
+interface AmbientPlaybackEngineDeps {
   sources: Record<PlayableAmbientTrackId, PlayableAudioSource>;
   createPlayer: (source: AudioSource) => AudioPlayer;
   configureAudioMode: () => Promise<void>;
@@ -70,21 +70,6 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
     transitionSeq++;
     pausedByBackground = false;
     clearActivePlayers();
-  }
-
-  function stop(type?: AmbientTrackId): void {
-    if (!type || type === 'none') {
-      stopAll();
-      return;
-    }
-
-    transitionSeq++;
-    pausedByBackground = false;
-    const player = activePlayers.get(type);
-    if (player) {
-      activePlayers.delete(type);
-      disposePlayer(player);
-    }
   }
 
   async function toggle(type: AmbientTrackId, volume = currentVolume): Promise<boolean> {
@@ -212,7 +197,6 @@ export function createAmbientPlaybackEngine(deps: AmbientPlaybackEngineDeps) {
     getActiveSounds,
     isTrackActive,
     toggle,
-    stop,
     stopAll,
     setVolume,
     getActiveSound,

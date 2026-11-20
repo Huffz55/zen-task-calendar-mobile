@@ -3,9 +3,9 @@ import type { Ionicons } from '@expo/vector-icons';
 import type { BuiltinTaskTag, CustomTag, TaskTag } from '../types';
 import { getActiveLanguage, translate, type AppLanguage } from '../i18n';
 
-export type IoniconName = ComponentProps<typeof Ionicons>['name'];
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
-export interface TagConfig {
+interface TagConfig {
   label: string;
   icon: IoniconName;
   color: string;

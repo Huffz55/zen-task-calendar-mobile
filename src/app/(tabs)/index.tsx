@@ -1,4 +1,3 @@
-import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { TodayScreen } from '../../screens/TodayScreen';
 import { ZenTriageModal } from '../../components/common/ZenTriageModal';
@@ -52,8 +51,8 @@ export default function TodayRoute() {
         onSelectDate={setSelectedDate}
         getTaskCountForDate={getTaskCountForDate}
         onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-        onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox) => {
-          addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isEvening, isGhost, isInbox);
+        onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox) => {
+          addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox);
           showToast({
             type: 'success',
             title: isInbox ? t('toasts.savedToInboxTitle') : t('toasts.addedTitle'),
@@ -89,7 +88,7 @@ export default function TodayRoute() {
         inboxTasks={inboxTasks}
         onTriageDecision={triageTask}
         onQuickAddTask={(title) => {
-          addTask(title, selectedDateStr, 'none', undefined, undefined, undefined, false, false, false, true);
+          addTask(title, selectedDateStr, 'none', undefined, undefined, undefined, false, true);
         }}
         onClose={() => setIsTriageModalOpen(false)}
       />

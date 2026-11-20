@@ -10,7 +10,7 @@ import {
   type PlayableAudioSource,
 } from './ambientPlaybackEngine';
 
-export type AudioIconName = ComponentProps<typeof Ionicons>['name'];
+type AudioIconName = ComponentProps<typeof Ionicons>['name'];
 
 // Local high quality synthesized ambient tracks and 432 Hz chime
 const zenChimeSource = require('../../../assets/zen_chime.wav');
@@ -28,7 +28,7 @@ const ambientSources: Record<PlayableAmbientTrackId, PlayableAudioSource> = {
 
 export type AmbientSoundType = AmbientTrackId;
 
-export interface AmbientTrackConfig {
+interface AmbientTrackConfig {
   id: AmbientSoundType;
   label: string;
   icon: AudioIconName;
@@ -218,30 +218,11 @@ export function getActiveAmbientSounds(): AmbientSoundType[] {
   return ambientEngine.getActiveSounds();
 }
 
-export function isAmbientTrackActive(type: AmbientSoundType): boolean {
-  return ambientEngine.isTrackActive(type);
-}
-
 export async function toggleAmbientSound(
   type: AmbientSoundType,
   volume = ambientEngine.getVolume()
 ): Promise<boolean> {
   return ambientEngine.toggle(type, volume);
-}
-
-export async function playAmbientSound(
-  type: AmbientSoundType,
-  volume = ambientEngine.getVolume()
-): Promise<void> {
-  if (type === 'none') {
-    ambientEngine.stopAll();
-    return;
-  }
-  await ambientEngine.toggle(type, volume);
-}
-
-export function stopAmbientSound(type?: AmbientSoundType): void {
-  ambientEngine.stop(type);
 }
 
 export function stopAllAmbientSounds(): void {
@@ -250,10 +231,6 @@ export function stopAllAmbientSounds(): void {
 
 export function setAmbientVolume(vol: number): void {
   ambientEngine.setVolume(vol);
-}
-
-export function getActiveAmbientSound(): AmbientSoundType {
-  return ambientEngine.getActiveSound();
 }
 
 export function getAmbientVolume(): number {

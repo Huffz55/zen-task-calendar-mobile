@@ -49,8 +49,6 @@ export function getDailyTasksForDate(tasks: Task[], dateStr: string): DailyTask[
       subtasks: task.subtasks,
       focusedSeconds: task.focusedSeconds,
       isPinned: task.isPinned,
-      isEvening: task.isEvening,
-      isGhost: task.isGhost,
       isInbox: task.isInbox,
       estimatedMinutes: task.estimatedMinutes,
       isArchived: task.isArchived,

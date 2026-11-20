@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addDays, format, startOfDay } from 'date-fns';
@@ -34,8 +34,6 @@ import {
 interface AppContextValue {
   // Language
   language: AppLanguage;
-  languagePreference: LanguagePreference;
-  setLanguagePreference: (preference: LanguagePreference) => Promise<void>;
 
   // Theme
   theme: ThemeColors;
@@ -70,7 +68,6 @@ interface AppContextValue {
     maxDaySeconds: number;
     heatmapDays?: HeatmapDay[];
   };
-  recordFocusSession: (durationSeconds: number, taskId?: string, taskTitle?: string) => void;
   activeFocusTask: { id: string; title: string } | null;
   setActiveFocusTask: (task: { id: string; title: string } | null) => void;
   startTaskFocus: (task: { id: string; title: string }) => void;
@@ -95,28 +92,16 @@ interface AppContextValue {
   currentDayTasks: DailyTask[];
   currentStreak: number;
   overdueCount: number;
-  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean, isEvening?: boolean, isGhost?: boolean, isInbox?: boolean) => Task;
-  deleteTask: (taskId: string) => void;
-  deleteTaskInstance: (taskId: string, dateStr: string) => void;
-  deleteTaskFuture: (taskId: string, dateStr: string) => void;
-  restoreTask: (task: Task) => void;
+  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean, isInbox?: boolean) => Task;
   toggleTaskCompletion: (taskId: string, dateStr: string) => void;
-  editTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   togglePinTask: (taskId: string) => void;
-  toggleEveningTask: (taskId: string) => void;
-  toggleGhostTask: (taskId: string) => void;
   moveToInbox: (taskId: string) => void;
   triageTask: (taskId: string, decision: 'today' | 'someday' | 'delete') => void;
-  getInboxTasks: () => Task[];
   inboxTasks: Task[];
   isTriageModalOpen: boolean;
   setIsTriageModalOpen: (open: boolean) => void;
   deferTaskToTomorrow: (taskId: string, currentDateStr: string) => void;
-  duplicateTask: (taskId: string, dateStr: string) => Task | null;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
-  addSubtask: (taskId: string, title: string) => void;
-  deleteSubtask: (taskId: string, subtaskId: string) => void;
-  addTaskFocusTime: (taskId: string, seconds: number) => void;
   getTasksForDate: (dateStr: string) => DailyTask[];
   getTaskCountForDate: (dateStr: string) => number;
   handleSingleDelete: (taskId: string) => void;
@@ -124,15 +109,11 @@ interface AppContextValue {
   handleFutureDelete: (taskId: string, dateStr: string) => void;
   handleEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   handleRollover: () => void;
-  unarchiveTask: (taskId: string, targetDateStr?: string) => void;
-  getArchivedTasks: () => Task[];
 
   // Lists Engine
   lists: CustomList[];
   addList: (title: string, folder?: string) => CustomList | undefined;
   updateListFolder: (listId: string, folder?: string) => void;
-  deleteList: (listId: string) => void;
-  restoreList: (list: CustomList) => void;
   addListItem: (listId: string, text: string) => void;
   deleteListItem: (listId: string, itemId: string) => void;
   toggleListItem: (listId: string, itemId: string) => void;
@@ -141,7 +122,6 @@ interface AppContextValue {
   // Custom Tags Engine
   customTags: CustomTag[];
   addCustomTag: (label: string, color: string) => TaskTag | null;
-  deleteCustomTag: (id: string) => void;
 
   // Zen Focus Timer Engine (boolean flag stays in AppContext; high-freq ticks live in TimerContext)
   hasActiveTimerSession: boolean;
@@ -153,7 +133,6 @@ interface TimerContextValue {
   isTimerRunning: boolean;
   toggleTimer: () => void;
   resetTimer: () => void;
-  adjustTime: (deltaSeconds: number) => void;
   setTimerMinutes: (minutes: number) => void;
   finishEarlySession: () => void;
 }
@@ -277,14 +256,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return id as TaskTag;
   }, []);
 
-  const deleteCustomTag = useCallback((id: string) => {
-    setCustomTags(prev => {
-      const next = prev.filter(t => t.id !== id);
-      AsyncStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
-      return next;
-    });
-  }, []);
-
   // Check night hours every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -347,20 +318,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleTaskCompletion,
     editTask,
     togglePinTask,
-    toggleEveningTask,
-    toggleGhostTask,
     moveToInbox,
     triageTask,
-    getInboxTasks,
     deferTaskToTomorrow,
-    duplicateTask,
     toggleSubtask,
-    addSubtask,
-    deleteSubtask,
     addTaskFocusTime,
     getTasksForDate,
-    unarchiveTask,
-    getArchivedTasks,
     rolloverOverdueTasks,
     getOverdueTasksCount,
     currentStreak,
@@ -760,8 +723,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const appValue = useMemo<AppContextValue>(
     () => ({
       language,
-      languagePreference,
-      setLanguagePreference,
       theme,
       currentThemeKey,
       setTheme: handleSelectTheme,
@@ -783,7 +744,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       handleImportBackup,
       handleClearAllData,
       focusStats,
-      recordFocusSession,
       activeFocusTask,
       setActiveFocusTask,
       startTaskFocus,
@@ -803,27 +763,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentStreak,
       overdueCount,
       addTask,
-      deleteTask,
-      deleteTaskInstance,
-      deleteTaskFuture,
-      restoreTask,
       toggleTaskCompletion,
-      editTask,
       togglePinTask,
-      toggleEveningTask,
-      toggleGhostTask,
       moveToInbox,
       triageTask,
-      getInboxTasks,
       inboxTasks,
       isTriageModalOpen,
       setIsTriageModalOpen,
       deferTaskToTomorrow,
-      duplicateTask,
       toggleSubtask,
-      addSubtask,
-      deleteSubtask,
-      addTaskFocusTime,
       getTasksForDate,
       getTaskCountForDate,
       handleSingleDelete,
@@ -831,26 +779,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       handleFutureDelete,
       handleEditTask,
       handleRollover,
-      unarchiveTask,
-      getArchivedTasks,
       lists,
       addList,
       updateListFolder,
-      deleteList,
-      restoreList,
       addListItem,
       deleteListItem,
       toggleListItem,
       handleDeleteList,
       customTags,
       addCustomTag,
-      deleteCustomTag,
       hasActiveTimerSession,
     }),
     [
       language,
-      languagePreference,
-      setLanguagePreference,
       theme,
       currentThemeKey,
       handleSelectTheme,
@@ -869,7 +810,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       handleImportBackup,
       handleClearAllData,
       focusStats,
-      recordFocusSession,
       activeFocusTask,
       startTaskFocus,
       isEveningReviewOpen,
@@ -885,26 +825,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentStreak,
       overdueCount,
       addTask,
-      deleteTask,
-      deleteTaskInstance,
-      deleteTaskFuture,
-      restoreTask,
       toggleTaskCompletion,
-      editTask,
       togglePinTask,
-      toggleEveningTask,
-      toggleGhostTask,
       moveToInbox,
       triageTask,
-      getInboxTasks,
       inboxTasks,
       isTriageModalOpen,
       deferTaskToTomorrow,
-      duplicateTask,
       toggleSubtask,
-      addSubtask,
-      deleteSubtask,
-      addTaskFocusTime,
       getTasksForDate,
       getTaskCountForDate,
       handleSingleDelete,
@@ -912,20 +840,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       handleFutureDelete,
       handleEditTask,
       handleRollover,
-      unarchiveTask,
-      getArchivedTasks,
       lists,
       addList,
       updateListFolder,
-      deleteList,
-      restoreList,
       addListItem,
       deleteListItem,
       toggleListItem,
       handleDeleteList,
       customTags,
       addCustomTag,
-      deleteCustomTag,
       hasActiveTimerSession,
     ]
   );
@@ -959,7 +882,6 @@ function TimerProvider({
     isTimerRunning,
     toggleTimer,
     resetTimer,
-    adjustTime,
     setTimerMinutes,
     finishEarlySession,
   } = useZenTimer(25, onTimerComplete);
@@ -976,7 +898,6 @@ function TimerProvider({
       isTimerRunning,
       toggleTimer,
       resetTimer,
-      adjustTime,
       setTimerMinutes,
       finishEarlySession,
     }),
@@ -986,7 +907,6 @@ function TimerProvider({
       isTimerRunning,
       toggleTimer,
       resetTimer,
-      adjustTime,
       setTimerMinutes,
       finishEarlySession,
     ]

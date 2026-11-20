@@ -16,7 +16,7 @@ export function getBackupKey(key: string): string {
  * Serializes asynchronous operations sharing the same storage key so overlapping
  * saves or deletions cannot interleave and corrupt primary/backup pairs.
  */
-export function enqueueKeyOp<T>(key: string, op: () => Promise<T>): Promise<T> {
+function enqueueKeyOp<T>(key: string, op: () => Promise<T>): Promise<T> {
   const prev = keyQueues.get(key) ?? Promise.resolve();
   const next = prev.catch(() => {}).then(op);
   const tail = next.then(
@@ -120,15 +120,5 @@ export async function atomicWriteJson(
     await storage.setItem(backupKey, serialized);
     await storage.setItem(key, serialized);
     return serialized;
-  });
-}
-
-export async function removeAtomicKey(
-  storage: AtomicStorageBackend,
-  key: string
-): Promise<void> {
-  return enqueueKeyOp(key, async () => {
-    await storage.removeItem(key);
-    await storage.removeItem(getBackupKey(key));
   });
 }

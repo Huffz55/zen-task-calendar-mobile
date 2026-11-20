@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
@@ -35,7 +35,6 @@ interface FocusScreenProps {
   onCloseZenBreathing?: () => void;
   onToggleTimer: () => void;
   onResetTimer: () => void;
-  onAdjustTime: (deltaSeconds: number) => void;
   onSetMinutes: (minutes: number) => void;
   onFinishEarlySession?: () => void;
   onOpenThemeModal: () => void;
@@ -57,7 +56,6 @@ export function FocusScreen({
   onCloseZenBreathing,
   onToggleTimer,
   onResetTimer,
-  onAdjustTime,
   onSetMinutes,
   onFinishEarlySession,
   onOpenThemeModal,
@@ -128,7 +126,6 @@ export function FocusScreen({
           theme={theme}
           onToggleTimer={onToggleTimer}
           onResetTimer={onResetTimer}
-          onAdjustTime={onAdjustTime}
           onSetMinutes={onSetMinutes}
           onFinishEarly={onFinishEarlySession}
         />
@@ -164,7 +161,7 @@ export function FocusScreen({
         </View>
 
         {/* Ambient Sound Selector */}
-        <AmbientSoundBar theme={theme} isTimerRunning={isTimerRunning} />
+        <AmbientSoundBar theme={theme} />
 
         {/* Breathing Pause */}
         {onOpenZenBreathing && (

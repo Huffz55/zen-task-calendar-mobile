@@ -14,7 +14,7 @@ import {
 import { generateICSContent, generateMarkdownContent } from '../../utils/zenExport';
 import { getActiveLanguage, translate } from '../../i18n';
 
-export class BackupService {
+class BackupService {
   async exportICS(tasks: Task[]): Promise<boolean> {
     try {
       const icsStr = generateICSContent(tasks);

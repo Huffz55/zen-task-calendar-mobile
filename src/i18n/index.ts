@@ -19,9 +19,9 @@ type NestedKeyOf<T> = T extends object
     }[keyof T & string]
   : never;
 
-export type TranslationKey = NestedKeyOf<typeof en>;
-export type TranslationParams = Record<string, string | number>;
-export type TranslateFn = (key: TranslationKey, params?: TranslationParams) => string;
+type TranslationKey = NestedKeyOf<typeof en>;
+type TranslationParams = Record<string, string | number>;
+type TranslateFn = (key: TranslationKey, params?: TranslationParams) => string;
 
 const DICTIONARIES: Record<AppLanguage, TranslationDictionary> = {
   en,
@@ -151,7 +151,7 @@ export function formatMinutesCompact(totalMinutes: number, language: AppLanguage
   return `${totalMinutes}${mUnit}`;
 }
 
-export interface LanguageContextValue {
+interface LanguageContextValue {
   language: AppLanguage;
   languagePreference: LanguagePreference;
   setLanguagePreference: (preference: LanguagePreference) => Promise<void>;
@@ -179,7 +179,6 @@ export function useTranslation() {
   return {
     t,
     language,
-    locale: language,
     languagePreference,
     setLanguagePreference,
     dateLocale,

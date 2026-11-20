@@ -32,8 +32,6 @@ export interface Task {
   subtasks?: Subtask[];
   focusedSeconds?: number; // total focus time logged to this task
   isPinned?: boolean; // Focus of the Day
-  isEvening?: boolean; // Legacy field kept for sync compatibility
-  isGhost?: boolean; // Legacy field kept for sync compatibility
   isInbox?: boolean; // Triage / Quarantine inbox
   estimatedMinutes?: number; // Estimated duration in minutes
   isArchived?: boolean; // Auto-archived after 14 days of inactivity
@@ -51,8 +49,6 @@ export interface DailyTask {
   subtasks?: Subtask[];
   focusedSeconds?: number;
   isPinned?: boolean;
-  isEvening?: boolean;
-  isGhost?: boolean;
   isInbox?: boolean;
   estimatedMinutes?: number;
   isArchived?: boolean;
@@ -100,12 +96,4 @@ export interface AppToast {
   message: string;
   actionLabel?: string;
   onAction?: () => void;
-}
-
-export interface ZenMilestone {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  unlocked: boolean;
 }

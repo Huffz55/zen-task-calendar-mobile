@@ -1,4 +1,3 @@
-import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { ListsScreen } from '../../screens/ListsScreen';
 import { useTranslation } from '../../i18n';
