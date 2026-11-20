@@ -44,7 +44,7 @@ export function generateICSContent(tasks: Task[]): string {
 
       return [
         'BEGIN:VEVENT',
-        `UID:${cleanUid}@zen.app`,
+        `UID:${cleanUid}@kanso.app`,
         `DTSTAMP:${dtstamp}`,
         `DTSTART;VALUE=DATE:${cleanDate}`,
         `SUMMARY:${cleanTitle}`,
@@ -60,10 +60,10 @@ export function generateICSContent(tasks: Task[]): string {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Zen NoteApp Mobile//EN',
+    'PRODID:-//Kanso Mobile//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Zen Calendar',
+    'X-WR-CALNAME:Kanso Calendar',
     ...events,
     'END:VCALENDAR',
   ].join('\r\n');
@@ -71,12 +71,12 @@ export function generateICSContent(tasks: Task[]): string {
 
 export function generateMarkdownContent(tasks: Task[]): string {
   const tasksByDate = new Map<string, Task[]>();
-  const inboxTasks: Task[] = [];
+  const unscheduledTasks: Task[] = [];
 
   for (const t of tasks) {
     if (t.isArchived) continue;
     if (t.isInbox || !t.date) {
-      inboxTasks.push(t);
+      unscheduledTasks.push(t);
       continue;
     }
     const current = tasksByDate.get(t.date) || [];
@@ -86,7 +86,7 @@ export function generateMarkdownContent(tasks: Task[]): string {
 
   const sortedDates = Array.from(tasksByDate.keys()).sort();
   const lines: string[] = [
-    '# Zen Notes & Tasks Export',
+    '# Kanso Notes & Tasks Export',
     `*Exported on ${new Date().toISOString().split('T')[0]} - Obsidian & Local-first Ready*`,
     '',
   ];
@@ -105,9 +105,9 @@ export function generateMarkdownContent(tasks: Task[]): string {
     lines.push('');
   }
 
-  if (inboxTasks.length > 0) {
-    lines.push('## Inbox / Triage');
-    for (const t of inboxTasks) {
+  if (unscheduledTasks.length > 0) {
+    lines.push('## Unscheduled');
+    for (const t of unscheduledTasks) {
       let meta = '';
       if (t.tag) meta += ` #${sanitizeMarkdownInline(String(t.tag))}`;
       if (t.estimatedMinutes) meta += ` (${Math.floor(t.estimatedMinutes)}m)`;

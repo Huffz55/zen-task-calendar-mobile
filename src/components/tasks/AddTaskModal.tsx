@@ -30,8 +30,7 @@ interface AddTaskModalProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean,
-    isInbox?: boolean
+    isPinned?: boolean
   ) => void;
 }
 
@@ -52,7 +51,6 @@ export function AddTaskModal({
   const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(undefined);
   const [isPinned, setIsPinned] = useState(false);
-  const [isInbox, setIsInbox] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
   const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | null>(null);
@@ -93,15 +91,13 @@ export function AddTaskModal({
       tag,
       subtasks,
       estimatedMinutes,
-      isPinned,
-      isInbox
+      isPinned
     );
     setTitle('');
     setTag(undefined);
     setRecurrence('none');
     setEstimatedMinutes(undefined);
     setIsPinned(false);
-    setIsInbox(false);
     setSubtasks([]);
     setNewSubtaskInput('');
     setActiveSection(null);
@@ -142,8 +138,6 @@ export function AddTaskModal({
     { label: formatMinutesCompact(60, language), value: 60 },
     { label: formatMinutesCompact(120, language), value: 120 },
   ];
-
-  const inboxTint = theme.isDark ? '#38bdf8' : '#0284c7';
 
   return (
     <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
@@ -330,29 +324,6 @@ export function AddTaskModal({
               ]}
             >
               {subtasks.length > 0 ? t('tasks.pillStepsCount', { count: subtasks.length }) : t('tasks.pillSteps')}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.optionPill,
-              {
-                backgroundColor: isInbox ? withAlpha(inboxTint, theme.isDark ? 0.2 : 0.12) : theme.surfaceMuted,
-                borderColor: isInbox ? inboxTint : theme.border,
-              },
-            ]}
-            onPress={() => {
-              hapticSelection();
-              setIsInbox(prev => !prev);
-            }}
-          >
-            <Ionicons
-              name={isInbox ? 'archive' : 'archive-outline'}
-              size={13}
-              color={isInbox ? inboxTint : theme.textDim}
-            />
-            <Text style={[styles.optionPillText, { color: isInbox ? inboxTint : theme.textDim }]}>
-              {t('tasks.pillInbox')}
             </Text>
           </TouchableOpacity>
         </View>

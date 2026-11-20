@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CustomList } from '../types';
+import { CustomList, Task } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { CUSTOM_FOLDERS_STORAGE_KEY } from '../services/storage/taskStorage';
 import { safeJsonParse, sanitizeText } from '../services/validation/validator';
@@ -28,6 +28,9 @@ interface ListsScreenProps {
   theme: ThemeColors;
   currentStreak: number;
   lists: CustomList[];
+  unscheduledTasks?: Task[];
+  onToggleUnscheduledTask?: (taskId: string, dateStr: string) => void;
+  onDeleteUnscheduledTask?: (taskId: string) => void;
   workspaceResetCount?: number;
   onAddList: (title: string, folder?: string) => void;
   onUpdateListFolder?: (listId: string, folder?: string) => void;
@@ -44,6 +47,9 @@ export function ListsScreen({
   theme,
   currentStreak,
   lists,
+  unscheduledTasks = [],
+  onToggleUnscheduledTask,
+  onDeleteUnscheduledTask,
   workspaceResetCount = 0,
   onAddList,
   onUpdateListFolder,
@@ -296,19 +302,90 @@ export function ListsScreen({
         </TouchableOpacity>
 
         {/* Lists Container */}
-        {filteredLists.length > 0 ? (
-          filteredLists.map(list => (
-            <ListCard
-              key={list.id}
-              list={list}
-              theme={theme}
-              onToggleItem={onToggleItem}
-              onAddItem={onAddItem}
-              onDeleteItem={onDeleteItem}
-              onDeleteList={onDeleteList}
-              onMoveFolder={onUpdateListFolder ? handleMoveFolderRequest : undefined}
-            />
-          ))
+        {filteredLists.length > 0 || (selectedFolder === 'ALL' && unscheduledTasks.length > 0) ? (
+          <>
+            {filteredLists.map(list => (
+              <ListCard
+                key={list.id}
+                list={list}
+                theme={theme}
+                onToggleItem={onToggleItem}
+                onAddItem={onAddItem}
+                onDeleteItem={onDeleteItem}
+                onDeleteList={onDeleteList}
+                onMoveFolder={onUpdateListFolder ? handleMoveFolderRequest : undefined}
+              />
+            ))}
+
+            {selectedFolder === 'ALL' && unscheduledTasks.length > 0 && (
+              <View style={[styles.unscheduledCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View style={styles.unscheduledHeader}>
+                  <Ionicons name="albums-outline" size={17} color={theme.primary} />
+                  <Text style={[styles.unscheduledTitle, { color: theme.text }]} numberOfLines={1}>
+                    {t('lists.unscheduledTasksTitle')}
+                  </Text>
+                  <View style={[styles.unscheduledBadge, { backgroundColor: theme.surfaceMuted }]}>
+                    <Text style={[styles.unscheduledCount, { color: theme.textDim }]}>
+                      {unscheduledTasks.length}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.unscheduledList}>
+                  {unscheduledTasks.map(task => {
+                    const isCompleted = Array.isArray(task.completedDates) && task.completedDates.includes(task.date);
+                    return (
+                      <View key={task.id} style={styles.unscheduledRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.unscheduledCheckbox,
+                            {
+                              borderColor: isCompleted ? theme.primary : theme.textDim,
+                              backgroundColor: isCompleted ? theme.primary : 'transparent',
+                            },
+                          ]}
+                          onPress={() => {
+                            hapticLight();
+                            onToggleUnscheduledTask?.(task.id, task.date);
+                          }}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: isCompleted }}
+                          accessibilityLabel={task.title}
+                        >
+                          {isCompleted && <Ionicons name="checkmark" size={12} color="#ffffff" />}
+                        </TouchableOpacity>
+                        <Text
+                          style={[
+                            styles.unscheduledText,
+                            {
+                              color: isCompleted ? theme.textDim : theme.text,
+                              textDecorationLine: isCompleted ? 'line-through' : 'none',
+                            },
+                          ]}
+                        >
+                          {task.title}
+                        </Text>
+                        {onDeleteUnscheduledTask && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              hapticLight();
+                              onDeleteUnscheduledTask(task.id);
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('lists.a11yDeleteItem', { item: task.title })}
+                          >
+                            <Ionicons name="close" size={16} color={theme.textDim} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </>
         ) : (
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIconCircle, { backgroundColor: theme.primaryLight }]}>
@@ -594,5 +671,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     flex: 1,
+  },
+  unscheduledCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  unscheduledHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  unscheduledTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+  },
+  unscheduledBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  unscheduledCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  unscheduledList: {
+    gap: 10,
+  },
+  unscheduledRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 28,
+  },
+  unscheduledCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unscheduledText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

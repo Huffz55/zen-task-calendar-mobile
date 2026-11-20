@@ -1,6 +1,5 @@
 import { useApp } from '../../context/AppContext';
 import { TodayScreen } from '../../screens/TodayScreen';
-import { ZenTriageModal } from '../../components/common/ZenTriageModal';
 import { useTranslation } from '../../i18n';
 
 export default function TodayRoute() {
@@ -22,11 +21,6 @@ export default function TodayRoute() {
     handleFutureDelete,
     handleEditTask,
     togglePinTask,
-    moveToInbox,
-    triageTask,
-    inboxTasks,
-    isTriageModalOpen,
-    setIsTriageModalOpen,
     deferTaskToTomorrow,
     toggleSubtask,
     startTaskFocus,
@@ -41,57 +35,40 @@ export default function TodayRoute() {
   } = useApp();
 
   return (
-    <>
-      <TodayScreen
-        theme={theme}
-        currentStreak={currentStreak}
-        tasks={currentDayTasks}
-        selectedDate={selectedDate}
-        todayStr={todayStr}
-        onSelectDate={setSelectedDate}
-        getTaskCountForDate={getTaskCountForDate}
-        onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-        onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox) => {
-          addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox);
-          showToast({
-            type: 'success',
-            title: isInbox ? t('toasts.savedToInboxTitle') : t('toasts.addedTitle'),
-            message: isInbox
-              ? t('toasts.savedToInboxMessage', { title })
-              : t('toasts.addedPlanMessage', { title }),
-          });
-        }}
-        onEditTask={handleEditTask}
-        onTogglePin={togglePinTask}
-        onMoveToInbox={moveToInbox}
-        onOpenTriage={() => setIsTriageModalOpen(true)}
-        inboxCount={inboxTasks.length}
-        onDeferTask={deferTaskToTomorrow}
-        onDeleteSingle={handleSingleDelete}
-        onDeleteInstance={handleInstanceDelete}
-        onDeleteFuture={handleFutureDelete}
-        onToggleSubtask={toggleSubtask}
-        onStartFocus={startTaskFocus}
-        onOpenThemeModal={() => setIsThemeModalOpen(true)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-        onOpenSyncModal={() => setIsSyncModalOpen(true)}
-        isEveningReviewOpen={isEveningReviewOpen}
-        onOpenEveningReview={() => setIsEveningReviewOpen(true)}
-        onCloseEveningReview={() => setIsEveningReviewOpen(false)}
-        todayFocusSeconds={focusStats.todayFocusSeconds}
-        overdueCount={overdueCount}
-        onRolloverTasks={handleRollover}
-      />
-      <ZenTriageModal
-        visible={isTriageModalOpen}
-        theme={theme}
-        inboxTasks={inboxTasks}
-        onTriageDecision={triageTask}
-        onQuickAddTask={(title) => {
-          addTask(title, selectedDateStr, 'none', undefined, undefined, undefined, false, true);
-        }}
-        onClose={() => setIsTriageModalOpen(false)}
-      />
-    </>
+    <TodayScreen
+      theme={theme}
+      currentStreak={currentStreak}
+      tasks={currentDayTasks}
+      selectedDate={selectedDate}
+      todayStr={todayStr}
+      onSelectDate={setSelectedDate}
+      getTaskCountForDate={getTaskCountForDate}
+      onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
+      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned) => {
+        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned);
+        showToast({
+          type: 'success',
+          title: t('toasts.addedTitle'),
+          message: t('toasts.addedPlanMessage', { title }),
+        });
+      }}
+      onEditTask={handleEditTask}
+      onTogglePin={togglePinTask}
+      onDeferTask={deferTaskToTomorrow}
+      onDeleteSingle={handleSingleDelete}
+      onDeleteInstance={handleInstanceDelete}
+      onDeleteFuture={handleFutureDelete}
+      onToggleSubtask={toggleSubtask}
+      onStartFocus={startTaskFocus}
+      onOpenThemeModal={() => setIsThemeModalOpen(true)}
+      onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+      onOpenSyncModal={() => setIsSyncModalOpen(true)}
+      isEveningReviewOpen={isEveningReviewOpen}
+      onOpenEveningReview={() => setIsEveningReviewOpen(true)}
+      onCloseEveningReview={() => setIsEveningReviewOpen(false)}
+      todayFocusSeconds={focusStats.todayFocusSeconds}
+      overdueCount={overdueCount}
+      onRolloverTasks={handleRollover}
+    />
   );
 }

@@ -1,9 +1,17 @@
 node_modules/
 .expo/
+.expo-shared/
 dist/
 build/
 android/
 ios/
+coverage/
+.git/
+package-lock.json
+.env
+.env.*
 assets/*.m4a
 assets/*.wav
 assets/*.png
+assets/*.jpg
+assets/*.webp

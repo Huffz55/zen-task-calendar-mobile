@@ -18,7 +18,7 @@ class BackupService {
   async exportICS(tasks: Task[]): Promise<boolean> {
     try {
       const icsStr = generateICSContent(tasks);
-      const filename = `zen_calendar_${format(new Date(), 'yyyyMMdd_HHmmss')}.ics`;
+      const filename = `kanso_calendar_${format(new Date(), 'yyyyMMdd_HHmmss')}.ics`;
       const file = new File(Paths.cache, filename);
 
       file.create({ overwrite: true });
@@ -43,7 +43,7 @@ class BackupService {
   async exportMarkdown(tasks: Task[]): Promise<boolean> {
     try {
       const mdStr = generateMarkdownContent(tasks);
-      const filename = `zen_tasks_obsidian_${format(new Date(), 'yyyyMMdd_HHmmss')}.md`;
+      const filename = `kanso_tasks_obsidian_${format(new Date(), 'yyyyMMdd_HHmmss')}.md`;
       const file = new File(Paths.cache, filename);
 
       file.create({ overwrite: true });
@@ -75,7 +75,7 @@ class BackupService {
       };
 
       const jsonStr = JSON.stringify(payload, null, 2);
-      const filename = `zen_task_backup_${format(new Date(), 'yyyyMMdd_HHmmss')}.json`;
+      const filename = `kanso_backup_${format(new Date(), 'yyyyMMdd_HHmmss')}.json`;
       const file = new File(Paths.cache, filename);
 
       file.create({ overwrite: true });

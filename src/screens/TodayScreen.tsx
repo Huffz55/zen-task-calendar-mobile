@@ -44,14 +44,10 @@ interface TodayScreenProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean,
-    isInbox?: boolean
+    isPinned?: boolean
   ) => void;
   onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
   onTogglePin?: (taskId: string) => void;
-  onMoveToInbox?: (taskId: string) => void;
-  onOpenTriage?: () => void;
-  inboxCount?: number;
   onDeferTask?: (taskId: string, currentDateStr: string) => void;
   onDeleteSingle: (taskId: string) => void;
   onDeleteInstance: (taskId: string, dateStr: string) => void;
@@ -81,9 +77,6 @@ export function TodayScreen({
   onAddTask,
   onEditTask,
   onTogglePin,
-  onMoveToInbox,
-  onOpenTriage,
-  inboxCount = 0,
   onDeferTask,
   onDeleteSingle,
   onDeleteInstance,
@@ -261,15 +254,13 @@ export function TodayScreen({
           </TouchableOpacity>
         )}
 
-        {/* Progress Summary, Planned Time & Inbox Button */}
-        {(totalTasks > 0 || onOpenTriage) && (
+        {/* Progress Summary & Planned Time */}
+        {totalTasks > 0 && (
           <View style={styles.summaryRow}>
             <View style={styles.summaryLeft}>
-              {totalTasks > 0 && (
-                <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                  {t('today.progressCompleted', { completed: completedTasks, total: totalTasks })}
-                </Text>
-              )}
+              <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                {t('today.progressCompleted', { completed: completedTasks, total: totalTasks })}
+              </Text>
               {plannedTotalStr && (
                 <Text
                   style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}
@@ -279,45 +270,12 @@ export function TodayScreen({
                   {plannedTotalStr}
                 </Text>
               )}
-              {totalTasks > 0 && completedTasks === totalTasks && (
+              {completedTasks === totalTasks && (
                 <Text style={[styles.perfectBadge, { color: theme.success }]} maxFontSizeMultiplier={1.35}>
                   {t('today.allDone')}
                 </Text>
               )}
             </View>
-            {onOpenTriage && (
-              <TouchableOpacity
-                style={[
-                  styles.inboxActionPill,
-                  {
-                    backgroundColor: inboxCount > 0 ? theme.primaryLight : theme.surfaceMuted,
-                    borderColor: inboxCount > 0 ? theme.primary : theme.border,
-                  },
-                ]}
-                onPress={() => {
-                  hapticLight();
-                  onOpenTriage();
-                }}
-                activeOpacity={0.75}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons
-                  name="file-tray-full-outline"
-                  size={13}
-                  color={inboxCount > 0 ? theme.primary : theme.textMuted}
-                />
-                <Text
-                  style={[
-                    styles.inboxActionText,
-                    { color: inboxCount > 0 ? theme.primary : theme.textMuted },
-                  ]}
-                  numberOfLines={1}
-                  maxFontSizeMultiplier={1.35}
-                >
-                  {inboxCount > 0 ? t('today.inboxWithCount', { count: inboxCount }) : t('today.inbox')}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
@@ -346,7 +304,6 @@ export function TodayScreen({
                   onDelete={handleDeleteRequest}
                   onEdit={handleEditRequest}
                   onTogglePin={onTogglePin}
-                  onMoveToInbox={onMoveToInbox}
                   onDeferTask={onDeferTask ? handleDeferForDate : undefined}
                   onToggleSubtask={onToggleSubtask}
                   onStartFocus={onStartFocus}
@@ -372,12 +329,6 @@ export function TodayScreen({
           )
         ) : (
           <View style={styles.emptyContainer}>
-            <View
-              style={[
-                styles.emptyHairline,
-                { backgroundColor: withAlpha(theme.primary, theme.isDark ? 0.45 : 0.35) },
-              ]}
-            />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               {isToday ? t('today.emptyTodayTitle') : t('today.emptyDateTitle')}
             </Text>
@@ -541,12 +492,6 @@ const styles = StyleSheet.create({
     paddingVertical: 80,
     paddingHorizontal: 28,
   },
-  emptyHairline: {
-    width: 28,
-    height: 1.5,
-    borderRadius: 1,
-    marginBottom: 16,
-  },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -593,20 +538,5 @@ const styles = StyleSheet.create({
   clearFilterText: {
     fontSize: 12,
     fontWeight: '700',
-  },
-  inboxActionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexShrink: 0,
-  },
-  inboxActionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
   },
 });

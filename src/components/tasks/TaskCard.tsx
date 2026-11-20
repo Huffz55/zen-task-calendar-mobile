@@ -27,7 +27,6 @@ interface TaskCardProps {
   onDelete: (task: DailyTask) => void;
   onEdit?: (task: DailyTask) => void;
   onTogglePin?: (taskId: string) => void;
-  onMoveToInbox?: (taskId: string) => void;
   onDeferTask?: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
   onStartFocus?: (task: { id: string; title: string }) => void;
@@ -40,7 +39,6 @@ export const TaskCard = memo(function TaskCard({
   onDelete,
   onEdit,
   onTogglePin,
-  onMoveToInbox,
   onDeferTask,
   onToggleSubtask,
   onStartFocus,
@@ -500,22 +498,6 @@ export const TaskCard = memo(function TaskCard({
             >
               <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
               <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuDeferTomorrow')}</Text>
-            </TouchableOpacity>
-          )}
-
-          {onMoveToInbox && !task.isCompleted && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                hapticLight();
-                setIsMenuOpen(false);
-                onMoveToInbox(task.taskId);
-              }}
-            >
-              <Ionicons name="archive-outline" size={18} color={theme.accent || theme.primary} />
-              <Text style={[styles.menuItemText, { color: theme.text }]}>
-                {t('tasks.menuMoveInbox')}
-              </Text>
             </TouchableOpacity>
           )}
 

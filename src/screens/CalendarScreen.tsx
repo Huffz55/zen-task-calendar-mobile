@@ -41,8 +41,7 @@ interface CalendarScreenProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean,
-    isInbox?: boolean
+    isPinned?: boolean
   ) => void;
   onEditTask: (
     taskId: string,
@@ -251,7 +250,6 @@ export function CalendarScreen({
             )
           ) : (
             <View style={styles.emptyContainer}>
-              <View style={[styles.emptyHairline, { backgroundColor: theme.border }]} />
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {t('calendar.emptyDateTitle')}
               </Text>
@@ -343,12 +341,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptyHairline: {
-    width: 24,
-    height: 1.5,
-    borderRadius: 1,
-    marginBottom: 12,
   },
   emptyTitle: {
     fontSize: 15,

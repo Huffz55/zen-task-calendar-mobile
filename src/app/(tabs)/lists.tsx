@@ -8,6 +8,9 @@ export default function ListsRoute() {
     theme,
     currentStreak,
     lists,
+    unscheduledTasks,
+    toggleTaskCompletion,
+    handleSingleDelete,
     workspaceResetCount,
     addList,
     updateListFolder,
@@ -26,6 +29,9 @@ export default function ListsRoute() {
       theme={theme}
       currentStreak={currentStreak}
       lists={lists}
+      unscheduledTasks={unscheduledTasks}
+      onToggleUnscheduledTask={(taskId, dateStr) => toggleTaskCompletion(taskId, dateStr)}
+      onDeleteUnscheduledTask={handleSingleDelete}
       workspaceResetCount={workspaceResetCount}
       onAddList={(title, folder) => {
         addList(title, folder);

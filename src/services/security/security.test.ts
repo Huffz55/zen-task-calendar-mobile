@@ -112,7 +112,7 @@ describe('Security & Penetration Test Suite', () => {
       expect(valarmCount).toBe(0);
       expect(veventCount).toBe(1);
       expect(uidCount).toBe(1);
-      expect(ics).toContain('UID:t1__UID_forged@zen.app');
+      expect(ics).toContain('UID:t1__UID_forged@kanso.app');
 
       const md = generateMarkdownContent(maliciousTasks);
       expect(md.split('\n').filter(line => line.startsWith('- [ ]'))).toHaveLength(1);

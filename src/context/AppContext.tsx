@@ -92,14 +92,10 @@ interface AppContextValue {
   currentDayTasks: DailyTask[];
   currentStreak: number;
   overdueCount: number;
-  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean, isInbox?: boolean) => Task;
+  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => Task;
   toggleTaskCompletion: (taskId: string, dateStr: string) => void;
   togglePinTask: (taskId: string) => void;
-  moveToInbox: (taskId: string) => void;
-  triageTask: (taskId: string, decision: 'today' | 'someday' | 'delete') => void;
-  inboxTasks: Task[];
-  isTriageModalOpen: boolean;
-  setIsTriageModalOpen: (open: boolean) => void;
+  unscheduledTasks: Task[];
   deferTaskToTomorrow: (taskId: string, currentDateStr: string) => void;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
   getTasksForDate: (dateStr: string) => DailyTask[];
@@ -146,7 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [languagePreference, setLanguagePreferenceState] = useState<LanguagePreference>('system');
   const [deviceLanguage, setDeviceLanguage] = useState<AppLanguage>(() => resolveDeviceLanguage());
-  const [daytimeThemeKey, setDaytimeThemeKey] = useState<AppTheme>('sakura');
+  const [daytimeThemeKey, setDaytimeThemeKey] = useState<AppTheme>('matcha');
   const [autoNightShift, setAutoNightShift] = useState(false);
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
   const [morningBriefingEnabled, setMorningBriefingEnabled] = useState(false);
@@ -303,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [autoNightShift, isNightTime, language, showToast]);
 
   const currentThemeKey: AppTheme = (autoNightShift && isNightTime) ? 'midnight' : daytimeThemeKey;
-  const theme: ThemeColors = THEMES[currentThemeKey] || THEMES.sakura;
+  const theme: ThemeColors = THEMES[currentThemeKey] || THEMES.matcha;
 
   // Task Management Engine
   const {
@@ -318,8 +314,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleTaskCompletion,
     editTask,
     togglePinTask,
-    moveToInbox,
-    triageTask,
     deferTaskToTomorrow,
     toggleSubtask,
     addTaskFocusTime,
@@ -347,10 +341,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFocusTask, setActiveFocusTask] = useState<{ id: string; title: string } | null>(null);
   const [isEveningReviewOpen, setIsEveningReviewOpen] = useState(false);
   const [isZenBreathingOpen, setIsZenBreathingOpen] = useState(false);
-  const [isTriageModalOpen, setIsTriageModalOpen] = useState(false);
   const [hasActiveTimerSession, setHasActiveTimerSession] = useState(false);
 
-  const inboxTasks = useMemo(
+  // Legacy unscheduled (isInbox) tasks preserved from older backups or storage
+  const unscheduledTasks = useMemo(
     () => tasks.filter(t => t.isInbox && !t.isArchived),
     [tasks]
   );
@@ -765,11 +759,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addTask,
       toggleTaskCompletion,
       togglePinTask,
-      moveToInbox,
-      triageTask,
-      inboxTasks,
-      isTriageModalOpen,
-      setIsTriageModalOpen,
+      unscheduledTasks,
       deferTaskToTomorrow,
       toggleSubtask,
       getTasksForDate,
@@ -827,10 +817,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addTask,
       toggleTaskCompletion,
       togglePinTask,
-      moveToInbox,
-      triageTask,
-      inboxTasks,
-      isTriageModalOpen,
+      unscheduledTasks,
       deferTaskToTomorrow,
       toggleSubtask,
       getTasksForDate,

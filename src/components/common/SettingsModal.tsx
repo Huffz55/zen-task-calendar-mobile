@@ -22,6 +22,7 @@ import {
 } from '../../services/audio/audioService';
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { ExportDataModal, type ExportFormat } from './ExportDataModal';
+import { LanguageModal } from './LanguageModal';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 import { resolveActiveLanguage, translate, useTranslation, type LanguagePreference } from '../../i18n';
 
@@ -72,6 +73,7 @@ export function SettingsModal({
   const [isImporting, setIsImporting] = useState(false);
   const [isClearingData, setIsClearingData] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [chimeEnabled, setChimeEnabled] = useState(() => isCompletionChimeEnabled());
   const [sfxEnabled, setSfxEnabled] = useState(() => isSoundEffectsEnabled());
@@ -210,12 +212,6 @@ export function SettingsModal({
     );
   };
 
-  const languageOptions: { id: LanguagePreference; label: string }[] = [
-    { id: 'system', label: t('settings.languageOptions.system') },
-    { id: 'tr', label: t('settings.languageOptions.tr') },
-    { id: 'en', label: t('settings.languageOptions.en') },
-  ];
-
   const activeLanguageDisplay =
     languagePreference === 'system'
       ? `${t('settings.languageOptions.system')} (${t(
@@ -237,7 +233,7 @@ export function SettingsModal({
   return (
     <>
       <SwipeableBottomSheet
-        visible={visible && !isPrivacyOpen && !isExportModalOpen}
+        visible={visible && !isPrivacyOpen && !isExportModalOpen && !isLanguageOpen}
         onClose={onClose}
         theme={theme}
         maxHeight="88%"
@@ -300,57 +296,28 @@ export function SettingsModal({
               </>
             )}
 
-            {/* Language Picker */}
-            <View style={styles.languageBlock}>
-              <View style={styles.languageHeaderRow}>
-                <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="globe-outline" size={18} color={theme.primary} />
-                </View>
-                <View style={styles.actionContent}>
-                  <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                    {t('settings.language')}
-                  </Text>
-                  <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                    {activeLanguageDisplay}
-                  </Text>
-                </View>
+            {/* Language Row */}
+            <TouchableOpacity
+              style={styles.groupRow}
+              onPress={() => {
+                hapticLight();
+                setIsLanguageOpen(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.surface }]}>
+                <Ionicons name="globe-outline" size={18} color={theme.primary} />
               </View>
-              <View style={[styles.languageSegmented, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                {languageOptions.map(opt => {
-                  const isSelected = languagePreference === opt.id;
-                  return (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={[
-                        styles.languageOptionBtn,
-                        isSelected && { backgroundColor: theme.primaryLight, borderColor: theme.primary },
-                      ]}
-                      onPress={() => {
-                        void handleSelectLanguage(opt.id);
-                      }}
-                      activeOpacity={0.75}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      accessibilityLabel={opt.label}
-                    >
-                      <Text
-                        style={[
-                          styles.languageOptionText,
-                          {
-                            color: isSelected ? theme.primary : theme.textDim,
-                            fontWeight: isSelected ? '700' : '500',
-                          },
-                        ]}
-                        numberOfLines={1}
-                        maxFontSizeMultiplier={1.35}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                  {t('settings.language')}
+                </Text>
+                <Text style={[styles.actionDesc, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
+                  {activeLanguageDisplay}
+                </Text>
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
+            </TouchableOpacity>
 
             <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />
 
@@ -598,6 +565,16 @@ export function SettingsModal({
         }}
       />
 
+      <LanguageModal
+        visible={visible && isLanguageOpen}
+        theme={theme}
+        currentPreference={languagePreference}
+        onSelectLanguage={(pref) => {
+          void handleSelectLanguage(pref);
+        }}
+        onClose={() => setIsLanguageOpen(false)}
+      />
+
       <PrivacyPolicyModal
         visible={isPrivacyOpen}
         theme={theme}
@@ -677,38 +654,6 @@ const styles = StyleSheet.create({
   actionDesc: {
     fontSize: 11,
     marginTop: 1,
-  },
-  languageBlock: {
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    gap: 10,
-  },
-  languageHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  languageSegmented: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 3,
-    gap: 4,
-    marginLeft: 46,
-  },
-  languageOptionBtn: {
-    flex: 1,
-    minHeight: 34,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  languageOptionText: {
-    fontSize: 12,
   },
   footer: {
     alignItems: 'center',

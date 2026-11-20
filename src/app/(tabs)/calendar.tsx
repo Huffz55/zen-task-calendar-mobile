@@ -37,14 +37,12 @@ export default function CalendarRoute() {
       getTasksForDate={getTasksForDate}
       getTaskCountForDate={getTaskCountForDate}
       onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox) => {
-        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, isInbox);
+      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned) => {
+        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned);
         showToast({
           type: 'success',
-          title: isInbox ? t('toasts.savedToInboxTitle') : t('toasts.addedTitle'),
-          message: isInbox
-            ? t('toasts.savedToInboxMessage', { title })
-            : t('toasts.addedCalendarMessage', { title }),
+          title: t('toasts.addedTitle'),
+          message: t('toasts.addedCalendarMessage', { title }),
         });
       }}
       onEditTask={handleEditTask}

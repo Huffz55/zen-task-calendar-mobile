@@ -36,20 +36,20 @@ describe('mobile zenExport', () => {
     const ics = generateICSContent(sampleTasks);
 
     expect(ics).toContain('BEGIN:VCALENDAR');
-    expect(ics).toContain('PRODID:-//Zen NoteApp Mobile//EN');
-    expect(ics).toContain('UID:m1@zen.app');
+    expect(ics).toContain('PRODID:-//Kanso Mobile//EN');
+    expect(ics).toContain('UID:m1@kanso.app');
     expect(ics).toContain('SUMMARY:Plan  sprint  review notes');
     expect(ics).toContain('STATUS:COMPLETED');
     expect(ics).toContain('DESCRIPTION:Tag: work | Est: 45m');
     expect(ics).not.toContain('Archived item');
   });
 
-  it('generates Markdown grouped by date and inbox section', () => {
+  it('generates Markdown grouped by date and unscheduled section', () => {
     const md = generateMarkdownContent(sampleTasks);
 
     expect(md).toContain('## 2026-11-15');
     expect(md).toContain('- [x] Plan, sprint; review\\notes #work (45m)');
-    expect(md).toContain('## Inbox / Triage');
+    expect(md).toContain('## Unscheduled');
     expect(md).toContain('- [ ] Triage thought #ideas');
     expect(md).not.toContain('Archived item');
   });

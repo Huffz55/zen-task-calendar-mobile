@@ -46,8 +46,7 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean,
-    isInbox?: boolean
+    isPinned?: boolean
   ) => {
     const newTask: Task = {
       id: generateUniqueId(),
@@ -59,7 +58,6 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       subtasks: subtasks && subtasks.length > 0 ? subtasks : undefined,
       estimatedMinutes: estimatedMinutes && estimatedMinutes > 0 ? estimatedMinutes : undefined,
       isPinned: isPinned || undefined,
-      isInbox: isInbox || undefined,
     };
     springLayout();
     setTasks(prev => [newTask, ...prev]);
@@ -144,36 +142,6 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, isPinned: !t.isPinned };
-      }
-      return t;
-    }));
-  }, []);
-
-  const moveToInbox = useCallback((taskId: string) => {
-    springLayout();
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return { ...t, isInbox: true };
-      }
-      return t;
-    }));
-  }, []);
-
-  const triageTask = useCallback((taskId: string, decision: 'today' | 'someday' | 'delete', targetDateStr?: string) => {
-    springLayout();
-    if (decision === 'delete') {
-      setTasks(prev => prev.filter(t => t.id !== taskId));
-      return;
-    }
-    const dateToSet = targetDateStr || format(new Date(), 'yyyy-MM-dd');
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        if (decision === 'today') {
-          return { ...t, isInbox: false, date: dateToSet };
-        }
-        if (decision === 'someday') {
-          return { ...t, isInbox: true };
-        }
       }
       return t;
     }));
@@ -285,8 +253,6 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     toggleTaskCompletion,
     editTask,
     togglePinTask,
-    moveToInbox,
-    triageTask,
     deferTaskToTomorrow,
     toggleSubtask,
     addTaskFocusTime,
