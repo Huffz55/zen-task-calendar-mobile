@@ -41,7 +41,9 @@ interface CalendarScreenProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string
   ) => void;
   onEditTask: (
     taskId: string,
@@ -49,7 +51,10 @@ interface CalendarScreenProps {
     newTag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string | null,
+    recurrence?: RecurrenceType
   ) => void;
   onDeleteSingle: (taskId: string) => void;
   onDeleteInstance: (taskId: string, dateStr: string) => void;
@@ -104,7 +109,10 @@ export function CalendarScreen({
   const filteredTasks = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return dayTasks.filter(task => {
-      const matchesSearch = q === '' || task.title.toLowerCase().includes(q);
+      const matchesSearch =
+        q === '' ||
+        task.title.toLowerCase().includes(q) ||
+        (task.notes ? task.notes.toLowerCase().includes(q) : false);
       const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
       return matchesSearch && matchesTag;
     });

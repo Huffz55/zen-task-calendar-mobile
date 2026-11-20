@@ -46,8 +46,11 @@ export const TaskCard = memo(function TaskCard({
   const { customTags } = useApp();
   const { t, language } = useTranslation();
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
+  const [isNoteExpanded, setIsNoteExpanded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const tagConfig = task.tag ? resolveTagConfig(task.tag, customTags, language) : null;
+  const trimmedNote = task.notes?.trim() ?? '';
+  const hasNote = trimmedNote.length > 0;
 
   // Extract link if task contains a URL
   const linkInfo = useMemo(() => {
@@ -349,6 +352,58 @@ export const TaskCard = memo(function TaskCard({
                 </View>
               ) : null}
 
+              {/* Reminder Time Badge */}
+              {task.reminderTime ? (
+                <View style={[styles.badge, { backgroundColor: theme.surfaceMuted, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
+                  <Ionicons name="notifications-outline" size={10} color={theme.primary} />
+                  <Text style={[styles.badgeText, styles.tabularText, { color: theme.textDim }]} numberOfLines={1}>
+                    {task.reminderTime}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Note Indicator Badge */}
+              {hasNote && (
+                <TouchableOpacity
+                  style={[
+                    styles.badge,
+                    {
+                      backgroundColor: isNoteExpanded ? theme.primaryLight : theme.surfaceMuted,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: isNoteExpanded ? theme.primary : theme.border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 3,
+                    },
+                  ]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    hapticLight();
+                    animateLayout();
+                    setIsNoteExpanded(prev => !prev);
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tasks.a11yToggleNote')}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={10}
+                    color={isNoteExpanded ? theme.primary : theme.textDim}
+                  />
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      { color: isNoteExpanded ? theme.primary : theme.textDim },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {t('tasks.noteBadge')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {/* Quick Link Badge */}
               {linkInfo && (
                 <TouchableOpacity
@@ -544,6 +599,15 @@ export const TaskCard = memo(function TaskCard({
             <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </SwipeableBottomSheet>
+
+        {/* Expandable Note Preview */}
+        {isNoteExpanded && hasNote && (
+          <View style={[styles.notePreviewBox, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+            <Text style={[styles.notePreviewText, { color: theme.textMuted }]}>
+              {trimmedNote}
+            </Text>
+          </View>
+        )}
 
         {/* Expandable Subtasks Checklist */}
         {isSubtasksExpanded && subtasks.length > 0 && (
@@ -745,6 +809,17 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
+  },
+  notePreviewBox: {
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  notePreviewText: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   subtaskItem: {
     flexDirection: 'row',

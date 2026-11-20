@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { ThemeColors } from '../constants/colors';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
+import { ThemeColors, withAlpha } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { ZenTimerView } from '../components/timer/ZenTimerView';
 import { AmbientSoundBar } from '../components/timer/AmbientSoundBar';
@@ -30,6 +30,9 @@ interface FocusScreenProps {
   };
   activeFocusTask?: { id: string; title: string } | null;
   onClearActiveFocusTask?: () => void;
+  showFocusTaskCompletion?: boolean;
+  onCompleteFocusTask?: () => void;
+  onDismissFocusCompletion?: () => void;
   isZenBreathingOpen?: boolean;
   onOpenZenBreathing?: () => void;
   onCloseZenBreathing?: () => void;
@@ -51,6 +54,9 @@ export function FocusScreen({
   focusStats,
   activeFocusTask,
   onClearActiveFocusTask,
+  showFocusTaskCompletion = false,
+  onCompleteFocusTask,
+  onDismissFocusCompletion,
   isZenBreathingOpen = false,
   onOpenZenBreathing,
   onCloseZenBreathing,
@@ -115,6 +121,72 @@ export function FocusScreen({
                 <Ionicons name="close-circle" size={20} color={theme.primary} />
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* Post-Session Quick Task Completion Card */}
+        {activeFocusTask && showFocusTaskCompletion && onCompleteFocusTask && (
+          <View style={[styles.completionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.completionLeft}>
+              <View
+                style={[
+                  styles.completionIconWrap,
+                  { backgroundColor: withAlpha(theme.success, theme.isDark ? 0.2 : 0.12) },
+                ]}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color={theme.success} />
+              </View>
+              <View style={styles.targetTexts}>
+                <Text style={[styles.completionLabel, { color: theme.textDim }]} maxFontSizeMultiplier={1.3}>
+                  {t('focus.sessionCompleteTitle')}
+                </Text>
+                <Text
+                  style={[styles.completionTaskTitle, { color: theme.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  maxFontSizeMultiplier={1.3}
+                >
+                  {activeFocusTask.title}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.completionActions}>
+              <Pressable
+                onPress={() => {
+                  animateLayout();
+                  onCompleteFocusTask();
+                }}
+                style={({ pressed }) => [
+                  styles.completeTaskBtn,
+                  { backgroundColor: theme.primary, opacity: pressed ? 0.82 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={t('focus.a11yMarkTaskDone', { title: activeFocusTask.title })}
+              >
+                <Ionicons name="checkmark" size={14} color="#ffffff" />
+                <Text style={styles.completeTaskBtnText} maxFontSizeMultiplier={1.25}>
+                  {t('focus.markTaskDone')}
+                </Text>
+              </Pressable>
+              {onDismissFocusCompletion && (
+                <Pressable
+                  onPress={() => {
+                    hapticLight();
+                    animateLayout();
+                    onDismissFocusCompletion();
+                  }}
+                  style={({ pressed }) => [
+                    styles.dismissCompletionBtn,
+                    { opacity: pressed ? 0.65 : 1 },
+                  ]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('focus.a11yDismissCompletion')}
+                >
+                  <Ionicons name="close" size={16} color={theme.textDim} />
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
 
@@ -290,6 +362,65 @@ const styles = StyleSheet.create({
   targetClearBtn: {
     padding: 4,
     marginLeft: 8,
+  },
+  completionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 10,
+  },
+  completionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  completionIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  completionTaskTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  completionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  completeTaskBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 38,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  completeTaskBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dismissCompletionBtn: {
+    minWidth: 32,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   breathingShortcutBtn: {
     flexDirection: 'row',

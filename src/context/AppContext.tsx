@@ -9,8 +9,13 @@ import { TAGS, normalizeTagId } from '../constants/tags';
 import { THEMES, ThemeColors } from '../constants/colors';
 import { THEME_STORAGE_KEY, CUSTOM_TAGS_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
-import { createReminderCoordinator } from '../services/notifications/reminderScheduler';
-import { pauseAudioForBackground, resumeAudioFromBackground } from '../services/audio/audioService';
+import {
+  createReminderCoordinator,
+  DEFAULT_EVENING_TIME,
+  DEFAULT_MORNING_TIME,
+} from '../services/notifications/reminderScheduler';
+import { createTaskReminderCoordinator } from '../services/notifications/taskReminderScheduler';
+import { pauseAudioForBackground, playBambooTap, resumeAudioFromBackground } from '../services/audio/audioService';
 import { defaultBackupService } from '../services/storage/backupService';
 import { validateCustomTag, safeJsonParse, sanitizeText } from '../services/validation/validator';
 
@@ -49,8 +54,12 @@ interface AppContextValue {
   workspaceResetCount: number;
   morningBriefingEnabled: boolean;
   eveningReviewEnabled: boolean;
+  morningTime: string;
+  eveningTime: string;
   toggleMorningBriefing: (enabled: boolean) => Promise<void>;
   toggleEveningReview: (enabled: boolean) => Promise<void>;
+  updateMorningTime: (timeStr: string) => Promise<void>;
+  updateEveningTime: (timeStr: string) => Promise<void>;
   isSettingsModalOpen: boolean;
   setIsSettingsModalOpen: (open: boolean) => void;
   isSyncModalOpen: boolean;
@@ -71,6 +80,10 @@ interface AppContextValue {
   activeFocusTask: { id: string; title: string } | null;
   setActiveFocusTask: (task: { id: string; title: string } | null) => void;
   startTaskFocus: (task: { id: string; title: string }) => void;
+  isFocusedTaskCompletedToday: boolean;
+  canCompleteFocusTask: boolean;
+  completeActiveFocusTask: () => void;
+  dismissFocusTaskCompletion: () => void;
   isEveningReviewOpen: boolean;
   setIsEveningReviewOpen: (open: boolean) => void;
   isZenBreathingOpen: boolean;
@@ -92,7 +105,17 @@ interface AppContextValue {
   currentDayTasks: DailyTask[];
   currentStreak: number;
   overdueCount: number;
-  addTask: (title: string, date: string, recurrence?: RecurrenceType, tag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => Task;
+  addTask: (
+    title: string,
+    date: string,
+    recurrence?: RecurrenceType,
+    tag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string
+  ) => Task;
   toggleTaskCompletion: (taskId: string, dateStr: string) => void;
   togglePinTask: (taskId: string) => void;
   unscheduledTasks: Task[];
@@ -103,7 +126,17 @@ interface AppContextValue {
   handleSingleDelete: (taskId: string) => void;
   handleInstanceDelete: (taskId: string, dateStr: string) => void;
   handleFutureDelete: (taskId: string, dateStr: string) => void;
-  handleEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
+  handleEditTask: (
+    taskId: string,
+    newTitle: string,
+    newTag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string | null,
+    recurrence?: RecurrenceType
+  ) => void;
   handleRollover: () => void;
 
   // Lists Engine
@@ -127,10 +160,12 @@ interface TimerContextValue {
   timeLeft: number;
   initialTime: number;
   isTimerRunning: boolean;
+  hasCompletedSession: boolean;
   toggleTimer: () => void;
   resetTimer: () => void;
   setTimerMinutes: (minutes: number) => void;
   finishEarlySession: () => void;
+  clearCompletedSession: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -147,6 +182,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
   const [morningBriefingEnabled, setMorningBriefingEnabled] = useState(false);
   const [eveningReviewEnabled, setEveningReviewEnabled] = useState(false);
+  const [morningTime, setMorningTime] = useState(DEFAULT_MORNING_TIME);
+  const [eveningTime, setEveningTime] = useState(DEFAULT_EVENING_TIME);
   const [isPrefsLoaded, setIsPrefsLoaded] = useState(false);
   const [workspaceResetCount, setWorkspaceResetCount] = useState(0);
   const [isNightTime, setIsNightTime] = useState(() => {
@@ -169,6 +206,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const reminderCoordinatorRef = useRef(
     createReminderCoordinator(AsyncStorage, defaultNotificationService)
+  );
+  const taskReminderCoordinatorRef = useRef(
+    createTaskReminderCoordinator(defaultNotificationService)
   );
 
   // Focus sessions and analytics engine
@@ -205,6 +245,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         setMorningBriefingEnabled(reminderPrefs.morningBriefingEnabled);
         setEveningReviewEnabled(reminderPrefs.eveningReviewEnabled);
+        setMorningTime(reminderPrefs.morningTime);
+        setEveningTime(reminderPrefs.eveningTime);
       })
       .finally(() => {
         if (mounted) {
@@ -339,6 +381,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Active focus task, breathing modal, and evening review states
   const [activeFocusTask, setActiveFocusTask] = useState<{ id: string; title: string } | null>(null);
+  const [completedFocusTaskId, setCompletedFocusTaskId] = useState<string | null>(null);
   const [isEveningReviewOpen, setIsEveningReviewOpen] = useState(false);
   const [isZenBreathingOpen, setIsZenBreathingOpen] = useState(false);
   const [hasActiveTimerSession, setHasActiveTimerSession] = useState(false);
@@ -352,6 +395,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const handleTimerComplete = useCallback((elapsedSeconds: number) => {
     recordFocusSession(elapsedSeconds, activeFocusTask?.id, activeFocusTask?.title);
     if (activeFocusTask) {
+      setCompletedFocusTaskId(activeFocusTask.id);
       addTaskFocusTime(activeFocusTask.id, elapsedSeconds);
       const mins = Math.max(1, Math.round(elapsedSeconds / 60));
       showToast({
@@ -368,6 +412,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [recordFocusSession, activeFocusTask, addTaskFocusTime, language, showToast]);
 
   const startTaskFocus = useCallback((task: { id: string; title: string }) => {
+    setCompletedFocusTaskId(null);
     setActiveFocusTask(task);
     router.navigate('/(tabs)/focus');
     showToast({
@@ -440,22 +485,92 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [getTasksForDate, todayStr]);
 
+  const isFocusedTaskCompletedToday = useMemo(() => {
+    if (!activeFocusTask) return false;
+    const match = tasks.find(t => t.id === activeFocusTask.id);
+    if (!match) return false;
+    const completedList = Array.isArray(match.completedDates) ? match.completedDates : [];
+    return completedList.includes(todayStr);
+  }, [activeFocusTask, tasks, todayStr]);
+
+  const canCompleteFocusTask = Boolean(
+    activeFocusTask && completedFocusTaskId === activeFocusTask.id && !isFocusedTaskCompletedToday
+  );
+
+  const dismissFocusTaskCompletion = useCallback(() => {
+    setCompletedFocusTaskId(null);
+  }, []);
+
+  const completeActiveFocusTask = useCallback(() => {
+    if (!activeFocusTask) return;
+    const match = tasks.find(t => t.id === activeFocusTask.id);
+    if (!match) return;
+    const completedList = Array.isArray(match.completedDates) ? match.completedDates : [];
+    if (!completedList.includes(todayStr)) {
+      toggleTaskCompletion(activeFocusTask.id, todayStr);
+      playBambooTap();
+      hapticSuccess();
+    }
+    setCompletedFocusTaskId(null);
+    showToast({
+      type: 'success',
+      title: translate(language, 'focus.taskMarkedDone'),
+      message: activeFocusTask.title,
+    });
+  }, [activeFocusTask, tasks, todayStr, toggleTaskCompletion, showToast, language]);
+
   const isHydrated = isPrefsLoaded && isTasksLoaded && isListsLoaded && isFocusLoaded;
 
   const toggleMorningBriefing = useCallback(
     async (enabled: boolean) => {
       setMorningBriefingEnabled(enabled);
-      await reminderCoordinatorRef.current.setMorningEnabled(enabled, todayTasksSnapshot.total, language);
+      await reminderCoordinatorRef.current.setMorningEnabled(
+        enabled,
+        todayTasksSnapshot.total,
+        language,
+        morningTime
+      );
     },
-    [todayTasksSnapshot.total, language]
+    [todayTasksSnapshot.total, language, morningTime]
   );
 
   const toggleEveningReview = useCallback(
     async (enabled: boolean) => {
       setEveningReviewEnabled(enabled);
-      await reminderCoordinatorRef.current.setEveningEnabled(enabled, todayTasksSnapshot.pending, language);
+      await reminderCoordinatorRef.current.setEveningEnabled(
+        enabled,
+        todayTasksSnapshot.pending,
+        language,
+        eveningTime
+      );
     },
-    [todayTasksSnapshot.pending, language]
+    [todayTasksSnapshot.pending, language, eveningTime]
+  );
+
+  const updateMorningTime = useCallback(
+    async (timeStr: string) => {
+      const resolved = await reminderCoordinatorRef.current.setMorningTime(
+        timeStr,
+        morningBriefingEnabled,
+        todayTasksSnapshot.total,
+        language
+      );
+      setMorningTime(resolved);
+    },
+    [morningBriefingEnabled, todayTasksSnapshot.total, language]
+  );
+
+  const updateEveningTime = useCallback(
+    async (timeStr: string) => {
+      const resolved = await reminderCoordinatorRef.current.setEveningTime(
+        timeStr,
+        eveningReviewEnabled,
+        todayTasksSnapshot.pending,
+        language
+      );
+      setEveningTime(resolved);
+    },
+    [eveningReviewEnabled, todayTasksSnapshot.pending, language]
   );
 
   const setLanguagePreference = useCallback(
@@ -472,6 +587,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           isLoaded: true,
           morningBriefingEnabled,
           eveningReviewEnabled,
+          morningTime,
+          eveningTime,
           totalTodayTasks: todayTasksSnapshot.total,
           pendingTodayTasks: todayTasksSnapshot.pending,
           language: nextLang,
@@ -483,33 +600,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isPrefsLoaded,
       morningBriefingEnabled,
       eveningReviewEnabled,
+      morningTime,
+      eveningTime,
       todayTasksSnapshot.total,
       todayTasksSnapshot.pending,
     ]
   );
 
-  // Debounced sync for daily notifications only after hydration and only when enabled
+  // Debounced sync for daily & per-task notifications only after hydration
   useEffect(() => {
     if (!isTasksLoaded || !isPrefsLoaded) return;
 
     let active = true;
     const timer = setTimeout(async () => {
       if (!active) return;
-      await reminderCoordinatorRef.current.syncForTaskState({
-        isLoaded: true,
-        morningBriefingEnabled,
-        eveningReviewEnabled,
-        totalTodayTasks: todayTasksSnapshot.total,
-        pendingTodayTasks: todayTasksSnapshot.pending,
-        language,
-      });
+      await Promise.all([
+        reminderCoordinatorRef.current.syncForTaskState({
+          isLoaded: true,
+          morningBriefingEnabled,
+          eveningReviewEnabled,
+          morningTime,
+          eveningTime,
+          totalTodayTasks: todayTasksSnapshot.total,
+          pendingTodayTasks: todayTasksSnapshot.pending,
+          language,
+        }),
+        taskReminderCoordinatorRef.current.syncTasks(tasks, language),
+      ]);
     }, 450);
 
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [isTasksLoaded, isPrefsLoaded, morningBriefingEnabled, eveningReviewEnabled, todayTasksSnapshot, language]);
+  }, [
+    isTasksLoaded,
+    isPrefsLoaded,
+    morningBriefingEnabled,
+    eveningReviewEnabled,
+    morningTime,
+    eveningTime,
+    todayTasksSnapshot,
+    tasks,
+    language,
+  ]);
 
   const handleSingleDelete = useCallback(
     (taskId: string) => {
@@ -517,6 +651,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (taskToDelete) {
         hapticWarning();
         deleteTask(taskId);
+        void taskReminderCoordinatorRef.current.cancelForTask(taskId);
         showToast({
           type: 'undo',
           title: translate(language, 'toasts.taskDeletedTitle'),
@@ -572,9 +707,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       newTag?: TaskTag,
       subtasks?: Subtask[],
       estimatedMinutes?: number,
-      isPinned?: boolean
+      isPinned?: boolean,
+      notes?: string,
+      reminderTime?: string | null,
+      recurrence?: RecurrenceType
     ) => {
-      editTask(taskId, newTitle, newTag, subtasks, estimatedMinutes, isPinned);
+      editTask(taskId, newTitle, newTag, subtasks, estimatedMinutes, isPinned, notes, reminderTime, recurrence);
       showToast({
         type: 'info',
         title: translate(language, 'toasts.taskUpdatedTitle'),
@@ -674,13 +812,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setMorningBriefingEnabled(false);
       setEveningReviewEnabled(false);
+      setMorningTime(DEFAULT_MORNING_TIME);
+      setEveningTime(DEFAULT_EVENING_TIME);
       await reminderCoordinatorRef.current.resetAll();
+      taskReminderCoordinatorRef.current.reset();
       await clearAllWorkspaceData();
       clearAllTasks();
       clearAllLists();
       clearAllSessions();
       setCustomTags([]);
       setActiveFocusTask(null);
+      setCompletedFocusTaskId(null);
       setWorkspaceResetCount(prev => prev + 1);
       await defaultNotificationService.cancelAll();
       hapticWarning();
@@ -730,8 +872,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       workspaceResetCount,
       morningBriefingEnabled,
       eveningReviewEnabled,
+      morningTime,
+      eveningTime,
       toggleMorningBriefing,
       toggleEveningReview,
+      updateMorningTime,
+      updateEveningTime,
       isSyncModalOpen,
       setIsSyncModalOpen,
       handleExportBackup,
@@ -741,6 +887,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeFocusTask,
       setActiveFocusTask,
       startTaskFocus,
+      isFocusedTaskCompletedToday,
+      canCompleteFocusTask,
+      completeActiveFocusTask,
+      dismissFocusTaskCompletion,
       isEveningReviewOpen,
       setIsEveningReviewOpen,
       isZenBreathingOpen,
@@ -793,8 +943,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       workspaceResetCount,
       morningBriefingEnabled,
       eveningReviewEnabled,
+      morningTime,
+      eveningTime,
       toggleMorningBriefing,
       toggleEveningReview,
+      updateMorningTime,
+      updateEveningTime,
       isSyncModalOpen,
       handleExportBackup,
       handleImportBackup,
@@ -802,6 +956,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       focusStats,
       activeFocusTask,
       startTaskFocus,
+      isFocusedTaskCompletedToday,
+      canCompleteFocusTask,
+      completeActiveFocusTask,
+      dismissFocusTaskCompletion,
       isEveningReviewOpen,
       isZenBreathingOpen,
       toast,
@@ -867,10 +1025,12 @@ function TimerProvider({
     timeLeft,
     initialTime,
     isTimerRunning,
+    hasCompletedSession,
     toggleTimer,
     resetTimer,
     setTimerMinutes,
     finishEarlySession,
+    clearCompletedSession,
   } = useZenTimer(25, onTimerComplete);
 
   const hasActive = isTimerRunning || (timeLeft < initialTime && timeLeft > 0);
@@ -883,19 +1043,23 @@ function TimerProvider({
       timeLeft,
       initialTime,
       isTimerRunning,
+      hasCompletedSession,
       toggleTimer,
       resetTimer,
       setTimerMinutes,
       finishEarlySession,
+      clearCompletedSession,
     }),
     [
       timeLeft,
       initialTime,
       isTimerRunning,
+      hasCompletedSession,
       toggleTimer,
       resetTimer,
       setTimerMinutes,
       finishEarlySession,
+      clearCompletedSession,
     ]
   );
 

@@ -20,11 +20,13 @@ describe('mobile validator', () => {
       id: '  t-1 ',
       title: '  Read\u0000 book ',
       date: '2026-11-15',
-      recurrence: 'daily',
+      recurrence: 'weekdays',
       tag: 'health',
       completedDates: ['2026-11-15', 'bad-date'],
       isPinned: true,
       estimatedMinutes: 30.8,
+      notes: '  Chapter 1\nKey points  ',
+      reminderTime: '09:30',
       subtasks: [
         { id: 's1', title: 'Chapter 1', isCompleted: 1 },
         { id: '', title: 'Missing id', isCompleted: false },
@@ -34,12 +36,24 @@ describe('mobile validator', () => {
     expect(task).not.toBeNull();
     expect(task?.id).toBe('t-1');
     expect(task?.title).toBe('Read book');
-    expect(task?.recurrence).toBe('daily');
+    expect(task?.recurrence).toBe('weekdays');
     expect(task?.tag).toBe('health');
     expect(task?.completedDates).toEqual(['2026-11-15']);
     expect(task?.estimatedMinutes).toBe(30);
     expect(task?.isPinned).toBe(true);
+    expect(task?.notes).toBe('Chapter 1\nKey points');
+    expect(task?.reminderTime).toBe('09:30');
     expect(task?.subtasks).toEqual([{ id: 's1', title: 'Chapter 1', isCompleted: true }]);
+
+    const monthlyInvalidTime = validateTask({
+      id: 't-2',
+      title: 'Pay bills',
+      date: '2026-11-15',
+      recurrence: 'monthly',
+      reminderTime: '25:99',
+    });
+    expect(monthlyInvalidTime?.recurrence).toBe('monthly');
+    expect(monthlyInvalidTime?.reminderTime).toBeUndefined();
   });
 
   it('rejects malformed task objects', () => {

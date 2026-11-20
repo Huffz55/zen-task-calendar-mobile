@@ -12,6 +12,7 @@ export function useZenTimer(
   const [initialTime, setInitialTime] = useState(defaultMinutes * 60);
   const [timeLeft, setTimeLeft] = useState(defaultMinutes * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [hasCompletedSession, setHasCompletedSession] = useState(false);
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState !== 'background');
 
   const endTimeRef = useRef<number | null>(null);
@@ -62,6 +63,7 @@ export function useZenTimer(
     const remainingMs = timeLeftMsRef.current ?? (currentLeft <= 0 ? currentInitial * 1000 : currentLeft * 1000);
     endTimeRef.current = Date.now() + remainingMs;
     timeLeftMsRef.current = null;
+    setHasCompletedSession(false);
     setIsTimerRunning(true);
     hapticMedium();
 
@@ -94,6 +96,7 @@ export function useZenTimer(
   const resetTimer = useCallback(() => {
     endTimeRef.current = null;
     timeLeftMsRef.current = null;
+    setHasCompletedSession(false);
     setIsTimerRunning(false);
     setTimeLeft(initialTimeRef.current);
     hapticMedium();
@@ -104,6 +107,7 @@ export function useZenTimer(
     const newSeconds = minutes * 60;
     endTimeRef.current = null;
     timeLeftMsRef.current = null;
+    setHasCompletedSession(false);
     setIsTimerRunning(false);
     setInitialTime(newSeconds);
     setTimeLeft(newSeconds);
@@ -136,6 +140,7 @@ export function useZenTimer(
           void playZenChime();
         }
         defaultNotificationService.cancelNotification('zen-timer-end');
+        setHasCompletedSession(true);
         onTimerCompleteRef.current?.(initialTimeRef.current);
         setIsTimerRunning(false);
         endTimeRef.current = null;
@@ -171,6 +176,7 @@ export function useZenTimer(
     }
 
     if (elapsedSeconds >= 10 && onTimerCompleteRef.current) {
+      setHasCompletedSession(true);
       onTimerCompleteRef.current(elapsedSeconds);
       hapticSuccess();
       if (isCompletionChimeEnabled()) {
@@ -187,13 +193,19 @@ export function useZenTimer(
     defaultNotificationService.cancelNotification('zen-timer-end');
   }, []);
 
+  const clearCompletedSession = useCallback(() => {
+    setHasCompletedSession(false);
+  }, []);
+
   return {
     timeLeft,
     initialTime,
     isTimerRunning,
+    hasCompletedSession,
     toggleTimer,
     resetTimer,
     setTimerMinutes,
     finishEarlySession,
+    clearCompletedSession,
   };
 }

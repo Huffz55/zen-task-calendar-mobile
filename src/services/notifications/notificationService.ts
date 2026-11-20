@@ -9,6 +9,9 @@ interface INotificationService {
   scheduleDailySummary(hour?: number, minute?: number, taskCount?: number, language?: AppLanguage): Promise<string | null>;
   scheduleEveningWindDown(hour?: number, minute?: number, pendingCount?: number, language?: AppLanguage): Promise<string | null>;
   scheduleFocusTimerEnd(seconds: number, sessionTitle?: string, language?: AppLanguage): Promise<string | null>;
+  scheduleTaskReminder(taskId: string, taskTitle: string, triggerDate: Date, language?: AppLanguage): Promise<string | null>;
+  cancelTaskReminder(taskId: string): Promise<void>;
+  reconcileTaskReminders(activeTaskIds: Set<string>): Promise<void>;
   cancelMorningBriefing(): Promise<void>;
   cancelEveningReview(): Promise<void>;
   cancelNotification(identifier: string): Promise<void>;
@@ -293,6 +296,89 @@ class MobileNotificationService implements INotificationService {
       await Notifications.cancelScheduledNotificationAsync(identifier);
     } catch {
       // Ignore if not scheduled
+    }
+  }
+
+  async scheduleTaskReminder(
+    taskId: string,
+    taskTitle: string,
+    triggerDate: Date,
+    language?: AppLanguage
+  ): Promise<string | null> {
+    if (!this.isSupported || !Notifications || !SchedulableTriggerInputTypes) return null;
+    if (!(triggerDate instanceof Date) || Number.isNaN(triggerDate.getTime()) || triggerDate.getTime() <= Date.now()) {
+      await this.cancelTaskReminder(taskId);
+      return null;
+    }
+
+    try {
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) return null;
+
+      const identifier = `task-reminder-${taskId}`;
+      await this.cancelNotification(identifier);
+
+      const lang = language ?? getActiveLanguage();
+      const id = await Notifications.scheduleNotificationAsync({
+        identifier,
+        content: {
+          title: translate(lang, 'notifications.taskReminderTitle'),
+          body: taskTitle,
+          sound: true,
+          data: { type: 'task-reminder', taskId },
+        },
+        trigger: {
+          type: SchedulableTriggerInputTypes.DATE,
+          channelId: 'zen-general',
+          date: triggerDate,
+        },
+      });
+
+      return id;
+    } catch (e) {
+      console.warn('Failed to schedule task reminder notification', e);
+      return null;
+    }
+  }
+
+  async cancelTaskReminder(taskId: string): Promise<void> {
+    await this.cancelNotification(`task-reminder-${taskId}`);
+  }
+
+  async reconcileTaskReminders(activeTaskIds: Set<string>): Promise<void> {
+    if (!this.isSupported || !Notifications) return;
+
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync?.();
+      if (!Array.isArray(scheduled)) return;
+
+      for (const item of scheduled) {
+        const data =
+          item?.content?.data && typeof item.content.data === 'object'
+            ? (item.content.data as Record<string, unknown>)
+            : null;
+        const isTaskReminder =
+          data?.type === 'task-reminder' ||
+          (typeof item?.identifier === 'string' && item.identifier.startsWith('task-reminder-'));
+
+        if (!isTaskReminder || typeof item?.identifier !== 'string') continue;
+
+        const dataTaskId = typeof data?.taskId === 'string' ? data.taskId : undefined;
+        const idFromIdentifier = item.identifier.startsWith('task-reminder-')
+          ? item.identifier.slice('task-reminder-'.length)
+          : undefined;
+        const resolvedTaskId = dataTaskId ?? idFromIdentifier;
+
+        if (!resolvedTaskId || !activeTaskIds.has(resolvedTaskId)) {
+          try {
+            await Notifications.cancelScheduledNotificationAsync(item.identifier);
+          } catch {
+            // Ignore individual cancellation failure
+          }
+        }
+      }
+    } catch {
+      // Ignore if enumerating scheduled notifications is unavailable
     }
   }
 

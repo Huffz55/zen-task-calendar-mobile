@@ -43,9 +43,21 @@ interface TodayScreenProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string
   ) => void;
-  onEditTask: (taskId: string, newTitle: string, newTag?: TaskTag, subtasks?: Subtask[], estimatedMinutes?: number, isPinned?: boolean) => void;
+  onEditTask: (
+    taskId: string,
+    newTitle: string,
+    newTag?: TaskTag,
+    subtasks?: Subtask[],
+    estimatedMinutes?: number,
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string | null,
+    recurrence?: RecurrenceType
+  ) => void;
   onTogglePin?: (taskId: string) => void;
   onDeferTask?: (taskId: string, currentDateStr: string) => void;
   onDeleteSingle: (taskId: string) => void;
@@ -176,7 +188,10 @@ export function TodayScreen({
   const filteredTasks = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return tasks.filter(task => {
-      const matchesSearch = q === '' || task.title.toLowerCase().includes(q);
+      const matchesSearch =
+        q === '' ||
+        task.title.toLowerCase().includes(q) ||
+        (task.notes ? task.notes.toLowerCase().includes(q) : false);
       const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
       return matchesSearch && matchesTag;
     });

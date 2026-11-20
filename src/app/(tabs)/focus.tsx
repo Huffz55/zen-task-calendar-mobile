@@ -11,6 +11,9 @@ export default function FocusRoute() {
     setIsSyncModalOpen,
     activeFocusTask,
     setActiveFocusTask,
+    canCompleteFocusTask,
+    completeActiveFocusTask,
+    dismissFocusTaskCompletion,
     isZenBreathingOpen,
     setIsZenBreathingOpen,
   } = useApp();
@@ -18,6 +21,7 @@ export default function FocusRoute() {
     timeLeft,
     initialTime,
     isTimerRunning,
+    hasCompletedSession,
     toggleTimer,
     resetTimer,
     setTimerMinutes,
@@ -33,7 +37,13 @@ export default function FocusRoute() {
       isTimerRunning={isTimerRunning}
       focusStats={focusStats}
       activeFocusTask={activeFocusTask}
-      onClearActiveFocusTask={() => setActiveFocusTask(null)}
+      onClearActiveFocusTask={() => {
+        dismissFocusTaskCompletion();
+        setActiveFocusTask(null);
+      }}
+      showFocusTaskCompletion={hasCompletedSession && canCompleteFocusTask}
+      onCompleteFocusTask={completeActiveFocusTask}
+      onDismissFocusCompletion={dismissFocusTaskCompletion}
       isZenBreathingOpen={isZenBreathingOpen}
       onOpenZenBreathing={() => setIsZenBreathingOpen(true)}
       onCloseZenBreathing={() => setIsZenBreathingOpen(false)}

@@ -1,5 +1,45 @@
-import { differenceInDays, format, isValid, parseISO, subDays } from 'date-fns';
-import type { DailyTask, Task } from '../types';
+import {
+  differenceInCalendarDays,
+  format,
+  getDaysInMonth,
+  isSameDay,
+  isValid,
+  parseISO,
+  subDays,
+} from 'date-fns';
+import type { DailyTask, RecurrenceType, Task } from '../types';
+
+/**
+ * Evaluates whether a recurrence rule starting on `startDate` occurs on `targetDate`.
+ * Caller must ensure `targetDate >= startDate` (calendar day) when checking future occurrences.
+ */
+export function matchesRecurrenceOnDate(
+  recurrence: RecurrenceType,
+  startDate: Date,
+  targetDate: Date
+): boolean {
+  if (recurrence === 'none') {
+    return isSameDay(targetDate, startDate);
+  }
+  if (recurrence === 'daily') {
+    return true;
+  }
+  if (recurrence === 'weekdays') {
+    const dayOfWeek = targetDate.getDay();
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
+  }
+  if (recurrence === 'weekly') {
+    return differenceInCalendarDays(targetDate, startDate) % 7 === 0;
+  }
+  if (recurrence === 'biweekly') {
+    return differenceInCalendarDays(targetDate, startDate) % 14 === 0;
+  }
+  if (recurrence === 'monthly') {
+    const expectedDay = Math.min(startDate.getDate(), getDaysInMonth(targetDate));
+    return targetDate.getDate() === expectedDay;
+  }
+  return false;
+}
 
 /**
  * Computes and sorts active DailyTask entries for a given YYYY-MM-DD date string.
@@ -23,21 +63,7 @@ export function getDailyTasksForDate(tasks: Task[], dateStr: string): DailyTask[
       if (task.excludedDates && task.excludedDates.includes(dateStr)) return false;
       if (task.endDate && dateStr > task.endDate) return false;
 
-      const diffDays = differenceInDays(targetDate, startDate);
-
-      if (task.recurrence === 'none') {
-        return dateStr === task.date;
-      }
-      if (task.recurrence === 'daily') {
-        return true;
-      }
-      if (task.recurrence === 'weekly') {
-        return diffDays % 7 === 0;
-      }
-      if (task.recurrence === 'biweekly') {
-        return diffDays % 14 === 0;
-      }
-      return false;
+      return matchesRecurrenceOnDate(task.recurrence, startDate, targetDate);
     })
     .map(task => ({
       id: `${task.id}-${dateStr}`,
@@ -51,6 +77,8 @@ export function getDailyTasksForDate(tasks: Task[], dateStr: string): DailyTask[
       isPinned: task.isPinned,
       isInbox: task.isInbox,
       estimatedMinutes: task.estimatedMinutes,
+      notes: task.notes,
+      reminderTime: task.reminderTime,
       isArchived: task.isArchived,
     }));
 
@@ -73,6 +101,14 @@ interface ParsedStreakTask {
   completedSet: Set<string>;
   excludedSet: Set<string> | null;
 }
+
+const RECURRING_TYPES = new Set<RecurrenceType>([
+  'daily',
+  'weekdays',
+  'weekly',
+  'biweekly',
+  'monthly',
+]);
 
 /**
  * Computes consecutive perfect days ending today or yesterday without
@@ -102,11 +138,7 @@ export function computeCurrentStreak(tasks: Task[], today: Date = new Date()): n
       const bucket = nonRecurringByDate.get(task.date);
       if (bucket) bucket.push(entry);
       else nonRecurringByDate.set(task.date, [entry]);
-    } else if (
-      task.recurrence === 'daily' ||
-      task.recurrence === 'weekly' ||
-      task.recurrence === 'biweekly'
-    ) {
+    } else if (RECURRING_TYPES.has(task.recurrence)) {
       recurringTasks.push(entry);
     }
   }
@@ -129,12 +161,7 @@ export function computeCurrentStreak(tasks: Task[], today: Date = new Date()): n
       if (dateStr < t.date) continue;
       if (t.excludedSet?.has(dateStr)) continue;
       if (t.endDate && dateStr > t.endDate) continue;
-
-      if (t.recurrence === 'weekly' || t.recurrence === 'biweekly') {
-        const diffDays = differenceInDays(dateObj, t.startDate);
-        const mod = t.recurrence === 'weekly' ? 7 : 14;
-        if (diffDays % mod !== 0) continue;
-      }
+      if (!matchesRecurrenceOnDate(t.recurrence, t.startDate, dateObj)) continue;
 
       activeCount++;
       if (t.completedSet.has(dateStr)) completedCount++;

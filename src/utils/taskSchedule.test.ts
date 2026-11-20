@@ -96,6 +96,66 @@ describe('mobile getDailyTasksForDate', () => {
   it('returns empty array for invalid date input', () => {
     expect(getDailyTasksForDate(sampleTasks, 'invalid')).toEqual([]);
   });
+
+  it('supports weekdays (Mon-Fri) recurrence accurately', () => {
+    const weekdayTask: Task = {
+      id: 'wkday',
+      title: 'Standup',
+      date: '2026-11-18', // Wednesday
+      recurrence: 'weekdays',
+      completedDates: [],
+    };
+
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-17')).toEqual([]); // Before start
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-18').map(t => t.taskId)).toEqual(['wkday']); // Wed
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-19').map(t => t.taskId)).toEqual(['wkday']); // Thu
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-20').map(t => t.taskId)).toEqual(['wkday']); // Fri
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-21')).toEqual([]); // Saturday
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-22')).toEqual([]); // Sunday
+    expect(getDailyTasksForDate([weekdayTask], '2026-11-23').map(t => t.taskId)).toEqual(['wkday']); // Monday
+  });
+
+  it('supports monthly recurrence with month-end clamping and leap years', () => {
+    const midMonth: Task = {
+      id: 'mid',
+      title: 'Mid month check-in',
+      date: '2026-10-15',
+      recurrence: 'monthly',
+      completedDates: [],
+    };
+    const monthEnd: Task = {
+      id: 'end',
+      title: 'Month-end close',
+      date: '2026-01-31',
+      recurrence: 'monthly',
+      completedDates: [],
+    };
+
+    expect(getDailyTasksForDate([midMonth], '2026-11-15').map(t => t.taskId)).toEqual(['mid']);
+    expect(getDailyTasksForDate([midMonth], '2026-11-16')).toEqual([]);
+
+    expect(getDailyTasksForDate([monthEnd], '2026-02-28').map(t => t.taskId)).toEqual(['end']);
+    expect(getDailyTasksForDate([monthEnd], '2026-03-31').map(t => t.taskId)).toEqual(['end']);
+    expect(getDailyTasksForDate([monthEnd], '2026-04-30').map(t => t.taskId)).toEqual(['end']);
+    expect(getDailyTasksForDate([monthEnd], '2026-04-29')).toEqual([]);
+    expect(getDailyTasksForDate([monthEnd], '2028-02-29').map(t => t.taskId)).toEqual(['end']);
+  });
+
+  it('propagates notes and reminderTime onto DailyTask entries', () => {
+    const detailedTask: Task = {
+      id: 'detailed',
+      title: 'Prepare brief',
+      date: '2026-11-20',
+      recurrence: 'none',
+      completedDates: [],
+      notes: 'Include Q4 metrics\nReview slides',
+      reminderTime: '14:30',
+    };
+
+    const result = getDailyTasksForDate([detailedTask], '2026-11-20');
+    expect(result[0]?.notes).toBe('Include Q4 metrics\nReview slides');
+    expect(result[0]?.reminderTime).toBe('14:30');
+  });
 });
 
 describe('mobile computeCurrentStreak', () => {
@@ -134,5 +194,26 @@ describe('mobile computeCurrentStreak', () => {
 
     // Gap on Nov 16 breaks streak when reference is Nov 17
     expect(computeCurrentStreak(tasks, new Date('2026-11-17T12:00:00Z'))).toBe(0);
+  });
+
+  it('computes streak for weekdays and monthly recurring tasks', () => {
+    const tasks: Task[] = [
+      {
+        id: 'wkday-task',
+        title: 'Weekday journal',
+        date: '2026-11-18', // Wed
+        recurrence: 'weekdays',
+        completedDates: ['2026-11-18', '2026-11-19', '2026-11-20'],
+      },
+      {
+        id: 'monthly-task',
+        title: 'Monthly review',
+        date: '2026-10-20',
+        recurrence: 'monthly',
+        completedDates: ['2026-11-20'],
+      },
+    ];
+
+    expect(computeCurrentStreak(tasks, new Date('2026-11-20T12:00:00Z'))).toBe(3);
   });
 });

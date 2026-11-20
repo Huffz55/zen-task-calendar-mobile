@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Switch,
   Alert,
@@ -23,6 +24,7 @@ import {
 import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { ExportDataModal, type ExportFormat } from './ExportDataModal';
 import { LanguageModal } from './LanguageModal';
+import { TimePickerModal } from './TimePickerModal';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 import { resolveActiveLanguage, translate, useTranslation, type LanguagePreference } from '../../i18n';
 
@@ -36,8 +38,12 @@ interface SettingsModalProps {
   onToggleAutoNightShift?: (enabled: boolean) => void;
   morningBriefingEnabled: boolean;
   eveningReviewEnabled: boolean;
+  morningTime?: string;
+  eveningTime?: string;
   onToggleMorningBriefing: (enabled: boolean) => Promise<void>;
   onToggleEveningReview: (enabled: boolean) => Promise<void>;
+  onChangeMorningTime?: (nextTime: string) => Promise<void>;
+  onChangeEveningTime?: (nextTime: string) => Promise<void>;
   onClose: () => void;
   onOpenThemeModal?: () => void;
   onExportBackup: () => Promise<void>;
@@ -59,8 +65,12 @@ export function SettingsModal({
   onToggleAutoNightShift,
   morningBriefingEnabled,
   eveningReviewEnabled,
+  morningTime = '09:00',
+  eveningTime = '20:30',
   onToggleMorningBriefing,
   onToggleEveningReview,
+  onChangeMorningTime,
+  onChangeEveningTime,
   onClose,
   onOpenThemeModal,
   onExportBackup,
@@ -74,6 +84,7 @@ export function SettingsModal({
   const [isClearingData, setIsClearingData] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
+  const [editingTimeTarget, setEditingTimeTarget] = useState<'morning' | 'evening' | null>(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [chimeEnabled, setChimeEnabled] = useState(() => isCompletionChimeEnabled());
   const [sfxEnabled, setSfxEnabled] = useState(() => isSoundEffectsEnabled());
@@ -108,13 +119,13 @@ export function SettingsModal({
   const handleToggleMorning = async (enabled: boolean) => {
     hapticLight();
     await onToggleMorningBriefing(enabled);
-    onShowToast(t(enabled ? 'settings.toasts.morningOn' : 'settings.toasts.morningOff'));
+    onShowToast(t(enabled ? 'settings.toasts.morningOn' : 'settings.toasts.morningOff', { time: morningTime }));
   };
 
   const handleToggleEvening = async (enabled: boolean) => {
     hapticLight();
     await onToggleEveningReview(enabled);
-    onShowToast(t(enabled ? 'settings.toasts.eveningOn' : 'settings.toasts.eveningOff'));
+    onShowToast(t(enabled ? 'settings.toasts.eveningOn' : 'settings.toasts.eveningOff', { time: eveningTime }));
   };
 
   const handleToggleHaptics = async (enabled: boolean) => {
@@ -233,7 +244,7 @@ export function SettingsModal({
   return (
     <>
       <SwipeableBottomSheet
-        visible={visible && !isPrivacyOpen && !isExportModalOpen && !isLanguageOpen}
+        visible={visible && !isPrivacyOpen && !isExportModalOpen && !isLanguageOpen && editingTimeTarget === null}
         onClose={onClose}
         theme={theme}
         maxHeight="88%"
@@ -416,9 +427,33 @@ export function SettingsModal({
                 <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                   {t('settings.morningBriefing')}
                 </Text>
-                <Text style={[styles.timeHint, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-                  09:00
-                </Text>
+                <Pressable
+                  onPress={() => {
+                    hapticLight();
+                    setEditingTimeTarget('morning');
+                  }}
+                  style={({ pressed }) => [
+                    styles.timePill,
+                    {
+                      backgroundColor: morningBriefingEnabled ? theme.primaryLight : theme.surface,
+                      borderColor: morningBriefingEnabled ? theme.primary : theme.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.a11yEditMorningTime', { time: morningTime })}
+                >
+                  <Text
+                    style={[
+                      styles.timePillText,
+                      { color: morningBriefingEnabled ? theme.primary : theme.textMuted },
+                    ]}
+                    maxFontSizeMultiplier={1.25}
+                  >
+                    {morningTime}
+                  </Text>
+                </Pressable>
               </View>
               <Switch
                 value={morningBriefingEnabled}
@@ -438,9 +473,33 @@ export function SettingsModal({
                 <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
                   {t('settings.eveningReview')}
                 </Text>
-                <Text style={[styles.timeHint, { color: theme.textDim }]} maxFontSizeMultiplier={1.35}>
-                  20:30
-                </Text>
+                <Pressable
+                  onPress={() => {
+                    hapticLight();
+                    setEditingTimeTarget('evening');
+                  }}
+                  style={({ pressed }) => [
+                    styles.timePill,
+                    {
+                      backgroundColor: eveningReviewEnabled ? theme.primaryLight : theme.surface,
+                      borderColor: eveningReviewEnabled ? theme.primary : theme.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.a11yEditEveningTime', { time: eveningTime })}
+                >
+                  <Text
+                    style={[
+                      styles.timePillText,
+                      { color: eveningReviewEnabled ? theme.primary : theme.textMuted },
+                    ]}
+                    maxFontSizeMultiplier={1.25}
+                  >
+                    {eveningTime}
+                  </Text>
+                </Pressable>
               </View>
               <Switch
                 value={eveningReviewEnabled}
@@ -590,6 +649,34 @@ export function SettingsModal({
         theme={theme}
         onClose={() => setIsPrivacyOpen(false)}
       />
+
+      <TimePickerModal
+        visible={visible && editingTimeTarget !== null}
+        title={
+          editingTimeTarget === 'evening'
+            ? t('settings.eveningTimeTitle')
+            : t('settings.morningTimeTitle')
+        }
+        initialTime={editingTimeTarget === 'evening' ? eveningTime : morningTime}
+        presets={
+          editingTimeTarget === 'evening'
+            ? ['19:00', '20:00', '20:30', '21:30']
+            : ['07:30', '08:00', '09:00', '10:00']
+        }
+        theme={theme}
+        onConfirm={(nextTime) => {
+          if (editingTimeTarget === 'evening') {
+            void onChangeEveningTime?.(nextTime).then(() => {
+              onShowToast(t('settings.toasts.eveningTimeUpdated', { time: nextTime }));
+            });
+          } else if (editingTimeTarget === 'morning') {
+            void onChangeMorningTime?.(nextTime).then(() => {
+              onShowToast(t('settings.toasts.morningTimeUpdated', { time: nextTime }));
+            });
+          }
+        }}
+        onClose={() => setEditingTimeTarget(null)}
+      />
     </>
   );
 }
@@ -668,9 +755,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  timeHint: {
+  timePill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  timePillText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
   compactDivider: {

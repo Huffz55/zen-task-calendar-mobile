@@ -37,8 +37,8 @@ export default function CalendarRoute() {
       getTasksForDate={getTasksForDate}
       getTaskCountForDate={getTaskCountForDate}
       onToggleTask={id => toggleTaskCompletion(id, selectedDateStr)}
-      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned) => {
-        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned);
+      onAddTask={(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, notes, reminderTime) => {
+        addTask(title, dateStr, rec, tag, subtasks, estimatedMinutes, isPinned, notes, reminderTime);
         showToast({
           type: 'success',
           title: t('toasts.addedTitle'),

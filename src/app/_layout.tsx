@@ -28,8 +28,12 @@ function RootLayoutContent() {
     isHydrated,
     morningBriefingEnabled,
     eveningReviewEnabled,
+    morningTime,
+    eveningTime,
     toggleMorningBriefing,
     toggleEveningReview,
+    updateMorningTime,
+    updateEveningTime,
     isThemeModalOpen,
     setIsThemeModalOpen,
     isSettingsModalOpen,
@@ -149,8 +153,12 @@ function RootLayoutContent() {
         onToggleAutoNightShift={toggleAutoNightShift}
         morningBriefingEnabled={morningBriefingEnabled}
         eveningReviewEnabled={eveningReviewEnabled}
+        morningTime={morningTime}
+        eveningTime={eveningTime}
         onToggleMorningBriefing={toggleMorningBriefing}
         onToggleEveningReview={toggleEveningReview}
+        onChangeMorningTime={updateMorningTime}
+        onChangeEveningTime={updateEveningTime}
         onClose={() => setIsSettingsModalOpen(false)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onExportBackup={handleExportBackup}

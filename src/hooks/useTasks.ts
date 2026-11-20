@@ -5,6 +5,7 @@ import { ITaskStorage, defaultTaskStorage } from '../services/storage/taskStorag
 import { springLayout } from '../utils/animations';
 import { computeCurrentStreak, getDailyTasksForDate } from '../utils/taskSchedule';
 import { generateSecureId as generateUniqueId } from '../utils/cryptoRandom';
+import { isValidTimeString } from '../services/validation/validator';
 
 export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -46,8 +47,12 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string
   ) => {
+    const cleanNotes = notes?.trim() || undefined;
+    const cleanReminderTime = isValidTimeString(reminderTime) ? reminderTime : undefined;
     const newTask: Task = {
       id: generateUniqueId(),
       title: title.trim(),
@@ -58,6 +63,8 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
       subtasks: subtasks && subtasks.length > 0 ? subtasks : undefined,
       estimatedMinutes: estimatedMinutes && estimatedMinutes > 0 ? estimatedMinutes : undefined,
       isPinned: isPinned || undefined,
+      notes: cleanNotes,
+      reminderTime: cleanReminderTime,
     };
     springLayout();
     setTasks(prev => [newTask, ...prev]);
@@ -120,7 +127,10 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     newTag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string | null,
+    recurrence?: RecurrenceType
   ) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
@@ -131,6 +141,12 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
           subtasks: subtasks !== undefined ? subtasks : t.subtasks,
           estimatedMinutes: estimatedMinutes !== undefined ? estimatedMinutes : t.estimatedMinutes,
           isPinned: isPinned !== undefined ? isPinned : t.isPinned,
+          notes: notes !== undefined ? (notes.trim() || undefined) : t.notes,
+          reminderTime:
+            reminderTime !== undefined
+              ? (reminderTime && isValidTimeString(reminderTime) ? reminderTime : undefined)
+              : t.reminderTime,
+          recurrence: recurrence !== undefined ? recurrence : t.recurrence,
         };
       }
       return t;

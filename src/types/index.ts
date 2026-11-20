@@ -1,4 +1,4 @@
-export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'biweekly';
+export type RecurrenceType = 'none' | 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly';
 
 export type BuiltinTaskTag = 'work' | 'personal' | 'health' | 'ideas' | 'priority';
 
@@ -34,6 +34,8 @@ export interface Task {
   isPinned?: boolean; // Focus of the Day
   isInbox?: boolean; // Triage / Quarantine inbox
   estimatedMinutes?: number; // Estimated duration in minutes
+  notes?: string; // Optional multi-line task notes
+  reminderTime?: string; // Optional "HH:mm" reminder time
   isArchived?: boolean; // Auto-archived after 14 days of inactivity
   archivedAt?: string; // YYYY-MM-DD
   updatedAt?: number; // epoch ms for conflict resolution
@@ -51,6 +53,8 @@ export interface DailyTask {
   isPinned?: boolean;
   isInbox?: boolean;
   estimatedMinutes?: number;
+  notes?: string;
+  reminderTime?: string;
   isArchived?: boolean;
 }
 

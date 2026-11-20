@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createReminderCoordinator,
+  DEFAULT_EVENING_TIME,
+  DEFAULT_MORNING_TIME,
+  formatClockTime,
+  isValidClockTime,
+  parseClockTime,
   SETTINGS_EVENING_KEY,
+  SETTINGS_EVENING_TIME_KEY,
   SETTINGS_MORNING_KEY,
+  SETTINGS_MORNING_TIME_KEY,
   type ReminderNotificationClient,
   type ReminderStorage,
 } from './reminderScheduler';
@@ -238,5 +245,43 @@ describe('reminderScheduler', () => {
     expect(client.scheduleDailySummary).toHaveBeenCalledWith(9, 0, 3, 'tr');
     expect(client.scheduleEveningWindDown).not.toHaveBeenCalled();
     expect(client.cancelEveningReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads default times and persists custom morning/evening reminder times', async () => {
+    const storage = createMemoryStorage({
+      [SETTINGS_MORNING_KEY]: 'true',
+      [SETTINGS_EVENING_KEY]: 'false',
+    });
+    const { client } = createMockNotifications();
+    const coordinator = createReminderCoordinator(storage, client);
+
+    const initialPrefs = await coordinator.loadPreferences();
+    expect(initialPrefs.morningTime).toBe(DEFAULT_MORNING_TIME);
+    expect(initialPrefs.eveningTime).toBe(DEFAULT_EVENING_TIME);
+
+    const updatedMorning = await coordinator.setMorningTime('07:45', true, 4, 'tr');
+    expect(updatedMorning).toBe('07:45');
+    expect(storage.data[SETTINGS_MORNING_TIME_KEY]).toBe('07:45');
+    expect(client.scheduleDailySummary).toHaveBeenCalledWith(7, 45, 4, 'tr');
+
+    // Updating evening time while evening toggle is OFF saves preference without scheduling
+    const updatedEvening = await coordinator.setEveningTime('21:15', false, 2, 'tr');
+    expect(updatedEvening).toBe('21:15');
+    expect(storage.data[SETTINGS_EVENING_TIME_KEY]).toBe('21:15');
+    expect(client.scheduleEveningWindDown).not.toHaveBeenCalled();
+
+    // Turning evening toggle ON later uses the saved 21:15 custom time
+    await coordinator.setEveningEnabled(true, 2, 'tr');
+    expect(client.scheduleEveningWindDown).toHaveBeenCalledWith(21, 15, 2, 'tr');
+  });
+
+  it('validates and parses clock time helpers accurately', () => {
+    expect(isValidClockTime('00:00')).toBe(true);
+    expect(isValidClockTime('23:59')).toBe(true);
+    expect(isValidClockTime('24:00')).toBe(false);
+    expect(isValidClockTime('9:00')).toBe(false);
+    expect(formatClockTime(7, 5)).toBe('07:05');
+    expect(parseClockTime('invalid', '09:00')).toEqual({ hour: 9, minute: 0, formatted: '09:00' });
+    expect(parseClockTime('20:45', '09:00')).toEqual({ hour: 20, minute: 45, formatted: '20:45' });
   });
 });

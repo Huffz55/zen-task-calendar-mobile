@@ -2,9 +2,17 @@ import type { Task, CustomList, ListItem, RecurrenceType, TaskTag, Subtask, Focu
 import { parseISO, isValid } from 'date-fns';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_HH_MM_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const SAFE_ID_REGEX = /^[A-Za-z0-9_.:-]{1,100}$/;
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
-const VALID_RECURRENCES: Set<RecurrenceType> = new Set(['none', 'daily', 'weekly', 'biweekly']);
+const VALID_RECURRENCES: Set<RecurrenceType> = new Set([
+  'none',
+  'daily',
+  'weekdays',
+  'weekly',
+  'biweekly',
+  'monthly',
+]);
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024; // 5 MB DoS guard
@@ -19,6 +27,10 @@ export function isValidDateString(str: unknown): str is string {
   if (typeof str !== 'string' || !DATE_REGEX.test(str)) return false;
   const parsed = parseISO(str);
   return isValid(parsed);
+}
+
+export function isValidTimeString(str: unknown): str is string {
+  return typeof str === 'string' && TIME_HH_MM_REGEX.test(str);
 }
 
 function sanitizeId(raw: unknown): string | null {
@@ -154,6 +166,9 @@ export function validateTask(raw: unknown): Task | null {
       ? Math.floor(candidate.estimatedMinutes)
       : undefined;
 
+  const notes = sanitizeText(candidate.notes, 2000) || undefined;
+  const reminderTime = isValidTimeString(candidate.reminderTime) ? candidate.reminderTime : undefined;
+
   const updatedAt =
     typeof candidate.updatedAt === 'number' &&
     Number.isFinite(candidate.updatedAt) &&
@@ -177,6 +192,8 @@ export function validateTask(raw: unknown): Task | null {
     isArchived: isArchived || undefined,
     archivedAt,
     estimatedMinutes,
+    ...(notes ? { notes } : {}),
+    ...(reminderTime ? { reminderTime } : {}),
     ...(updatedAt ? { updatedAt } : {}),
   };
 }

@@ -15,6 +15,7 @@ import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHapt
 import { playWaterDrop, playBambooTap } from '../../services/audio/audioService';
 import { animateLayout, springLayout } from '../../utils/animations';
 import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { TimePickerPanel } from '../common/TimePickerModal';
 import { useApp } from '../../context/AppContext';
 import { formatMinutesCompact, useTranslation } from '../../i18n';
 
@@ -30,7 +31,9 @@ interface AddTaskModalProps {
     tag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string
   ) => void;
 }
 
@@ -51,9 +54,11 @@ export function AddTaskModal({
   const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(undefined);
   const [isPinned, setIsPinned] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [reminderTime, setReminderTime] = useState<string | undefined>(undefined);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
-  const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | null>(null);
+  const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | 'reminder' | null>(null);
 
   const formattedDate = useMemo(() => {
     const parsed = parseISO(selectedDateStr);
@@ -91,12 +96,16 @@ export function AddTaskModal({
       tag,
       subtasks,
       estimatedMinutes,
-      isPinned
+      isPinned,
+      notes.trim() || undefined,
+      reminderTime
     );
     setTitle('');
+    setNotes('');
     setTag(undefined);
     setRecurrence('none');
     setEstimatedMinutes(undefined);
+    setReminderTime(undefined);
     setIsPinned(false);
     setSubtasks([]);
     setNewSubtaskInput('');
@@ -126,8 +135,10 @@ export function AddTaskModal({
   const recurrenceOptions: { id: RecurrenceType; label: string }[] = [
     { id: 'none', label: t('tasks.recurrence.none') },
     { id: 'daily', label: t('tasks.recurrence.daily') },
+    { id: 'weekdays', label: t('tasks.recurrence.weekdays') },
     { id: 'weekly', label: t('tasks.recurrence.weekly') },
     { id: 'biweekly', label: t('tasks.recurrence.biweekly') },
+    { id: 'monthly', label: t('tasks.recurrence.monthly') },
   ];
 
   const durationOptions: { label: string; value: number | undefined }[] = [
@@ -183,6 +194,25 @@ export function AddTaskModal({
           autoFocus
           returnKeyType="done"
           onSubmitEditing={handleSave}
+        />
+
+        {/* Optional Multi-line Notes */}
+        <TextInput
+          style={[
+            styles.notesInput,
+            {
+              backgroundColor: theme.surfaceMuted,
+              color: theme.text,
+              borderColor: theme.border,
+            },
+          ]}
+          placeholder={t('tasks.notesPlaceholder')}
+          placeholderTextColor={theme.textDim}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          maxLength={2000}
+          textAlignVertical="top"
         />
 
         {/* Quick Option Pills Bar */}
@@ -295,6 +325,43 @@ export function AddTaskModal({
               ]}
             >
               {recurrence !== 'none' ? t(`tasks.recurrence.${recurrence}`) : t('tasks.pillRepeat')}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionPill,
+              {
+                backgroundColor: activeSection === 'reminder' || reminderTime ? theme.primaryLight : theme.surfaceMuted,
+                borderColor: activeSection === 'reminder' || reminderTime ? theme.primary : theme.border,
+              },
+            ]}
+            onPress={() => {
+              hapticSelection();
+              animateLayout();
+              setActiveSection(prev => {
+                const next = prev === 'reminder' ? null : 'reminder';
+                if (next === 'reminder') {
+                  setReminderTime(cur => cur ?? '09:00');
+                }
+                return next;
+              });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={t('tasks.a11yReminderTime')}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={13}
+              color={activeSection === 'reminder' || reminderTime ? theme.primary : theme.textDim}
+            />
+            <Text
+              style={[
+                styles.optionPillText,
+                { color: activeSection === 'reminder' || reminderTime ? theme.primary : theme.textDim },
+              ]}
+            >
+              {reminderTime ?? t('tasks.pillReminder')}
             </Text>
           </TouchableOpacity>
 
@@ -511,6 +578,23 @@ export function AddTaskModal({
               </View>
             )}
 
+            {activeSection === 'reminder' && (
+              <View style={styles.sectionBlock}>
+                <Text style={[styles.sectionLabel, { color: theme.textDim }]}>{t('tasks.sectionReminder')}</Text>
+                <TimePickerPanel
+                  value={reminderTime ?? '09:00'}
+                  theme={theme}
+                  compact
+                  onChange={setReminderTime}
+                  onClear={() => {
+                    animateLayout();
+                    setReminderTime(undefined);
+                    setActiveSection(null);
+                  }}
+                />
+              </View>
+            )}
+
             {activeSection === 'subtasks' && (
               <View style={styles.sectionBlock}>
                 <Text style={[styles.sectionLabel, { color: theme.textDim }]}>
@@ -618,6 +702,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     padding: 14,
     borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  notesInput: {
+    fontSize: 13,
+    lineHeight: 19,
+    minHeight: 62,
+    maxHeight: 112,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
     borderWidth: 1,
     marginBottom: 4,
   },

@@ -6,13 +6,14 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { BuiltinTaskTag, DailyTask, TaskTag, Subtask } from '../../types';
+import { BuiltinTaskTag, DailyTask, RecurrenceType, TaskTag, Subtask } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { TAGS, CUSTOM_TAG_COLORS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
 import { animateLayout, springLayout } from '../../utils/animations';
 import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { TimePickerPanel } from '../common/TimePickerModal';
 import { useApp } from '../../context/AppContext';
 import { formatMinutesCompact, useTranslation } from '../../i18n';
 
@@ -27,7 +28,10 @@ interface EditTaskModalProps {
     newTag?: TaskTag,
     subtasks?: Subtask[],
     estimatedMinutes?: number,
-    isPinned?: boolean
+    isPinned?: boolean,
+    notes?: string,
+    reminderTime?: string | null,
+    recurrence?: RecurrenceType
   ) => void;
 }
 
@@ -61,11 +65,15 @@ function EditTaskForm({
   const { customTags, addCustomTag } = useApp();
   const { t, language } = useTranslation();
   const [title, setTitle] = useState(task.title);
+  const [notes, setNotes] = useState(task.notes ?? '');
   const [tag, setTag] = useState<TaskTag | undefined>(task.tag);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(CUSTOM_TAG_COLORS[0].color);
+  const [recurrence, setRecurrence] = useState<RecurrenceType>(task.recurrence);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(task.estimatedMinutes);
+  const [reminderTime, setReminderTime] = useState<string | undefined>(task.reminderTime);
+  const [isReminderExpanded, setIsReminderExpanded] = useState(false);
   const [isPinned, setIsPinned] = useState(task.isPinned || false);
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => (task.subtasks ? [...task.subtasks] : []));
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
@@ -91,7 +99,17 @@ function EditTaskForm({
   const handleSave = () => {
     if (!task || !title.trim()) return;
     hapticSuccess();
-    onSave(task.taskId, title.trim(), tag, subtasks, estimatedMinutes, isPinned);
+    onSave(
+      task.taskId,
+      title.trim(),
+      tag,
+      subtasks,
+      estimatedMinutes,
+      isPinned,
+      notes.trim(),
+      reminderTime ?? null,
+      recurrence
+    );
     onClose();
   };
 
@@ -108,6 +126,15 @@ function EditTaskForm({
   const tagKeys: TaskTag[] = [
     ...(Object.keys(TAGS) as BuiltinTaskTag[]),
     ...customTags.map(t => t.id),
+  ];
+
+  const recurrenceOptions: { id: RecurrenceType; label: string }[] = [
+    { id: 'none', label: t('tasks.recurrence.none') },
+    { id: 'daily', label: t('tasks.recurrence.daily') },
+    { id: 'weekdays', label: t('tasks.recurrence.weekdays') },
+    { id: 'weekly', label: t('tasks.recurrence.weekly') },
+    { id: 'biweekly', label: t('tasks.recurrence.biweekly') },
+    { id: 'monthly', label: t('tasks.recurrence.monthly') },
   ];
 
   const durationOptions: { label: string; value: number | undefined }[] = [
@@ -128,8 +155,8 @@ function EditTaskForm({
             {t('tasks.editTitle')}
           </Text>
           <Text style={[styles.dateSubtitle, { color: theme.textDim }]} numberOfLines={1}>
-            {task?.recurrence && task.recurrence !== 'none'
-              ? t('tasks.recurringLabel', { recurrence: t(`tasks.recurrence.${task.recurrence}`) })
+            {recurrence !== 'none'
+              ? t('tasks.recurringLabel', { recurrence: t(`tasks.recurrence.${recurrence}`) })
               : t('tasks.singleTaskLabel')}
           </Text>
         </View>
@@ -165,6 +192,26 @@ function EditTaskForm({
           autoFocus
           returnKeyType="done"
           onSubmitEditing={handleSave}
+        />
+
+        {/* Multi-line Notes */}
+        <Text style={[styles.sectionLabel, { color: theme.textDim }]}>{t('tasks.notesLabel')}</Text>
+        <TextInput
+          style={[
+            styles.notesInput,
+            {
+              backgroundColor: theme.surfaceMuted,
+              color: theme.text,
+              borderColor: theme.border,
+            },
+          ]}
+          placeholder={t('tasks.notesPlaceholder')}
+          placeholderTextColor={theme.textDim}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          maxLength={2000}
+          textAlignVertical="top"
         />
 
         {/* Tag Selector */}
@@ -299,6 +346,39 @@ function EditTaskForm({
           </View>
         )}
 
+        {/* Recurrence */}
+        <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>{t('tasks.sectionRecurrence')}</Text>
+        <View style={styles.chipsRow}>
+          {recurrenceOptions.map(opt => {
+            const isSelected = recurrence === opt.id;
+            return (
+              <TouchableOpacity
+                key={opt.id}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: isSelected ? theme.primary : theme.surfaceMuted,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => {
+                  hapticSelection();
+                  setRecurrence(opt.id);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: isSelected ? '#ffffff' : theme.textMuted },
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* Estimated Duration */}
         <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>{t('tasks.sectionEstimatedTime')}</Text>
         <View style={styles.chipsRow}>
@@ -358,6 +438,82 @@ function EditTaskForm({
             </Text>
           </View>
         </TouchableOpacity>
+
+        {/* Task Reminder Time */}
+        <TouchableOpacity
+          style={[
+            styles.pinToggleCard,
+            {
+              backgroundColor: reminderTime ? theme.primaryLight : theme.surfaceMuted,
+              borderColor: reminderTime || isReminderExpanded ? theme.primary : theme.border,
+            },
+          ]}
+          onPress={() => {
+            hapticSelection();
+            animateLayout();
+            setIsReminderExpanded(prev => {
+              const next = !prev;
+              if (next && !reminderTime) {
+                setReminderTime('09:00');
+              }
+              return next;
+            });
+          }}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('tasks.a11yReminderTime')}
+        >
+          <Ionicons
+            name={reminderTime ? 'notifications' : 'notifications-outline'}
+            size={20}
+            color={reminderTime ? theme.primary : theme.textDim}
+          />
+          <View style={styles.pinToggleContent}>
+            <Text style={[styles.pinToggleTitle, { color: reminderTime ? theme.primary : theme.text }]}>
+              {t('tasks.pillReminder')}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.reminderValueText,
+              { color: reminderTime ? theme.primary : theme.textDim },
+            ]}
+          >
+            {reminderTime ?? t('tasks.reminderOff')}
+          </Text>
+          {reminderTime && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                hapticLight();
+                animateLayout();
+                setReminderTime(undefined);
+                setIsReminderExpanded(false);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('tasks.reminderClear')}
+            >
+              <Ionicons name="close-circle" size={18} color={theme.primary} />
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+
+        {isReminderExpanded && (
+          <View style={styles.reminderPickerWrap}>
+            <TimePickerPanel
+              value={reminderTime ?? '09:00'}
+              theme={theme}
+              compact
+              onChange={setReminderTime}
+              onClear={() => {
+                animateLayout();
+                setReminderTime(undefined);
+                setIsReminderExpanded(false);
+              }}
+            />
+          </View>
+        )}
 
         {/* Subtasks Builder */}
         <Text style={[styles.sectionLabel, { color: theme.textDim, marginTop: 16 }]}>
@@ -461,6 +617,17 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 16,
     borderWidth: 1,
+    marginBottom: 14,
+  },
+  notesInput: {
+    fontSize: 13,
+    lineHeight: 19,
+    minHeight: 68,
+    maxHeight: 124,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
     marginBottom: 16,
   },
   sectionLabel: {
@@ -503,6 +670,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 2,
+  },
+  reminderValueText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  reminderPickerWrap: {
+    marginTop: 8,
   },
   submitBtn: {
     marginTop: 20,
