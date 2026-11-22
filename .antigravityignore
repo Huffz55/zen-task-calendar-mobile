@@ -1,17 +1,56 @@
+# Bağımlılıklar & Lock Dosyaları
 node_modules/
-.expo/
-.expo-shared/
+**/node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Derleme, Paketleme & Önbellek Artıkları
 dist/
 build/
+out/
+web-build/
+coverage/
+*.tsbuildinfo
+.vite/
+.cache/
+
+# Expo, Android & İmza Anahtarları (Kritik Güvenlik)
+.expo/
+.expo-shared/
 android/
 ios/
-coverage/
-.git/
-package-lock.json
+.kotlin/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# İzole Git Ağaçları & Loglar
+.worktrees/
+**/.worktrees/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+*.snapshot.json
+
+# Gizli Anahtarlar (Şablon hariç)
 .env
 .env.*
+!.env.example
+
+# Büyük Medya & Geçici Ses İşleme Dosyaları
+raw_sounds/
 assets/*.m4a
 assets/*.wav
 assets/*.png
 assets/*.jpg
 assets/*.webp
+
+# İşletim Sistemi & Editör
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
