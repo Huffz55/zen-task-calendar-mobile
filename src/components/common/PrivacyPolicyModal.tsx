@@ -40,6 +40,11 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
       title: t('privacy.exportTitle'),
       body: t('privacy.exportBody'),
     },
+    {
+      icon: 'mail-outline' as const,
+      title: t('privacy.contactTitle'),
+      body: t('privacy.contactBody'),
+    },
   ];
 
   return (
@@ -80,7 +85,7 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
               <View style={[styles.iconBadge, { backgroundColor: theme.primaryLight }]}>
                 <Ionicons name={sec.icon} size={16} color={theme.primary} />
               </View>
-              <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={1}>
+              <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>
                 {sec.title}
               </Text>
             </View>

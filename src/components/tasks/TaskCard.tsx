@@ -52,18 +52,24 @@ export const TaskCard = memo(function TaskCard({
   const trimmedNote = task.notes?.trim() ?? '';
   const hasNote = trimmedNote.length > 0;
 
-  // Extract link if task contains a URL
+  // Extract link if task contains a valid http/https URL
   const linkInfo = useMemo(() => {
-    const match = task.title.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/i);
+    const match = task.title.match(/(?:^|\s)(https?:\/\/[^\s]+|www\.[^\s]+)/i);
     if (!match) return null;
-    const raw = match[0].replace(/[.,)]+$/, '');
-    const url = raw.startsWith('http') ? raw : `https://${raw}`;
+    const raw = match[1].replace(/[.,)]+$/, '');
+    const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     try {
       const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return null;
+      }
+      if (!parsed.hostname.includes('.')) {
+        return null;
+      }
       const host = parsed.hostname.replace(/^www\./, '');
-      return { url, displayLabel: host || t('common.link') };
+      return { url: parsed.toString(), displayLabel: host || t('common.link') };
     } catch {
-      return { url, displayLabel: t('common.link') };
+      return null;
     }
   }, [task.title, t]);
 

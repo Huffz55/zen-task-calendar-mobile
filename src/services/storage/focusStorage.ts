@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { FocusSession } from '../../types';
-import { db, ensureAuth } from '../firebase/firebaseClient';
-import { getSyncKey, isValidSyncKey } from './syncKeyManager';
+import { ensureAuth, getFirebaseDb } from '../firebase/firebaseClient';
+import { getExistingSyncKey, getSyncKey, isCloudSyncEnabled, isValidSyncKey } from './syncKeyManager';
 import { cleanUndefined } from './syncEngine';
 import { validateFocusSession, MAX_FOCUS_SESSIONS_LIMIT } from '../validation/validator';
 import { atomicWriteJson, safeReadJsonArray } from './atomicStorage';
@@ -15,6 +15,7 @@ class MobileFocusStorage {
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
   private currentUnsubscribe: (() => void) | null = null;
   private activeSubscriber: ((sessions: FocusSession[]) => void) | null = null;
+  private subscriptionGeneration = 0;
 
   async loadSessions(): Promise<FocusSession[]> {
     return safeReadJsonArray(
@@ -33,6 +34,119 @@ class MobileFocusStorage {
     this.lastPushedHash = '';
   }
 
+  detachCloudListener(): void {
+    this.subscriptionGeneration++;
+    this.cancelPendingPush();
+    this.isApplyingRemoteUpdate = false;
+    if (this.currentUnsubscribe) {
+      this.currentUnsubscribe();
+      this.currentUnsubscribe = null;
+    }
+  }
+
+  private attachCloudListener(): void {
+    const callback = this.activeSubscriber;
+    if (!callback) return;
+
+    const gen = ++this.subscriptionGeneration;
+    if (this.currentUnsubscribe) {
+      this.currentUnsubscribe();
+      this.currentUnsubscribe = null;
+    }
+
+    isCloudSyncEnabled()
+      .then(async (enabled) => {
+        if (!enabled || gen !== this.subscriptionGeneration) return;
+        await ensureAuth();
+        if (gen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
+        const syncKey = await getSyncKey();
+        if (!isValidSyncKey(syncKey) || gen !== this.subscriptionGeneration) return;
+        const focusDocRef = doc(getFirebaseDb(), 'workspaces', `${syncKey}_focus`);
+
+        this.currentUnsubscribe = onSnapshot(
+          focusDocRef,
+          async (snapshot) => {
+            if (gen !== this.subscriptionGeneration) return;
+            if (!snapshot.exists()) {
+              const localItems = await this.loadSessions();
+              if (localItems.length > 0 && gen === this.subscriptionGeneration) {
+                setDoc(focusDocRef, {
+                  items: cleanUndefined(localItems),
+                  updatedAt: Date.now(),
+                }).catch((err) => {
+                  if (__DEV__) console.error('[SyncError Mobile Focus]: Failed to initialize focus doc:', err);
+                });
+              }
+              return;
+            }
+            const data = snapshot.data();
+            const rawRemote: unknown[] = Array.isArray(data?.items) ? data.items : [];
+            const remoteItems: FocusSession[] = [];
+            for (const item of rawRemote.slice(0, MAX_FOCUS_SESSIONS_LIMIT)) {
+              const v = validateFocusSession(item);
+              if (v) remoteItems.push(v);
+            }
+
+            const localItems = await this.loadSessions();
+            if (gen !== this.subscriptionGeneration) return;
+            const map = new Map<string, FocusSession>();
+            for (const item of localItems) map.set(item.id, item);
+            for (const item of remoteItems) map.set(item.id, item);
+
+            const merged = Array.from(map.values())
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, MAX_FOCUS_SESSIONS_LIMIT);
+            const serializedMerged = JSON.stringify(merged);
+            const serializedLocal = JSON.stringify(localItems);
+            const sortedRemote = [...remoteItems]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, MAX_FOCUS_SESSIONS_LIMIT);
+            const remoteNeedsPush = serializedMerged !== JSON.stringify(sortedRemote);
+
+            if (serializedMerged !== serializedLocal) {
+              this.isApplyingRemoteUpdate = true;
+              try {
+                this.lastPushedHash = serializedMerged;
+                await atomicWriteJson(AsyncStorage, FOCUS_SESSIONS_STORAGE_KEY, merged);
+              } finally {
+                this.isApplyingRemoteUpdate = false;
+              }
+              if (gen !== this.subscriptionGeneration) return;
+              this.activeSubscriber?.(merged);
+            }
+
+            if (remoteNeedsPush && gen === this.subscriptionGeneration) {
+              this.lastPushedHash = serializedMerged;
+              setDoc(focusDocRef, {
+                items: cleanUndefined(merged),
+                updatedAt: Date.now(),
+              }).catch((err) => {
+                if (__DEV__) console.error('[SyncError Mobile Focus]: Failed to sync merged sessions:', err);
+              });
+            }
+          },
+          (err) => {
+            if (__DEV__) console.error('[SyncError Mobile Focus]: onSnapshot failed:', err);
+          }
+        );
+      })
+      .catch((err) => {
+        if (__DEV__) console.error('[SyncError Mobile Focus]: ensureAuth failed:', err);
+      });
+  }
+
+  activateCloudSync(): void {
+    this.lastPushedHash = '';
+    this.attachCloudListener();
+  }
+
+  rebindCloudListener(): void {
+    this.detachCloudListener();
+    if (this.activeSubscriber) {
+      this.attachCloudListener();
+    }
+  }
+
   async saveSessions(sessions: FocusSession[]): Promise<void> {
     try {
       const prevStored = await AsyncStorage.getItem(FOCUS_SESSIONS_STORAGE_KEY).catch(() => null);
@@ -42,6 +156,11 @@ class MobileFocusStorage {
       const bounded = sessions.slice(0, MAX_FOCUS_SESSIONS_LIMIT);
       const serialized = await atomicWriteJson(AsyncStorage, FOCUS_SESSIONS_STORAGE_KEY, bounded);
 
+      const pushGen = this.subscriptionGeneration;
+      if (!(await isCloudSyncEnabled()) || pushGen !== this.subscriptionGeneration) {
+        return;
+      }
+
       if (this.isApplyingRemoteUpdate || serialized === this.lastPushedHash) {
         return;
       }
@@ -50,10 +169,12 @@ class MobileFocusStorage {
       if (this.pushTimer) clearTimeout(this.pushTimer);
       this.pushTimer = setTimeout(async () => {
         try {
+          if (pushGen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
           await ensureAuth();
-          const syncKey = await getSyncKey();
-          if (!isValidSyncKey(syncKey)) return;
-          const focusDocRef = doc(db, 'workspaces', `${syncKey}_focus`);
+          if (pushGen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
+          const syncKey = await getExistingSyncKey();
+          if (pushGen !== this.subscriptionGeneration || !syncKey || !isValidSyncKey(syncKey)) return;
+          const focusDocRef = doc(getFirebaseDb(), 'workspaces', `${syncKey}_focus`);
           await setDoc(focusDocRef, {
             items: cleanUndefined(bounded),
             updatedAt: Date.now(),
@@ -69,75 +190,18 @@ class MobileFocusStorage {
 
   subscribeSessions(callback: (sessions: FocusSession[]) => void): () => void {
     this.activeSubscriber = callback;
-    let isCancelled = false;
-
-    ensureAuth()
-      .then(async () => {
-        if (isCancelled) return;
-        const syncKey = await getSyncKey();
-        if (!isValidSyncKey(syncKey)) return;
-        const focusDocRef = doc(db, 'workspaces', `${syncKey}_focus`);
-
-        this.currentUnsubscribe = onSnapshot(
-          focusDocRef,
-          async (snapshot) => {
-            if (!snapshot.exists()) return;
-            const data = snapshot.data();
-            const rawRemote: unknown[] = Array.isArray(data?.items) ? data.items : [];
-            const remoteItems: FocusSession[] = [];
-            for (const item of rawRemote.slice(0, MAX_FOCUS_SESSIONS_LIMIT)) {
-              const v = validateFocusSession(item);
-              if (v) remoteItems.push(v);
-            }
-
-            const localItems = await this.loadSessions();
-            const map = new Map<string, FocusSession>();
-            for (const item of localItems) map.set(item.id, item);
-            for (const item of remoteItems) map.set(item.id, item);
-
-            const merged = Array.from(map.values())
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .slice(0, MAX_FOCUS_SESSIONS_LIMIT);
-            const serializedMerged = JSON.stringify(merged);
-            const serializedLocal = JSON.stringify(localItems);
-
-            if (serializedMerged !== serializedLocal) {
-              this.isApplyingRemoteUpdate = true;
-              this.lastPushedHash = serializedMerged;
-              await atomicWriteJson(AsyncStorage, FOCUS_SESSIONS_STORAGE_KEY, merged);
-              this.isApplyingRemoteUpdate = false;
-              this.activeSubscriber?.(merged);
-            }
-          },
-          (err) => {
-            if (__DEV__) console.error('[SyncError Mobile Focus]: onSnapshot failed:', err);
-          }
-        );
-      })
-      .catch((err) => {
-        if (__DEV__) console.error('[SyncError Mobile Focus]: ensureAuth failed:', err);
-      });
+    this.attachCloudListener();
 
     return () => {
-      isCancelled = true;
-      if (this.currentUnsubscribe) {
-        this.currentUnsubscribe();
-        this.currentUnsubscribe = null;
+      this.detachCloudListener();
+      if (this.activeSubscriber === callback) {
+        this.activeSubscriber = null;
       }
-      this.activeSubscriber = null;
     };
   }
 
   async switchSyncKey(_newKey: string): Promise<void> {
-    if (this.currentUnsubscribe) {
-      this.currentUnsubscribe();
-      this.currentUnsubscribe = null;
-    }
-    this.lastPushedHash = '';
-    const currentCallback = this.activeSubscriber;
-    if (currentCallback) {
-      this.subscribeSessions(currentCallback);
-    }
+    this.rebindCloudListener();
   }
 }
 

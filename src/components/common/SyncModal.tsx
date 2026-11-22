@@ -14,8 +14,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { AppToast } from '../../types';
 import { hapticLight, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
-import { getSyncKey, isValidSyncKey, generateSyncKey } from '../../services/storage/syncKeyManager';
-import { switchGlobalSyncKey } from '../../services/storage/taskStorage';
+import {
+  getExistingSyncKey,
+  isCloudSyncEnabled,
+  isValidSyncKey,
+  generateSyncKey,
+} from '../../services/storage/syncKeyManager';
+import {
+  disableCloudSync,
+  enableCloudSync,
+  switchGlobalSyncKey,
+} from '../../services/storage/taskStorage';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 import { useTranslation } from '../../i18n';
 
@@ -28,6 +37,9 @@ interface SyncModalProps {
 
 export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalProps) {
   const { t } = useTranslation();
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [isLoadingState, setIsLoadingState] = useState(true);
+  const [isTogglingSync, setIsTogglingSync] = useState(false);
   const [currentKey, setCurrentKey] = useState('');
   const [inputKey, setInputKey] = useState('');
   const [copied, setCopied] = useState(false);
@@ -42,18 +54,32 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
     };
   }, []);
 
+  const handleClose = () => {
+    setIsLoadingState(true);
+    setShowUnlinkConfirm(false);
+    setErrorMsg('');
+    onClose();
+  };
+
   useEffect(() => {
     if (!visible) return;
     let isMounted = true;
-    getSyncKey().then(k => {
-      if (isMounted) {
-        setCurrentKey(k);
+    Promise.all([isCloudSyncEnabled(), getExistingSyncKey()])
+      .then(([enabled, existingKey]) => {
+        if (!isMounted) return;
+        setSyncEnabled(enabled);
+        setCurrentKey(existingKey ?? '');
         setInputKey('');
         setErrorMsg('');
         setCopied(false);
         setShowUnlinkConfirm(false);
-      }
-    });
+        setIsLoadingState(false);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsLoadingState(false);
+        }
+      });
     return () => {
       isMounted = false;
     };
@@ -62,6 +88,50 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   const scheduleResetCopied = () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleEnableSync = async () => {
+    if (isTogglingSync) return;
+    setIsTogglingSync(true);
+    setErrorMsg('');
+    try {
+      const activeKey = await enableCloudSync();
+      hapticSuccess();
+      setSyncEnabled(true);
+      setCurrentKey(activeKey);
+      onShowToast({
+        type: 'success',
+        title: t('sync.toasts.enabledTitle'),
+        message: t('sync.toasts.enabledMessage', { key: activeKey }),
+      });
+    } catch {
+      hapticWarning();
+      setErrorMsg(t('sync.errors.enableFailed'));
+    } finally {
+      setIsTogglingSync(false);
+    }
+  };
+
+  const handleDisableSync = async () => {
+    if (isTogglingSync) return;
+    setIsTogglingSync(true);
+    setErrorMsg('');
+    try {
+      await disableCloudSync();
+      hapticLight();
+      setSyncEnabled(false);
+      setShowUnlinkConfirm(false);
+      onShowToast({
+        type: 'info',
+        title: t('sync.toasts.disabledTitle'),
+        message: t('sync.toasts.disabledMessage'),
+      });
+    } catch {
+      hapticWarning();
+      setErrorMsg(t('sync.errors.unlinkFailed'));
+    } finally {
+      setIsTogglingSync(false);
+    }
   };
 
   const handleCopy = async () => {
@@ -83,11 +153,15 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   };
 
   const handleGenerateNewKey = async () => {
+    if (isTogglingSync || isConnecting) return;
+    setIsTogglingSync(true);
+    setErrorMsg('');
     const newKey = generateSyncKey();
-    hapticSuccess();
     try {
       const success = await switchGlobalSyncKey(newKey);
       if (success) {
+        hapticSuccess();
+        setSyncEnabled(true);
         setCurrentKey(newKey);
         setShowUnlinkConfirm(false);
         onShowToast({
@@ -102,6 +176,8 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
     } catch {
       hapticWarning();
       setErrorMsg(t('sync.errors.unlinkFailed'));
+    } finally {
+      setIsTogglingSync(false);
     }
   };
 
@@ -116,7 +192,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
       return;
     }
 
-    if (cleaned === currentKey) {
+    if (syncEnabled && cleaned === currentKey) {
       hapticWarning();
       setErrorMsg(t('sync.errors.alreadyActive'));
       return;
@@ -133,13 +209,14 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
       const success = await switchGlobalSyncKey(cleaned);
       if (success) {
         hapticSuccess();
+        setSyncEnabled(true);
         setCurrentKey(cleaned);
         onShowToast({
           type: 'success',
           title: t('sync.toasts.syncedTitle'),
           message: t('sync.toasts.syncedMessage', { key: cleaned }),
         });
-        onClose();
+        handleClose();
       } else {
         hapticWarning();
         setErrorMsg(t('sync.errors.connectFailed'));
@@ -153,19 +230,28 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   };
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="90%" useKeyboardAvoiding>
+    <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="90%" useKeyboardAvoiding>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
           <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
-            <Ionicons name="cloud-outline" size={22} color={theme.primary} />
+            <Ionicons name={syncEnabled ? 'cloud-done-outline' : 'cloud-offline-outline'} size={22} color={theme.primary} />
           </View>
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>{t('sync.title')}</Text>
+          <View>
+            <Text style={[styles.sheetTitle, { color: theme.text }]}>{t('sync.title')}</Text>
+            <Text style={[styles.statusSubtitle, { color: syncEnabled ? theme.success : theme.textDim }]}>
+              {isLoadingState
+                ? t('common.loading')
+                : syncEnabled
+                ? t('sync.statusActive')
+                : t('sync.statusLocalOnly')}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
           onPress={() => {
             hapticLight();
-            onClose();
+            handleClose();
           }}
           style={styles.closeBtn}
           activeOpacity={0.7}
@@ -178,100 +264,147 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        {/* Section 1: Device Key */}
-        <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons name="key-outline" size={15} color={theme.primary} />
-            <Text style={[styles.sectionHeading, { color: theme.text }]}>
-              {t('sync.deviceKeyHeading')}
-            </Text>
-          </View>
-
-          <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.codeText, { color: theme.primary }]} numberOfLines={1} ellipsizeMode="middle">
-              {currentKey || t('common.loading')}
+        {/* Section 1: Opt-In Control or Active Device Key */}
+        {!syncEnabled ? (
+          <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons name="shield-checkmark-outline" size={15} color={theme.primary} />
+              <Text style={[styles.sectionHeading, { color: theme.text }]}>
+                {t('sync.localOnlyHeading')}
+              </Text>
+            </View>
+            <Text style={[styles.localOnlyDesc, { color: theme.textDim }]}>
+              {t('sync.localOnlyDescription')}
             </Text>
             <TouchableOpacity
               style={[
-                styles.copyBtn,
-                {
-                  backgroundColor: copied
-                    ? withAlpha(theme.success, theme.isDark ? 0.2 : 0.14)
-                    : theme.primaryLight,
-                },
+                styles.enableBtn,
+                { backgroundColor: theme.primary, opacity: isTogglingSync || isLoadingState ? 0.65 : 1 },
               ]}
-              onPress={handleCopy}
-              activeOpacity={0.7}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              onPress={handleEnableSync}
+              disabled={isTogglingSync || isLoadingState}
+              activeOpacity={0.85}
             >
-              <Ionicons
-                name={copied ? 'checkmark' : 'copy-outline'}
-                size={15}
-                color={copied ? theme.success : theme.primary}
-              />
-              <Text
+              {isTogglingSync ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.enableBtnText}>{t('sync.enableButton')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons name="key-outline" size={15} color={theme.primary} />
+              <Text style={[styles.sectionHeading, { color: theme.text }]}>
+                {t('sync.deviceKeyHeading')}
+              </Text>
+            </View>
+
+            <View style={[styles.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.codeText, { color: theme.primary }]} numberOfLines={1} ellipsizeMode="middle">
+                {currentKey || t('common.loading')}
+              </Text>
+              <TouchableOpacity
                 style={[
-                  styles.copyBtnText,
-                  { color: copied ? theme.success : theme.primary },
+                  styles.copyBtn,
+                  {
+                    backgroundColor: copied
+                      ? withAlpha(theme.success, theme.isDark ? 0.2 : 0.14)
+                      : theme.primaryLight,
+                  },
+                ]}
+                onPress={handleCopy}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Ionicons
+                  name={copied ? 'checkmark' : 'copy-outline'}
+                  size={15}
+                  color={copied ? theme.success : theme.primary}
+                />
+                <Text
+                  style={[
+                    styles.copyBtnText,
+                    { color: copied ? theme.success : theme.primary },
+                  ]}
+                >
+                  {copied ? t('common.copied') : t('common.copy')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Generate New Key or Turn Off Sync */}
+            {showUnlinkConfirm ? (
+              <View
+                style={[
+                  styles.confirmBox,
+                  {
+                    backgroundColor: withAlpha(theme.danger, theme.isDark ? 0.16 : 0.09),
+                    borderColor: withAlpha(theme.danger, 0.35),
+                  },
                 ]}
               >
-                {copied ? t('common.copied') : t('common.copy')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Generate New Key */}
-          {showUnlinkConfirm ? (
-            <View
-              style={[
-                styles.confirmBox,
-                {
-                  backgroundColor: withAlpha(theme.danger, theme.isDark ? 0.16 : 0.09),
-                  borderColor: withAlpha(theme.danger, 0.35),
-                },
-              ]}
-            >
-              <Text style={[styles.confirmText, { color: theme.danger }]}>
-                {t('sync.generateConfirm')}
-              </Text>
-              <View style={styles.confirmActions}>
+                <Text style={[styles.confirmText, { color: theme.danger }]}>
+                  {t('sync.generateConfirm')}
+                </Text>
+                <View style={styles.confirmActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.cancelBtn,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                    onPress={() => {
+                      hapticLight();
+                      setShowUnlinkConfirm(false);
+                    }}
+                  >
+                    <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.unlinkBtn, { backgroundColor: theme.danger }]}
+                    onPress={handleGenerateNewKey}
+                  >
+                    <Text style={styles.unlinkBtnText}>{t('sync.newKeyButton')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.keyFooterActions}>
                 <TouchableOpacity
-                  style={[
-                    styles.cancelBtn,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
-                  ]}
+                  style={styles.unlinkTrigger}
+                  onPress={handleDisableSync}
+                  disabled={isTogglingSync}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons name="cloud-offline-outline" size={13} color={theme.textDim} />
+                  <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
+                    {t('sync.disableButton')}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.unlinkTrigger}
                   onPress={() => {
                     hapticLight();
-                    setShowUnlinkConfirm(false);
+                    setShowUnlinkConfirm(true);
                   }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.unlinkBtn, { backgroundColor: theme.danger }]}
-                  onPress={handleGenerateNewKey}
-                >
-                  <Text style={styles.unlinkBtnText}>{t('sync.newKeyButton')}</Text>
+                  <Ionicons name="refresh-outline" size={13} color={theme.textDim} />
+                  <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
+                    {t('sync.generateNewKey')}
+                  </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.unlinkTrigger}
-              onPress={() => {
-                hapticLight();
-                setShowUnlinkConfirm(true);
-              }}
-              activeOpacity={0.7}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
-              <Ionicons name="refresh-outline" size={13} color={theme.textDim} />
-              <Text style={[styles.unlinkTriggerText, { color: theme.textDim }]}>
-                {t('sync.generateNewKey')}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            )}
+          </View>
+        )}
 
         {/* Section 2: Pair Another Device */}
         <View style={[styles.card, { backgroundColor: theme.surfaceMuted, borderColor: theme.border, marginTop: 14 }]}>
@@ -361,6 +494,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  statusSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 1,
+  },
   closeBtn: {
     padding: 6,
   },
@@ -379,6 +517,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
+  },
+  localOnlyDesc: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  enableBtn: {
+    height: 44,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  enableBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   codeBox: {
     flexDirection: 'row',
@@ -410,12 +566,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  keyFooterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
   unlinkTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
     gap: 4,
-    marginTop: 10,
     paddingVertical: 4,
   },
   unlinkTriggerText: {

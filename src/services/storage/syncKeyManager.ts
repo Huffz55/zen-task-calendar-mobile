@@ -4,9 +4,11 @@ import { generateSyncKey, isValidSyncKey } from './syncKeyFormat';
 export { generateSyncKey, isValidSyncKey };
 
 export const SYNC_KEY_STORAGE = '@zen_sync_key';
+export const CLOUD_SYNC_ENABLED_KEY = '@zen_cloud_sync_enabled';
 const SECURE_SYNC_KEY = 'zen_sync_key_v1';
 
 let cachedSyncKey: string | null = null;
+let cachedCloudSyncEnabled: boolean | null = null;
 
 function getSecureStoreModule(): typeof import('expo-secure-store') | null {
   try {
@@ -51,11 +53,57 @@ async function readFromSecureStorage(): Promise<string | null> {
   return null;
 }
 
+async function deleteFromSecureStorage(): Promise<void> {
+  try {
+    const SecureStore = getSecureStoreModule();
+    if (SecureStore && typeof SecureStore.deleteItemAsync === 'function') {
+      await SecureStore.deleteItemAsync(SECURE_SYNC_KEY);
+    }
+  } catch {
+    // Ignore when SecureStore is unavailable
+  }
+}
+
 /**
- * Retrieves the currently active sync key from hardware-backed SecureStore
- * (migrating any legacy AsyncStorage value) or generates and persists a new one.
+ * Returns true only when the user has explicitly opted into Cloud Sync.
+ * Defaults to false so Kanso remains strictly local-first with zero background Firebase traffic.
  */
-export async function getSyncKey(): Promise<string> {
+export async function isCloudSyncEnabled(): Promise<boolean> {
+  if (cachedCloudSyncEnabled !== null) {
+    return cachedCloudSyncEnabled;
+  }
+  try {
+    const raw = await AsyncStorage.getItem(CLOUD_SYNC_ENABLED_KEY);
+    cachedCloudSyncEnabled = raw === 'true';
+    return cachedCloudSyncEnabled;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Persists the user's explicit Cloud Sync opt-in preference.
+ */
+export async function setCloudSyncEnabled(enabled: boolean): Promise<void> {
+  cachedCloudSyncEnabled = enabled;
+  try {
+    if (enabled) {
+      await AsyncStorage.setItem(CLOUD_SYNC_ENABLED_KEY, 'true');
+    } else {
+      await AsyncStorage.removeItem(CLOUD_SYNC_ENABLED_KEY);
+    }
+  } catch (err) {
+    if (__DEV__) {
+      console.error('[SyncKeyManager] Failed to persist cloud sync preference', err);
+    }
+  }
+}
+
+/**
+ * Reads an already-persisted sync key without auto-generating a new one.
+ * Returns null if the user has never activated Cloud Sync or after full data deletion.
+ */
+export async function getExistingSyncKey(): Promise<string | null> {
   if (cachedSyncKey && isValidSyncKey(cachedSyncKey)) {
     return cachedSyncKey;
   }
@@ -77,7 +125,22 @@ export async function getSyncKey(): Promise<string> {
       return normalized;
     }
   } catch (err) {
-    console.error('[SyncKeyManager] Failed to read sync key from AsyncStorage', err);
+    if (__DEV__) {
+      console.error('[SyncKeyManager] Failed to read sync key from AsyncStorage', err);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Retrieves the currently active sync key from hardware-backed SecureStore
+ * (migrating any legacy AsyncStorage value) or generates and persists a new one.
+ */
+export async function getSyncKey(): Promise<string> {
+  const existing = await getExistingSyncKey();
+  if (existing) {
+    return existing;
   }
 
   const generated = generateSyncKey();
@@ -86,7 +149,9 @@ export async function getSyncKey(): Promise<string> {
     try {
       await AsyncStorage.setItem(SYNC_KEY_STORAGE, generated);
     } catch (err) {
-      console.error('[SyncKeyManager] Failed to persist generated sync key', err);
+      if (__DEV__) {
+        console.error('[SyncKeyManager] Failed to persist generated sync key', err);
+      }
     }
   }
   cachedSyncKey = generated;
@@ -113,7 +178,19 @@ export async function setSyncKey(newKey: string): Promise<boolean> {
     cachedSyncKey = normalized;
     return true;
   } catch (err) {
-    console.error('[SyncKeyManager] Failed to persist new sync key', err);
+    if (__DEV__) {
+      console.error('[SyncKeyManager] Failed to persist new sync key', err);
+    }
     return false;
   }
+}
+
+/**
+ * Permanently removes the stored sync key from hardware-backed SecureStore,
+ * AsyncStorage, and in-memory cache.
+ */
+export async function clearSyncKey(): Promise<void> {
+  cachedSyncKey = null;
+  await deleteFromSecureStorage();
+  await AsyncStorage.removeItem(SYNC_KEY_STORAGE).catch(() => {});
 }

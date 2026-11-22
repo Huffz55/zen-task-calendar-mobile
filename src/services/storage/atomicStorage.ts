@@ -122,3 +122,18 @@ export async function atomicWriteJson(
     return serialized;
   });
 }
+
+/**
+ * Atomically removes both primary and shadow `__backup` keys inside the same
+ * per-key serialized queue so an in-flight write cannot finish after deletion.
+ */
+export async function atomicRemoveJson(
+  storage: AtomicStorageBackend,
+  key: string
+): Promise<void> {
+  return enqueueKeyOp(key, async () => {
+    const backupKey = getBackupKey(key);
+    await storage.removeItem(key).catch(() => {});
+    await storage.removeItem(backupKey).catch(() => {});
+  });
+}

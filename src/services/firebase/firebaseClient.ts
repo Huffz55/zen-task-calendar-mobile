@@ -1,7 +1,7 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore, getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { initializeFirestore, getFirestore, type Firestore } from 'firebase/firestore';
 // @ts-expect-error getReactNativePersistence is exported in React Native Metro bundle of firebase/auth
-import { initializeAuth, getReactNativePersistence, getAuth, signInAnonymously } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence, getAuth, signInAnonymously, signOut, type Auth } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -14,34 +14,68 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:432161165401:web:64a010a00557ac2fbb2148",
 };
 
-export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-// React Native Auth with AsyncStorage persistence to avoid warning
-let authInstance: ReturnType<typeof getAuth>;
-try {
-  authInstance = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch {
-  authInstance = getAuth(app);
-}
-const auth = authInstance;
-
-// React Native Firestore with long-polling and ignoreUndefinedProperties
-let dbInstance: ReturnType<typeof getFirestore>;
-try {
-  dbInstance = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-    ignoreUndefinedProperties: true,
-  });
-} catch {
-  dbInstance = getFirestore(app);
-}
-export const db = dbInstance;
-
+let appInstance: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
+let dbInstance: Firestore | null = null;
 let authInitPromise: Promise<void> | null = null;
 
+/**
+ * Returns true only after Firebase has been lazily initialized by an explicit Cloud Sync action.
+ */
+export function isFirebaseInitialized(): boolean {
+  return appInstance !== null || getApps().length > 0;
+}
+
+/**
+ * Lazily initializes and returns the Firebase App instance on first Cloud Sync use.
+ */
+export function getFirebaseApp(): FirebaseApp {
+  if (!appInstance) {
+    appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  }
+  return appInstance;
+}
+
+/**
+ * Lazily initializes React Native Auth with AsyncStorage persistence on first Cloud Sync use.
+ */
+export function getFirebaseAuth(): Auth {
+  if (!authInstance) {
+    const app = getFirebaseApp();
+    try {
+      authInstance = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } catch {
+      authInstance = getAuth(app);
+    }
+  }
+  return authInstance;
+}
+
+/**
+ * Lazily initializes React Native Firestore with long-polling and ignoreUndefinedProperties.
+ */
+export function getFirebaseDb(): Firestore {
+  if (!dbInstance) {
+    const app = getFirebaseApp();
+    try {
+      dbInstance = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        ignoreUndefinedProperties: true,
+      });
+    } catch {
+      dbInstance = getFirestore(app);
+    }
+  }
+  return dbInstance;
+}
+
+/**
+ * Ensures an anonymous Firebase Auth session exists. Only called when Cloud Sync is explicitly active.
+ */
 export async function ensureAuth(): Promise<void> {
+  const auth = getFirebaseAuth();
   if (auth.currentUser) {
     return;
   }
@@ -61,4 +95,17 @@ export async function ensureAuth(): Promise<void> {
   }
 
   return authInitPromise;
+}
+
+/**
+ * Signs out the active anonymous Firebase Auth session (if initialized) so residual
+ * auth tokens are cleared from AsyncStorage during full data erasure.
+ */
+export async function signOutIfInitialized(): Promise<void> {
+  if (!authInstance) return;
+  try {
+    await signOut(authInstance);
+  } catch {
+    // Ignore sign-out errors during cleanup
+  }
 }

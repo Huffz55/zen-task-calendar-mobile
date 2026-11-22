@@ -9,11 +9,21 @@ import {
   MAX_TASKS_LIMIT,
   MAX_LISTS_LIMIT,
 } from '../validation/validator';
-import { db, ensureAuth } from '../firebase/firebaseClient';
+import { ensureAuth, getFirebaseDb, signOutIfInitialized } from '../firebase/firebaseClient';
 import { mergeItemsWithTombstones, cleanUndefined } from './syncEngine';
-import { getSyncKey, setSyncKey, generateSyncKey, isValidSyncKey, SYNC_KEY_STORAGE } from './syncKeyManager';
+import {
+  clearSyncKey,
+  CLOUD_SYNC_ENABLED_KEY,
+  getExistingSyncKey,
+  getSyncKey,
+  isCloudSyncEnabled,
+  isValidSyncKey,
+  setCloudSyncEnabled,
+  setSyncKey,
+  SYNC_KEY_STORAGE,
+} from './syncKeyManager';
 import { defaultFocusStorage, FOCUS_SESSIONS_STORAGE_KEY } from './focusStorage';
-import { atomicWriteJson, getBackupKey, safeReadJsonArray } from './atomicStorage';
+import { atomicRemoveJson, atomicWriteJson, safeReadJsonArray } from './atomicStorage';
 
 const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
 const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
@@ -59,8 +69,10 @@ class MobileTaskStorage implements ITaskStorage {
   private isApplyingRemoteUpdate = false;
   private lastPushedHash = '';
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
+  private remoteResetTimer: ReturnType<typeof setTimeout> | null = null;
   private currentUnsubscribe: (() => void) | null = null;
   private activeSubscriber: ((tasks: Task[]) => void) | null = null;
+  private subscriptionGeneration = 0;
 
   async loadTasks(): Promise<Task[]> {
     return safeReadJsonArray(AsyncStorage, TASKS_STORAGE_KEY, validateTask, MAX_TASKS_LIMIT);
@@ -94,6 +106,11 @@ class MobileTaskStorage implements ITaskStorage {
 
       const newSerialized = await atomicWriteJson(AsyncStorage, TASKS_STORAGE_KEY, tasksWithTimestamps);
 
+      const pushGen = this.subscriptionGeneration;
+      if (!(await isCloudSyncEnabled()) || pushGen !== this.subscriptionGeneration) {
+        return;
+      }
+
       if (this.isApplyingRemoteUpdate || newSerialized === this.lastPushedHash) {
         return;
       }
@@ -105,10 +122,12 @@ class MobileTaskStorage implements ITaskStorage {
       }
       this.pushTimer = setTimeout(async () => {
         try {
+          if (pushGen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
           await ensureAuth();
-          const syncKey = await getSyncKey();
-          if (!isValidSyncKey(syncKey)) return;
-          const taskDocRef = doc(db, 'workspaces', `${syncKey}_tasks`);
+          if (pushGen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
+          const syncKey = await getExistingSyncKey();
+          if (pushGen !== this.subscriptionGeneration || !syncKey || !isValidSyncKey(syncKey)) return;
+          const taskDocRef = doc(getFirebaseDb(), 'workspaces', `${syncKey}_tasks`);
           const payload: SyncDocState<Task> = {
             items: cleanUndefined(tasksWithTimestamps),
             deletedIds: updatedDeletedIds,
@@ -127,24 +146,48 @@ class MobileTaskStorage implements ITaskStorage {
     }
   }
 
-  subscribeTasks(callback: (tasks: Task[]) => void): () => void {
-    this.activeSubscriber = callback;
-    let isCancelled = false;
+  detachCloudListener(): void {
+    this.subscriptionGeneration++;
+    this.cancelPendingPush();
+    if (this.remoteResetTimer) {
+      clearTimeout(this.remoteResetTimer);
+      this.remoteResetTimer = null;
+    }
+    this.isApplyingRemoteUpdate = false;
+    if (this.currentUnsubscribe) {
+      this.currentUnsubscribe();
+      this.currentUnsubscribe = null;
+    }
+  }
 
-    ensureAuth()
-      .then(async () => {
-        if (isCancelled) return;
+  private attachCloudListener(): void {
+    const callback = this.activeSubscriber;
+    if (!callback) return;
+
+    const gen = ++this.subscriptionGeneration;
+    if (this.currentUnsubscribe) {
+      this.currentUnsubscribe();
+      this.currentUnsubscribe = null;
+    }
+
+    isCloudSyncEnabled()
+      .then(async enabled => {
+        if (!enabled || gen !== this.subscriptionGeneration) return;
+        await ensureAuth();
+        if (gen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
         const syncKey = await getSyncKey();
-        if (!isValidSyncKey(syncKey)) return;
-        const taskDocRef = doc(db, 'workspaces', `${syncKey}_tasks`);
+        if (!isValidSyncKey(syncKey) || gen !== this.subscriptionGeneration) return;
+        const taskDocRef = doc(getFirebaseDb(), 'workspaces', `${syncKey}_tasks`);
 
         const unsubscribeFirestore = onSnapshot(
           taskDocRef,
           async snapshot => {
+            if (gen !== this.subscriptionGeneration) return;
             if (!snapshot.exists()) {
               const localTasks = await this.loadTasks();
+              if (gen !== this.subscriptionGeneration) return;
               const localDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
-              if (localTasks.length > 0 || localDeletedIds.length > 0) {
+              if ((localTasks.length > 0 || localDeletedIds.length > 0) && gen === this.subscriptionGeneration) {
                 const payload: SyncDocState<Task> = {
                   items: cleanUndefined(localTasks),
                   deletedIds: localDeletedIds,
@@ -168,28 +211,56 @@ class MobileTaskStorage implements ITaskStorage {
             }
 
             const localTasks = await this.loadTasks();
+            if (gen !== this.subscriptionGeneration) return;
             const localDeletedIds = await loadDeletedIds(TASKS_DELETED_KEY);
+            if (gen !== this.subscriptionGeneration) return;
             const remoteDeletedIds = sanitizeDeletedIds(data.deletedIds);
             const combinedDeletedIds = new Set([...localDeletedIds, ...remoteDeletedIds]);
+            const combinedDeletedArray = Array.from(combinedDeletedIds);
 
-            await saveDeletedIds(TASKS_DELETED_KEY, Array.from(combinedDeletedIds));
+            await saveDeletedIds(TASKS_DELETED_KEY, combinedDeletedArray);
+            if (gen !== this.subscriptionGeneration) return;
 
             const merged = mergeItemsWithTombstones(localTasks, validatedRemoteTasks, combinedDeletedIds);
             const mergedSerialized = JSON.stringify(merged);
+            const remoteNeedsPush =
+              mergedSerialized !== JSON.stringify(validatedRemoteTasks) ||
+              combinedDeletedArray.length !== remoteDeletedIds.length;
 
             if (mergedSerialized !== JSON.stringify(localTasks)) {
               if (__DEV__) {
                 console.log(`[Sync Mobile] Received updated tasks (count: ${merged.length})`);
               }
               this.isApplyingRemoteUpdate = true;
-              this.lastPushedHash = mergedSerialized;
-              await atomicWriteJson(AsyncStorage, TASKS_STORAGE_KEY, merged);
-
-              callback(merged);
-
-              setTimeout(() => {
+              try {
+                this.lastPushedHash = mergedSerialized;
+                await atomicWriteJson(AsyncStorage, TASKS_STORAGE_KEY, merged);
+                if (gen !== this.subscriptionGeneration) {
+                  this.isApplyingRemoteUpdate = false;
+                  return;
+                }
+                callback(merged);
+                if (this.remoteResetTimer) clearTimeout(this.remoteResetTimer);
+                this.remoteResetTimer = setTimeout(() => {
+                  this.isApplyingRemoteUpdate = false;
+                  this.remoteResetTimer = null;
+                }, 150);
+              } catch (writeErr) {
                 this.isApplyingRemoteUpdate = false;
-              }, 150);
+                throw writeErr;
+              }
+            }
+
+            if (remoteNeedsPush && gen === this.subscriptionGeneration) {
+              this.lastPushedHash = mergedSerialized;
+              const payload: SyncDocState<Task> = {
+                items: cleanUndefined(merged),
+                deletedIds: combinedDeletedArray,
+                updatedAt: Date.now(),
+              };
+              setDoc(taskDocRef, payload).catch(err => {
+                if (__DEV__) console.error('[SyncError Mobile Tasks]: Failed to sync merged tasks:', err);
+              });
             }
           },
           err => {
@@ -202,15 +273,28 @@ class MobileTaskStorage implements ITaskStorage {
       .catch(err => {
         if (__DEV__) console.error('[SyncError Mobile Tasks]: Failed to initialize task subscription:', err);
       });
+  }
+
+  activateCloudSync(): void {
+    this.lastPushedHash = '';
+    this.attachCloudListener();
+  }
+
+  rebindCloudListener(): void {
+    this.detachCloudListener();
+    if (this.activeSubscriber) {
+      this.attachCloudListener();
+    }
+  }
+
+  subscribeTasks(callback: (tasks: Task[]) => void): () => void {
+    this.activeSubscriber = callback;
+    this.attachCloudListener();
 
     return () => {
-      isCancelled = true;
-      if (this.currentUnsubscribe) {
-        this.currentUnsubscribe();
-        this.currentUnsubscribe = null;
-      }
-      if (this.pushTimer) {
-        clearTimeout(this.pushTimer);
+      this.detachCloudListener();
+      if (this.activeSubscriber === callback) {
+        this.activeSubscriber = null;
       }
     };
   }
@@ -226,14 +310,7 @@ class MobileTaskStorage implements ITaskStorage {
   async switchSyncKey(newKey: string): Promise<void> {
     const ok = await setSyncKey(newKey);
     if (!ok) return;
-    if (this.currentUnsubscribe) {
-      this.currentUnsubscribe();
-      this.currentUnsubscribe = null;
-    }
-    this.lastPushedHash = '';
-    if (this.activeSubscriber) {
-      this.subscribeTasks(this.activeSubscriber);
-    }
+    this.rebindCloudListener();
   }
 }
 
@@ -241,8 +318,10 @@ class MobileListStorage implements IListStorage {
   private isApplyingRemoteUpdate = false;
   private lastPushedHash = '';
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
+  private remoteResetTimer: ReturnType<typeof setTimeout> | null = null;
   private currentUnsubscribe: (() => void) | null = null;
   private activeSubscriber: ((lists: CustomList[]) => void) | null = null;
+  private subscriptionGeneration = 0;
 
   async loadLists(): Promise<CustomList[]> {
     return safeReadJsonArray(AsyncStorage, LISTS_STORAGE_KEY, validateCustomList, MAX_LISTS_LIMIT);
@@ -276,6 +355,11 @@ class MobileListStorage implements IListStorage {
 
       const newSerialized = await atomicWriteJson(AsyncStorage, LISTS_STORAGE_KEY, listsWithTimestamps);
 
+      const pushGen = this.subscriptionGeneration;
+      if (!(await isCloudSyncEnabled()) || pushGen !== this.subscriptionGeneration) {
+        return;
+      }
+
       if (this.isApplyingRemoteUpdate || newSerialized === this.lastPushedHash) {
         return;
       }
@@ -287,10 +371,12 @@ class MobileListStorage implements IListStorage {
       }
       this.pushTimer = setTimeout(async () => {
         try {
+          if (pushGen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
           await ensureAuth();
-          const syncKey = await getSyncKey();
-          if (!isValidSyncKey(syncKey)) return;
-          const listDocRef = doc(db, 'workspaces', `${syncKey}_lists`);
+          if (pushGen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
+          const syncKey = await getExistingSyncKey();
+          if (pushGen !== this.subscriptionGeneration || !syncKey || !isValidSyncKey(syncKey)) return;
+          const listDocRef = doc(getFirebaseDb(), 'workspaces', `${syncKey}_lists`);
           const payload: SyncDocState<CustomList> = {
             items: cleanUndefined(listsWithTimestamps),
             deletedIds: updatedDeletedIds,
@@ -309,24 +395,48 @@ class MobileListStorage implements IListStorage {
     }
   }
 
-  subscribeLists(callback: (lists: CustomList[]) => void): () => void {
-    this.activeSubscriber = callback;
-    let isCancelled = false;
+  detachCloudListener(): void {
+    this.subscriptionGeneration++;
+    this.cancelPendingPush();
+    if (this.remoteResetTimer) {
+      clearTimeout(this.remoteResetTimer);
+      this.remoteResetTimer = null;
+    }
+    this.isApplyingRemoteUpdate = false;
+    if (this.currentUnsubscribe) {
+      this.currentUnsubscribe();
+      this.currentUnsubscribe = null;
+    }
+  }
 
-    ensureAuth()
-      .then(async () => {
-        if (isCancelled) return;
+  private attachCloudListener(): void {
+    const callback = this.activeSubscriber;
+    if (!callback) return;
+
+    const gen = ++this.subscriptionGeneration;
+    if (this.currentUnsubscribe) {
+      this.currentUnsubscribe();
+      this.currentUnsubscribe = null;
+    }
+
+    isCloudSyncEnabled()
+      .then(async enabled => {
+        if (!enabled || gen !== this.subscriptionGeneration) return;
+        await ensureAuth();
+        if (gen !== this.subscriptionGeneration || !(await isCloudSyncEnabled())) return;
         const syncKey = await getSyncKey();
-        if (!isValidSyncKey(syncKey)) return;
-        const listDocRef = doc(db, 'workspaces', `${syncKey}_lists`);
+        if (!isValidSyncKey(syncKey) || gen !== this.subscriptionGeneration) return;
+        const listDocRef = doc(getFirebaseDb(), 'workspaces', `${syncKey}_lists`);
 
         const unsubscribeFirestore = onSnapshot(
           listDocRef,
           async snapshot => {
+            if (gen !== this.subscriptionGeneration) return;
             if (!snapshot.exists()) {
               const localLists = await this.loadLists();
+              if (gen !== this.subscriptionGeneration) return;
               const localDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
-              if (localLists.length > 0 || localDeletedIds.length > 0) {
+              if ((localLists.length > 0 || localDeletedIds.length > 0) && gen === this.subscriptionGeneration) {
                 const payload: SyncDocState<CustomList> = {
                   items: cleanUndefined(localLists),
                   deletedIds: localDeletedIds,
@@ -349,28 +459,56 @@ class MobileListStorage implements IListStorage {
             }
 
             const localLists = await this.loadLists();
+            if (gen !== this.subscriptionGeneration) return;
             const localDeletedIds = await loadDeletedIds(LISTS_DELETED_KEY);
+            if (gen !== this.subscriptionGeneration) return;
             const remoteDeletedIds = sanitizeDeletedIds(data.deletedIds);
             const combinedDeletedIds = new Set([...localDeletedIds, ...remoteDeletedIds]);
+            const combinedDeletedArray = Array.from(combinedDeletedIds);
 
-            await saveDeletedIds(LISTS_DELETED_KEY, Array.from(combinedDeletedIds));
+            await saveDeletedIds(LISTS_DELETED_KEY, combinedDeletedArray);
+            if (gen !== this.subscriptionGeneration) return;
 
             const merged = mergeItemsWithTombstones(localLists, validatedRemoteLists, combinedDeletedIds);
             const mergedSerialized = JSON.stringify(merged);
+            const remoteNeedsPush =
+              mergedSerialized !== JSON.stringify(validatedRemoteLists) ||
+              combinedDeletedArray.length !== remoteDeletedIds.length;
 
             if (mergedSerialized !== JSON.stringify(localLists)) {
               if (__DEV__) {
                 console.log(`[Sync Mobile] Received updated lists (count: ${merged.length})`);
               }
               this.isApplyingRemoteUpdate = true;
-              this.lastPushedHash = mergedSerialized;
-              await atomicWriteJson(AsyncStorage, LISTS_STORAGE_KEY, merged);
-
-              callback(merged);
-
-              setTimeout(() => {
+              try {
+                this.lastPushedHash = mergedSerialized;
+                await atomicWriteJson(AsyncStorage, LISTS_STORAGE_KEY, merged);
+                if (gen !== this.subscriptionGeneration) {
+                  this.isApplyingRemoteUpdate = false;
+                  return;
+                }
+                callback(merged);
+                if (this.remoteResetTimer) clearTimeout(this.remoteResetTimer);
+                this.remoteResetTimer = setTimeout(() => {
+                  this.isApplyingRemoteUpdate = false;
+                  this.remoteResetTimer = null;
+                }, 150);
+              } catch (writeErr) {
                 this.isApplyingRemoteUpdate = false;
-              }, 150);
+                throw writeErr;
+              }
+            }
+
+            if (remoteNeedsPush && gen === this.subscriptionGeneration) {
+              this.lastPushedHash = mergedSerialized;
+              const payload: SyncDocState<CustomList> = {
+                items: cleanUndefined(merged),
+                deletedIds: combinedDeletedArray,
+                updatedAt: Date.now(),
+              };
+              setDoc(listDocRef, payload).catch(err => {
+                if (__DEV__) console.error('[SyncError Mobile Lists]: Failed to sync merged lists:', err);
+              });
             }
           },
           err => {
@@ -383,15 +521,28 @@ class MobileListStorage implements IListStorage {
       .catch(err => {
         if (__DEV__) console.error('[SyncError Mobile Lists]: Failed to initialize list subscription:', err);
       });
+  }
+
+  activateCloudSync(): void {
+    this.lastPushedHash = '';
+    this.attachCloudListener();
+  }
+
+  rebindCloudListener(): void {
+    this.detachCloudListener();
+    if (this.activeSubscriber) {
+      this.attachCloudListener();
+    }
+  }
+
+  subscribeLists(callback: (lists: CustomList[]) => void): () => void {
+    this.activeSubscriber = callback;
+    this.attachCloudListener();
 
     return () => {
-      isCancelled = true;
-      if (this.currentUnsubscribe) {
-        this.currentUnsubscribe();
-        this.currentUnsubscribe = null;
-      }
-      if (this.pushTimer) {
-        clearTimeout(this.pushTimer);
+      this.detachCloudListener();
+      if (this.activeSubscriber === callback) {
+        this.activeSubscriber = null;
       }
     };
   }
@@ -407,62 +558,92 @@ class MobileListStorage implements IListStorage {
   async switchSyncKey(newKey: string): Promise<void> {
     const ok = await setSyncKey(newKey);
     if (!ok) return;
-    if (this.currentUnsubscribe) {
-      this.currentUnsubscribe();
-      this.currentUnsubscribe = null;
-    }
-    this.lastPushedHash = '';
-    if (this.activeSubscriber) {
-      this.subscribeLists(this.activeSubscriber);
-    }
+    this.rebindCloudListener();
   }
 }
 
 export const defaultTaskStorage: ITaskStorage = new MobileTaskStorage();
 export const defaultListStorage: IListStorage = new MobileListStorage();
 
+/**
+ * Explicitly opts into Cloud Sync, ensures a device pairing key exists,
+ * and lazily initializes Firebase listeners for tasks, lists, and focus sessions.
+ */
+export async function enableCloudSync(): Promise<string> {
+  const key = await getSyncKey();
+  await setCloudSyncEnabled(true);
+  (defaultTaskStorage as MobileTaskStorage).activateCloudSync();
+  (defaultListStorage as MobileListStorage).activateCloudSync();
+  defaultFocusStorage.activateCloudSync();
+  return key;
+}
+
+/**
+ * Turns off Cloud Sync, detaching all Firebase listeners and stopping background pushes
+ * without modifying local data.
+ */
+export async function disableCloudSync(): Promise<void> {
+  await setCloudSyncEnabled(false);
+  (defaultTaskStorage as MobileTaskStorage).detachCloudListener();
+  (defaultListStorage as MobileListStorage).detachCloudListener();
+  defaultFocusStorage.detachCloudListener();
+}
+
 export async function switchGlobalSyncKey(newKey: string): Promise<boolean> {
   const success = await setSyncKey(newKey);
   if (!success) return false;
-  await (defaultTaskStorage as MobileTaskStorage).switchSyncKey(newKey);
-  await (defaultListStorage as MobileListStorage).switchSyncKey(newKey);
-  await defaultFocusStorage.switchSyncKey(newKey);
+  await setCloudSyncEnabled(true);
+  (defaultTaskStorage as MobileTaskStorage).rebindCloudListener();
+  (defaultListStorage as MobileListStorage).rebindCloudListener();
+  defaultFocusStorage.rebindCloudListener();
   return true;
 }
 
 export async function clearAllWorkspaceData(): Promise<void> {
-  (defaultTaskStorage as MobileTaskStorage).cancelPendingPush();
-  (defaultListStorage as MobileListStorage).cancelPendingPush();
-  defaultFocusStorage.cancelPendingPush();
+  // Disable cloud sync FIRST and immediately detach all active Firestore listeners & pending pushes
+  // so no concurrent save/push/snapshot can resurrect deleted items or regenerate keys.
+  await setCloudSyncEnabled(false);
+  (defaultTaskStorage as MobileTaskStorage).detachCloudListener();
+  (defaultListStorage as MobileListStorage).detachCloudListener();
+  defaultFocusStorage.detachCloudListener();
 
-  try {
-    await ensureAuth();
-    const currentKey = await getSyncKey();
-    if (isValidSyncKey(currentKey)) {
-      await Promise.allSettled([
-        deleteDoc(doc(db, 'workspaces', `${currentKey}_tasks`)),
-        deleteDoc(doc(db, 'workspaces', `${currentKey}_lists`)),
-        deleteDoc(doc(db, 'workspaces', `${currentKey}_focus`)),
+  const existingKey = await getExistingSyncKey();
+  if (existingKey && isValidSyncKey(existingKey)) {
+    try {
+      await ensureAuth();
+      const db = getFirebaseDb();
+      const results = await Promise.allSettled([
+        deleteDoc(doc(db, 'workspaces', `${existingKey}_tasks`)),
+        deleteDoc(doc(db, 'workspaces', `${existingKey}_lists`)),
+        deleteDoc(doc(db, 'workspaces', `${existingKey}_focus`)),
       ]);
+      if (__DEV__) {
+        const failed = results.filter(r => r.status === 'rejected');
+        if (failed.length > 0) {
+          console.warn('[Storage] Some remote workspace docs failed to delete:', failed.length);
+        }
+      }
+      await signOutIfInitialized();
+    } catch (err) {
+      if (__DEV__) console.warn('[Storage] Failed to clear remote workspace docs (continuing local wipe):', err);
     }
-  } catch (err) {
-    if (__DEV__) console.warn('[Storage] Failed to clear remote workspace docs (continuing local wipe):', err);
   }
 
+  // Remove atomic primary+backup pairs inside atomicStorage's per-key serialized queues
+  await Promise.all([
+    atomicRemoveJson(AsyncStorage, TASKS_STORAGE_KEY),
+    atomicRemoveJson(AsyncStorage, LISTS_STORAGE_KEY),
+    atomicRemoveJson(AsyncStorage, FOCUS_SESSIONS_STORAGE_KEY),
+  ]);
+
   await AsyncStorage.multiRemove([
-    TASKS_STORAGE_KEY,
-    getBackupKey(TASKS_STORAGE_KEY),
-    LISTS_STORAGE_KEY,
-    getBackupKey(LISTS_STORAGE_KEY),
     TASKS_DELETED_KEY,
     LISTS_DELETED_KEY,
-    FOCUS_SESSIONS_STORAGE_KEY,
-    getBackupKey(FOCUS_SESSIONS_STORAGE_KEY),
     CUSTOM_TAGS_STORAGE_KEY,
     CUSTOM_FOLDERS_STORAGE_KEY,
     SYNC_KEY_STORAGE,
+    CLOUD_SYNC_ENABLED_KEY,
   ]);
 
-  const freshKey = generateSyncKey();
-  await switchGlobalSyncKey(freshKey);
+  await clearSyncKey();
 }
