@@ -100,26 +100,59 @@ const ambientEngine = createAmbientPlaybackEngine({
   resolveSource: resolvePlayableSource,
 });
 
-let chimePlayer: AudioPlayer | null = null;
+type SfxName = 'bamboo' | 'water' | 'bowl' | 'swoosh';
 
-const sfxPlayers: Record<string, AudioPlayer | null> = {
+let chimePlayer: AudioPlayer | null = null;
+let chimeCreationPromise: Promise<AudioPlayer | null> | null = null;
+
+const sfxPlayers: Record<SfxName, AudioPlayer | null> = {
   bamboo: null,
   water: null,
   bowl: null,
   swoosh: null,
 };
+const sfxCreationPromises: Partial<Record<SfxName, Promise<AudioPlayer | null>>> = {};
 
 let sfxEnabled = true;
+let hasExplicitSfxOverride = false;
 const SETTINGS_SFX_KEY = '@noteapp_setting_sfx';
 
 let chimeEnabled = true;
 let hasExplicitChimeOverride = false;
 const SETTINGS_CHIME_KEY = '@noteapp_setting_chime';
 
-// Initialize SFX setting from AsyncStorage
-AsyncStorage.getItem(SETTINGS_SFX_KEY).then(val => {
-  if (val !== null) sfxEnabled = val === 'true';
-});
+function disposeNativePlayer(player: AudioPlayer | null): void {
+  if (!player) return;
+  try {
+    player.pause();
+  } catch {}
+  try {
+    player.remove();
+  } catch {}
+}
+
+function releaseSfxPlayers(): void {
+  (Object.keys(sfxPlayers) as SfxName[]).forEach(key => {
+    disposeNativePlayer(sfxPlayers[key]);
+    sfxPlayers[key] = null;
+    delete sfxCreationPromises[key];
+  });
+}
+
+function releaseChimePlayer(): void {
+  disposeNativePlayer(chimePlayer);
+  chimePlayer = null;
+  chimeCreationPromise = null;
+}
+
+// Initialize SFX setting from AsyncStorage without clobbering explicit user toggles
+AsyncStorage.getItem(SETTINGS_SFX_KEY)
+  .then(val => {
+    if (val !== null && !hasExplicitSfxOverride) {
+      sfxEnabled = val === 'true';
+    }
+  })
+  .catch(() => {});
 
 // Initialize completion chime setting from AsyncStorage
 const chimeInitPromise = AsyncStorage.getItem(SETTINGS_CHIME_KEY)
@@ -135,7 +168,11 @@ export function isSoundEffectsEnabled(): boolean {
 }
 
 export async function setSoundEffectsEnabled(enabled: boolean): Promise<void> {
+  hasExplicitSfxOverride = true;
   sfxEnabled = enabled;
+  if (!enabled) {
+    releaseSfxPlayers();
+  }
   await AsyncStorage.setItem(SETTINGS_SFX_KEY, String(enabled));
 }
 
@@ -146,25 +183,43 @@ export function isCompletionChimeEnabled(): boolean {
 export async function setCompletionChimeEnabled(enabled: boolean): Promise<void> {
   hasExplicitChimeOverride = true;
   chimeEnabled = enabled;
+  if (!enabled) {
+    releaseChimePlayer();
+  }
   await AsyncStorage.setItem(SETTINGS_CHIME_KEY, String(enabled));
 }
 
-async function playSfx(name: 'bamboo' | 'water' | 'bowl' | 'swoosh', volume = 0.8): Promise<void> {
+async function getOrCreateSfxPlayer(name: SfxName): Promise<AudioPlayer | null> {
+  if (sfxPlayers[name]) return sfxPlayers[name];
+  if (sfxCreationPromises[name]) return sfxCreationPromises[name] ?? null;
+
+  const srcMap: Record<SfxName, PlayableAudioSource> = {
+    bamboo: sfxBambooSource,
+    water: sfxWaterSource,
+    bowl: sfxBowlSource,
+    swoosh: sfxSwooshSource,
+  };
+
+  const creation = (async () => {
+    const source = await resolvePlayableSource(srcMap[name]);
+    if (!sfxEnabled) return null;
+    const player = createAudioPlayer(source);
+    sfxPlayers[name] = player;
+    return player;
+  })().finally(() => {
+    delete sfxCreationPromises[name];
+  });
+
+  sfxCreationPromises[name] = creation;
+  return creation;
+}
+
+async function playSfx(name: SfxName, volume = 0.8): Promise<void> {
   if (!sfxEnabled) return;
   try {
     await ambientEngine.ensureAudioModeConfigured();
-    let player = sfxPlayers[name];
-    if (!player) {
-      const srcMap: Record<'bamboo' | 'water' | 'bowl' | 'swoosh', PlayableAudioSource> = {
-        bamboo: sfxBambooSource,
-        water: sfxWaterSource,
-        bowl: sfxBowlSource,
-        swoosh: sfxSwooshSource,
-      };
-      const source = await resolvePlayableSource(srcMap[name]);
-      player = createAudioPlayer(source);
-      sfxPlayers[name] = player;
-    }
+    const player = await getOrCreateSfxPlayer(name);
+    if (!player || !sfxEnabled) return;
     player.volume = volume;
     try {
       await player.seekTo(0);
@@ -201,9 +256,20 @@ export async function playZenChime(): Promise<void> {
   try {
     await ambientEngine.ensureAudioModeConfigured();
     if (!chimePlayer) {
-      const source = await resolvePlayableSource(zenChimeSource);
-      chimePlayer = createAudioPlayer(source);
+      if (!chimeCreationPromise) {
+        chimeCreationPromise = (async () => {
+          const source = await resolvePlayableSource(zenChimeSource);
+          if (!chimeEnabled) return null;
+          const player = createAudioPlayer(source);
+          chimePlayer = player;
+          return player;
+        })().finally(() => {
+          chimeCreationPromise = null;
+        });
+      }
+      await chimeCreationPromise;
     }
+    if (!chimePlayer || !chimeEnabled) return;
     chimePlayer.volume = 1.0;
     try {
       await chimePlayer.seekTo(0);
@@ -238,18 +304,13 @@ export function getAmbientVolume(): number {
 }
 
 /**
- * Pauses active ambient loops and short SFX players when the app enters the background.
+ * Pauses active ambient loops and releases cached native SFX/chime decoders
+ * when the app enters the background to keep RAM usage lean on entry-level Android.
  */
 export function pauseAudioForBackground(): void {
   ambientEngine.pauseForBackground();
-  try {
-    chimePlayer?.pause();
-  } catch {}
-  for (const key of Object.keys(sfxPlayers)) {
-    try {
-      sfxPlayers[key]?.pause();
-    } catch {}
-  }
+  releaseChimePlayer();
+  releaseSfxPlayers();
 }
 
 /**

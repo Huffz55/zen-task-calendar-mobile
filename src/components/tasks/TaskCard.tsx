@@ -9,20 +9,23 @@ import {
   PanResponder,
   Linking,
 } from 'react-native';
-import { DailyTask } from '../../types';
+import { CustomTag, DailyTask } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { playBambooTap, playSoftSwoosh } from '../../services/audio/audioService';
 import { animateLayout, PRESS_SPRING_CONFIG } from '../../utils/animations';
 import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
-import { useApp } from '../../context/AppContext';
 import { formatDurationCompact, formatMinutesCompact, useTranslation } from '../../i18n';
+
+const EMPTY_CUSTOM_TAGS: CustomTag[] = [];
 
 interface TaskCardProps {
   task: DailyTask;
   theme: ThemeColors;
+  customTags?: CustomTag[];
   onToggle: (taskId: string, options?: { skipSound?: boolean }) => void;
   onDelete: (task: DailyTask) => void;
   onEdit?: (task: DailyTask) => void;
@@ -35,6 +38,7 @@ interface TaskCardProps {
 export const TaskCard = memo(function TaskCard({
   task,
   theme,
+  customTags = EMPTY_CUSTOM_TAGS,
   onToggle,
   onDelete,
   onEdit,
@@ -43,8 +47,8 @@ export const TaskCard = memo(function TaskCard({
   onToggleSubtask,
   onStartFocus,
 }: TaskCardProps) {
-  const { customTags } = useApp();
   const { t, language } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
   const [isNoteExpanded, setIsNoteExpanded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -74,13 +78,17 @@ export const TaskCard = memo(function TaskCard({
   }, [task.title, t]);
 
   // Entrance, press, and checkmark micro-animations
-  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [enterAnim] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
   const [checkScale] = useState(() => new Animated.Value(1));
   const [cardScale] = useState(() => new Animated.Value(1));
   const [panX] = useState(() => new Animated.Value(0));
   const swipeThresholdRef = useRef<'left' | 'right' | null>(null);
 
   useEffect(() => {
+    if (reducedMotion) {
+      enterAnim.setValue(1);
+      return;
+    }
     Animated.spring(enterAnim, {
       toValue: 1,
       damping: 22,
@@ -88,14 +96,15 @@ export const TaskCard = memo(function TaskCard({
       stiffness: 210,
       useNativeDriver: true,
     }).start();
-  }, [enterAnim]);
+  }, [enterAnim, reducedMotion]);
 
   const triggerCheckBounce = useCallback(() => {
+    if (reducedMotion) return;
     Animated.sequence([
       Animated.timing(checkScale, { toValue: 0.78, duration: 65, useNativeDriver: true }),
       Animated.spring(checkScale, { toValue: 1, friction: 3.8, tension: 90, useNativeDriver: true }),
     ]).start();
-  }, [checkScale]);
+  }, [checkScale, reducedMotion]);
 
   const handleToggleFromGesture = useCallback(
     (source: 'checkbox' | 'swipe') => {
@@ -116,12 +125,12 @@ export const TaskCard = memo(function TaskCard({
   );
 
   const handleCardPressIn = () => {
-    if (!onEdit) return;
+    if (!onEdit || reducedMotion) return;
     Animated.spring(cardScale, { toValue: 0.985, ...PRESS_SPRING_CONFIG }).start();
   };
 
   const handleCardPressOut = () => {
-    if (!onEdit) return;
+    if (!onEdit || reducedMotion) return;
     Animated.spring(cardScale, { toValue: 1, ...PRESS_SPRING_CONFIG }).start();
   };
 
@@ -283,7 +292,7 @@ export const TaskCard = memo(function TaskCard({
                 { title: task.title }
               )}
             >
-              {task.isCompleted && <Ionicons name="checkmark" size={14} color="#ffffff" />}
+              {task.isCompleted && <Ionicons name="checkmark" size={14} color={theme.onPrimary} />}
             </TouchableOpacity>
           </Animated.View>
 
@@ -389,8 +398,9 @@ export const TaskCard = memo(function TaskCard({
                     setIsNoteExpanded(prev => !prev);
                   }}
                   activeOpacity={0.7}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
                   accessibilityRole="button"
+                  accessibilityState={{ expanded: isNoteExpanded }}
                   accessibilityLabel={t('tasks.a11yToggleNote')}
                 >
                   <Ionicons
@@ -420,7 +430,9 @@ export const TaskCard = memo(function TaskCard({
                     Linking.openURL(linkInfo.url).catch(() => {});
                   }}
                   activeOpacity={0.7}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+                  accessibilityRole="link"
+                  accessibilityLabel={linkInfo.displayLabel}
                 >
                   <Ionicons name="link-outline" size={11} color={theme.primary} />
                   <Text style={[styles.badgeText, { color: theme.primary, fontWeight: '600', flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="middle">
@@ -445,7 +457,10 @@ export const TaskCard = memo(function TaskCard({
                     setIsSubtasksExpanded(!isSubtasksExpanded);
                   }}
                   activeOpacity={0.7}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isSubtasksExpanded }}
+                  accessibilityLabel={`${completedSubtasksCount}/${subtasks.length}`}
                 >
                   <Ionicons name="checkbox-outline" size={12} color={theme.primary} />
                   <Text style={[styles.subtaskBadgeText, { color: theme.text }]}>
@@ -489,6 +504,7 @@ export const TaskCard = memo(function TaskCard({
                       onStartFocus({ id: task.taskId, title: task.title });
                     }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
                     accessibilityLabel={t('tasks.a11yFocusTask')}
                   >
                     <Ionicons name="timer-outline" size={15} color={theme.primary} />
@@ -503,6 +519,7 @@ export const TaskCard = memo(function TaskCard({
                     setIsMenuOpen(true);
                   }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
                   accessibilityLabel={t('tasks.a11yTaskOptions')}
                 >
                   <Ionicons name="ellipsis-horizontal" size={17} color={theme.textDim} />
@@ -517,6 +534,7 @@ export const TaskCard = memo(function TaskCard({
                   onDelete(task);
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
                 accessibilityLabel={t('tasks.a11yDeleteCompleted')}
               >
                 <Ionicons name="trash-outline" size={16} color={theme.textDim} />
@@ -634,9 +652,10 @@ export const TaskCard = memo(function TaskCard({
                   }
                 }}
                 activeOpacity={0.7}
-                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: sub.isCompleted }}
+                accessibilityLabel={sub.title}
               >
                 <View
                   style={[
@@ -647,7 +666,7 @@ export const TaskCard = memo(function TaskCard({
                     },
                   ]}
                 >
-                  {sub.isCompleted && <Ionicons name="checkmark" size={10} color="#ffffff" />}
+                  {sub.isCompleted && <Ionicons name="checkmark" size={10} color={theme.onPrimary} />}
                 </View>
                 <Text
                   style={[
@@ -831,7 +850,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 2,
+    minHeight: 40,
+    paddingVertical: 4,
   },
   subCheckbox: {
     width: 16,

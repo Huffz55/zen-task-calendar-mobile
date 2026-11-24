@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
@@ -14,7 +15,7 @@ interface MiniFocusPlayerProps {
   theme: ThemeColors;
 }
 
-export function MiniFocusPlayer({
+export const MiniFocusPlayer = memo(function MiniFocusPlayer({
   timeLeft,
   initialTime,
   isTimerRunning,
@@ -44,6 +45,7 @@ export function MiniFocusPlayer({
           onOpenFocus();
         }}
         activeOpacity={0.88}
+        accessibilityRole="button"
         accessibilityLabel={t('focus.a11yOpenMiniPlayer')}
       >
         {/* Play / Pause Toggle Button */}
@@ -55,6 +57,7 @@ export function MiniFocusPlayer({
             onToggleTimer();
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
           accessibilityLabel={isTimerRunning ? t('focus.a11yPauseMiniPlayer') : t('focus.a11yStartMiniPlayer')}
         >
           <Ionicons
@@ -103,7 +106,7 @@ export function MiniFocusPlayer({
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   outerContainer: {

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { format, isValid, parseISO } from 'date-fns';
 import { ThemeColors } from '../../constants/colors';
@@ -14,7 +15,7 @@ interface FocusAnalyticsCardProps {
   maxDaySeconds: number;
 }
 
-export function FocusAnalyticsCard({
+export const FocusAnalyticsCard = memo(function FocusAnalyticsCard({
   theme,
   totalFocusSeconds,
   totalSessionsCount,
@@ -111,7 +112,7 @@ export function FocusAnalyticsCard({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

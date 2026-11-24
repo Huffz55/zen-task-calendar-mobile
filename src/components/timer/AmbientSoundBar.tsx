@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import {
@@ -19,7 +19,7 @@ interface AmbientSoundBarProps {
   theme: ThemeColors;
 }
 
-export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
+export const AmbientSoundBar = memo(function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
   const { t } = useTranslation();
   const [activeSounds, setActiveSounds] = useState<AmbientSoundType[]>(() => getActiveAmbientSounds());
   const [volume, setVolumeState] = useState<number>(getAmbientVolume());
@@ -92,23 +92,26 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
               ]}
               onPress={() => handleSelect(key)}
               activeOpacity={0.75}
+              hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
             >
               <Ionicons
                 name={config.icon}
                 size={14}
-                color={isSelected && key !== 'none' ? '#ffffff' : theme.textMuted}
+                color={isSelected && key !== 'none' ? theme.onPrimary : theme.textMuted}
                 style={{ marginRight: 5 }}
               />
               <Text
                 style={[
                   styles.chipText,
-                  { color: isSelected && key !== 'none' ? '#ffffff' : theme.textMuted },
+                  { color: isSelected && key !== 'none' ? theme.onPrimary : theme.textMuted },
                 ]}
               >
                 {t(`audio.tracks.${key}`)}
               </Text>
               {isSelected && key !== 'none' && (
-                <Ionicons name="checkmark" size={12} color="#ffffff" style={{ marginLeft: 4 }} />
+                <Ionicons name="checkmark" size={12} color={theme.onPrimary} style={{ marginLeft: 4 }} />
               )}
             </TouchableOpacity>
           );
@@ -133,11 +136,14 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
                     },
                   ]}
                   onPress={() => handleVolumeChange(v)}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isVolActive }}
                 >
                     <Text
                       style={[
                         styles.volBtnText,
-                        { color: isVolActive ? '#ffffff' : theme.textDim },
+                        { color: isVolActive ? theme.onPrimary : theme.textDim },
                       ]}
                     >
                       {Math.round(v * 100)}%
@@ -151,7 +157,7 @@ export function AmbientSoundBar({ theme }: AmbientSoundBarProps) {
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

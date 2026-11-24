@@ -1,4 +1,5 @@
 import { LayoutAnimation } from 'react-native';
+import { isReduceMotionEnabled } from '../hooks/useReducedMotion';
 
 export const PRESS_SPRING_CONFIG = {
   damping: 18,
@@ -8,9 +9,11 @@ export const PRESS_SPRING_CONFIG = {
 } as const;
 
 /**
- * Silky smooth layout animation for list updates, task additions, and deletions
+ * Silky smooth layout animation for list updates, task additions, and deletions.
+ * Automatically suppressed when OS Reduce Motion / Remove Animations is enabled.
  */
 export function springLayout() {
+  if (isReduceMotionEnabled()) return;
   try {
     LayoutAnimation.configureNext({
       duration: 240,
@@ -33,9 +36,11 @@ export function springLayout() {
 }
 
 /**
- * Soft fade/ease layout animation for toggling pills, modals, and disclosures
+ * Soft fade/ease layout animation for toggling pills, modals, and disclosures.
+ * Automatically suppressed when OS Reduce Motion / Remove Animations is enabled.
  */
 export function animateLayout() {
+  if (isReduceMotionEnabled()) return;
   try {
     LayoutAnimation.configureNext(
       LayoutAnimation.create(

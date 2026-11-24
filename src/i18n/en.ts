@@ -107,6 +107,8 @@ export const en = {
     a11yDeleteList: 'Delete list',
     a11yAddListItem: 'Add list item',
     a11yRemoveListItem: 'Remove {{item}}',
+    a11yMoveFolder: 'Move list to folder',
+    a11yOpenList: 'Open full list',
     unscheduledTasksTitle: 'Unscheduled Tasks',
   },
   focus: {
@@ -292,6 +294,9 @@ export const en = {
     footerVersion: 'Version 1.0.0',
     clearConfirmTitle: 'Clear All Data?',
     clearConfirmMessage: 'All tasks, checklists, focus history, and synced workspace data will be permanently deleted.',
+    notificationRationaleTitle: 'Allow Calm Reminders?',
+    notificationRationaleMessage: 'Kanso uses local notifications only for the daily reminders and task alerts you turn on. No marketing or background tracking.',
+    notificationRationaleAllow: 'Continue',
     toasts: {
       sfxOn: 'Sound effects enabled',
       sfxOff: 'Sound effects muted',
@@ -299,6 +304,7 @@ export const en = {
       morningOff: 'Morning plan turned off',
       eveningOn: 'Evening summary scheduled for {{time}}',
       eveningOff: 'Evening summary turned off',
+      notificationPermissionDenied: 'Enable notification permission in device settings to use reminders',
       morningTimeUpdated: 'Morning plan time updated to {{time}}',
       eveningTimeUpdated: 'Evening summary time updated to {{time}}',
       hapticsOn: 'Haptics enabled',

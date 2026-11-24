@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isValidDateString, sanitizeText, validateCustomList, validateTask } from './validator';
+import {
+  isValidDateString,
+  sanitizeText,
+  validateCustomList,
+  validateFocusSession,
+  validateTask,
+} from './validator';
 
 describe('mobile validator', () => {
   it('validates YYYY-MM-DD date strings', () => {
@@ -81,6 +87,40 @@ describe('mobile validator', () => {
       title: 'Groceries',
       folder: 'Market',
       items: [{ id: 'i1', text: 'Apples', completed: false }],
+    });
+  });
+
+  it('migrates legacy AsyncStorage task, list, and focus session schemas gracefully', () => {
+    const legacyTask = validateTask({
+      id: 'legacy-1',
+      title: 'Old completed task',
+      date: '2025-05-01T14:30:00.000Z',
+      completed: true,
+      updatedAt: '2025-05-01T15:00:00.000Z',
+    });
+    expect(legacyTask).not.toBeNull();
+    expect(legacyTask?.date).toBe('2025-05-01');
+    expect(legacyTask?.completedDates).toEqual(['2025-05-01']);
+    expect(legacyTask?.updatedAt).toBe(Date.parse('2025-05-01T15:00:00.000Z'));
+
+    const legacyList = validateCustomList({
+      id: 'legacy-list-1',
+      title: 'Legacy Checklist',
+      items: [{ id: 'li-1', title: 'Legacy item', isCompleted: true }],
+    });
+    expect(legacyList?.items).toEqual([{ id: 'li-1', text: 'Legacy item', completed: true }]);
+
+    const legacySession = validateFocusSession({
+      id: 'fs-legacy',
+      date: '2025-05-01T09:00:00.000Z',
+      duration: 1500,
+      createdAt: '2025-05-01T09:25:00.000Z',
+    });
+    expect(legacySession).toEqual({
+      id: 'fs-legacy',
+      date: '2025-05-01',
+      durationSeconds: 1500,
+      timestamp: Date.parse('2025-05-01T09:25:00.000Z'),
     });
   });
 });

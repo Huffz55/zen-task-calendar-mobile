@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
+  FlatList,
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  type ListRenderItemInfo,
 } from 'react-native';
-import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
+import { CustomTag, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { ThemeColors, withAlpha } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { DayStrip } from '../components/calendar/DayStrip';
@@ -24,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../hooks/useHaptics';
 import { playWaterDrop } from '../services/audio/audioService';
 import { animateLayout } from '../utils/animations';
+import { normalizeSearchText } from '../utils/localeText';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 import { useTranslation } from '../i18n';
 
@@ -31,6 +33,7 @@ interface TodayScreenProps {
   theme: ThemeColors;
   currentStreak: number;
   tasks: DailyTask[];
+  customTags?: CustomTag[];
   selectedDate: Date;
   todayStr?: string;
   onSelectDate: (date: Date) => void;
@@ -80,6 +83,7 @@ export function TodayScreen({
   theme,
   currentStreak,
   tasks,
+  customTags,
   selectedDate,
   todayStr,
   onSelectDate,
@@ -104,12 +108,13 @@ export function TodayScreen({
   onCloseEveningReview,
   todayFocusSeconds = 0,
 }: TodayScreenProps) {
-  const { t, dateLocale } = useTranslation();
+  const { t, language, dateLocale } = useTranslation();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<DailyTask | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<DailyTask | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<TaskTag | 'all'>('all');
+  const rolloverLockRef = useRef(false);
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const resolvedTodayStr = todayStr ?? format(new Date(), 'yyyy-MM-dd');
@@ -186,16 +191,172 @@ export function TodayScreen({
   }, [tasks]);
 
   const filteredTasks = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = normalizeSearchText(searchQuery, language);
     return tasks.filter(task => {
       const matchesSearch =
         q === '' ||
-        task.title.toLowerCase().includes(q) ||
-        (task.notes ? task.notes.toLowerCase().includes(q) : false);
+        normalizeSearchText(task.title, language).includes(q) ||
+        (task.notes ? normalizeSearchText(task.notes, language).includes(q) : false);
       const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
       return matchesSearch && matchesTag;
     });
-  }, [tasks, searchQuery, selectedTag]);
+  }, [tasks, searchQuery, selectedTag, language]);
+
+  const handleRolloverPress = useCallback(() => {
+    if (rolloverLockRef.current) return;
+    rolloverLockRef.current = true;
+    hapticSuccess();
+    onRolloverTasks();
+    setTimeout(() => {
+      rolloverLockRef.current = false;
+    }, 500);
+  }, [onRolloverTasks]);
+
+  const keyExtractor = useCallback((item: DailyTask) => item.id, []);
+
+  const renderTaskItem = useCallback(
+    ({ item }: ListRenderItemInfo<DailyTask>) => (
+      <TaskCard
+        task={item}
+        theme={theme}
+        customTags={customTags}
+        onToggle={onToggleTask}
+        onDelete={handleDeleteRequest}
+        onEdit={handleEditRequest}
+        onTogglePin={onTogglePin}
+        onDeferTask={onDeferTask ? handleDeferForDate : undefined}
+        onToggleSubtask={onToggleSubtask}
+        onStartFocus={onStartFocus}
+      />
+    ),
+    [
+      theme,
+      customTags,
+      onToggleTask,
+      handleDeleteRequest,
+      handleEditRequest,
+      onTogglePin,
+      onDeferTask,
+      handleDeferForDate,
+      onToggleSubtask,
+      onStartFocus,
+    ]
+  );
+
+  // Pass memoized React element (not an inline component function) so TaskFilterBar's TextInput keeps focus
+  const listHeaderElement = useMemo(
+    () => (
+      <>
+        {/* Overdue Rollover Banner */}
+        {overdueCount > 0 && isToday && (
+          <TouchableOpacity
+            style={[styles.rolloverBanner, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
+            onPress={handleRolloverPress}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+          >
+            <View style={styles.rolloverLeft}>
+              <Ionicons name="sparkles" size={16} color={theme.primary} />
+              <Text style={[styles.rolloverText, { color: theme.text }]} numberOfLines={2} maxFontSizeMultiplier={1.5}>
+                {t(overdueCount === 1 ? 'today.overdueOne' : 'today.overdueOther', { count: overdueCount })}
+              </Text>
+            </View>
+            <View style={[styles.rolloverPill, { backgroundColor: theme.primaryLight }]}>
+              <Text style={[styles.rolloverPillText, { color: theme.primary }]} maxFontSizeMultiplier={1.4}>
+                {t('today.rollOver')}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Progress Summary & Planned Time */}
+        {totalTasks > 0 && (
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryLeft}>
+              <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.5}>
+                {t('today.progressCompleted', { completed: completedTasks, total: totalTasks })}
+              </Text>
+              {plannedTotalStr && (
+                <Text
+                  style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.4}
+                >
+                  {plannedTotalStr}
+                </Text>
+              )}
+              {completedTasks === totalTasks && (
+                <Text style={[styles.perfectBadge, { color: theme.success }]} maxFontSizeMultiplier={1.4}>
+                  {t('today.allDone')}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Task Filter & Search Bar (Only shown if there are tasks) */}
+        {totalTasks > 0 && (
+          <TaskFilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            selectedTag={selectedTag}
+            onSelectTag={setSelectedTag}
+            theme={theme}
+            counts={tagCounts}
+            customTags={customTags}
+          />
+        )}
+      </>
+    ),
+    [
+      overdueCount,
+      isToday,
+      theme,
+      handleRolloverPress,
+      t,
+      totalTasks,
+      completedTasks,
+      plannedTotalStr,
+      searchQuery,
+      selectedTag,
+      tagCounts,
+      customTags,
+    ]
+  );
+
+  const listEmptyElement = useMemo(() => {
+    if (totalTasks > 0) {
+      return (
+        <View style={[styles.filterEmptyContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Ionicons name="search-outline" size={32} color={theme.textDim} style={{ marginBottom: 8 }} />
+          <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>{t('today.noMatchingTasks')}</Text>
+          <TouchableOpacity
+            style={[styles.clearFilterBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 10 }]}
+            onPress={() => {
+              hapticLight();
+              animateLayout();
+              setSearchQuery('');
+              setSelectedTag('all');
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.clearFilterText, { color: theme.primary }]}>{t('today.clearFilter')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={[styles.emptyTitle, { color: theme.text }]}>
+          {isToday ? t('today.emptyTodayTitle') : t('today.emptyDateTitle')}
+        </Text>
+        <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
+          {isToday ? t('today.emptyTodaySubtitle') : t('today.emptyDateSubtitle')}
+        </Text>
+      </View>
+    );
+  }, [totalTasks, theme, t, isToday]);
 
   return (
     <KeyboardAvoidingView
@@ -224,122 +385,21 @@ export function TodayScreen({
         theme={theme}
       />
 
-      <ScrollView
+      <FlatList
+        data={filteredTasks}
+        keyExtractor={keyExtractor}
+        renderItem={renderTaskItem}
+        ListHeaderComponent={listHeaderElement}
+        ListEmptyComponent={listEmptyElement}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
-      >
-        {/* Overdue Rollover Banner */}
-        {overdueCount > 0 && isToday && (
-          <TouchableOpacity
-            style={[styles.rolloverBanner, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
-            onPress={() => {
-              hapticSuccess();
-              onRolloverTasks();
-            }}
-            activeOpacity={0.75}
-          >
-            <View style={styles.rolloverLeft}>
-              <Ionicons name="sparkles" size={16} color={theme.primary} />
-              <Text style={[styles.rolloverText, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                {t(overdueCount === 1 ? 'today.overdueOne' : 'today.overdueOther', { count: overdueCount })}
-              </Text>
-            </View>
-            <View style={[styles.rolloverPill, { backgroundColor: theme.primaryLight }]}>
-              <Text style={[styles.rolloverPillText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
-                {t('today.rollOver')}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Progress Summary & Planned Time */}
-        {totalTasks > 0 && (
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryLeft}>
-              <Text style={[styles.summaryText, { color: theme.textDim }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
-                {t('today.progressCompleted', { completed: completedTasks, total: totalTasks })}
-              </Text>
-              {plannedTotalStr && (
-                <Text
-                  style={[styles.plannedTimeBadge, { color: theme.primary, backgroundColor: theme.primaryLight }]}
-                  numberOfLines={1}
-                  maxFontSizeMultiplier={1.35}
-                >
-                  {plannedTotalStr}
-                </Text>
-              )}
-              {completedTasks === totalTasks && (
-                <Text style={[styles.perfectBadge, { color: theme.success }]} maxFontSizeMultiplier={1.35}>
-                  {t('today.allDone')}
-                </Text>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Task Filter & Search Bar (Only shown if there are tasks) */}
-        {totalTasks > 0 && (
-          <TaskFilterBar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            selectedTag={selectedTag}
-            onSelectTag={setSelectedTag}
-            theme={theme}
-            counts={tagCounts}
-          />
-        )}
-
-        {/* Tasks List */}
-        {totalTasks > 0 ? (
-          filteredTasks.length > 0 ? (
-            <>
-              {filteredTasks.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  theme={theme}
-                  onToggle={onToggleTask}
-                  onDelete={handleDeleteRequest}
-                  onEdit={handleEditRequest}
-                  onTogglePin={onTogglePin}
-                  onDeferTask={onDeferTask ? handleDeferForDate : undefined}
-                  onToggleSubtask={onToggleSubtask}
-                  onStartFocus={onStartFocus}
-                />
-              ))}
-            </>
-          ) : (
-            <View style={[styles.filterEmptyContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Ionicons name="search-outline" size={32} color={theme.textDim} style={{ marginBottom: 8 }} />
-              <Text style={[styles.filterEmptyTitle, { color: theme.text }]}>{t('today.noMatchingTasks')}</Text>
-              <TouchableOpacity
-                style={[styles.clearFilterBtn, { backgroundColor: theme.primaryLight, borderColor: theme.border, marginTop: 10 }]}
-                onPress={() => {
-                  hapticLight();
-                  animateLayout();
-                  setSearchQuery('');
-                  setSelectedTag('all');
-                }}
-              >
-                <Text style={[styles.clearFilterText, { color: theme.primary }]}>{t('today.clearFilter')}</Text>
-              </TouchableOpacity>
-            </View>
-          )
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {isToday ? t('today.emptyTodayTitle') : t('today.emptyDateTitle')}
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textMuted }]} numberOfLines={2}>
-              {isToday
-                ? t('today.emptyTodaySubtitle')
-                : t('today.emptyDateSubtitle')}
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+      />
 
       {/* Floating Action Button (+) */}
       <TouchableOpacity
@@ -358,7 +418,7 @@ export function TodayScreen({
         accessibilityRole="button"
         accessibilityLabel={t('today.a11yAddTask')}
       >
-        <Ionicons name="add" size={28} color="#ffffff" />
+        <Ionicons name="add" size={28} color={theme.onPrimary} />
       </TouchableOpacity>
 
       {/* Add Task Modal */}
@@ -436,6 +496,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   rolloverText: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],

@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { AppTheme, AppToast, Task, CustomList, CustomTag, BuiltinTaskTag, TaskTag, RecurrenceType, DailyTask, Subtask } from '../types';
 import { TAGS, normalizeTagId } from '../constants/tags';
 import { THEMES, ThemeColors } from '../constants/colors';
-import { THEME_STORAGE_KEY, CUSTOM_TAGS_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
+import { defaultTaskStorage, THEME_STORAGE_KEY, CUSTOM_TAGS_STORAGE_KEY, clearAllWorkspaceData } from '../services/storage/taskStorage';
 import { defaultNotificationService } from '../services/notifications/notificationService';
 import {
   createReminderCoordinator,
@@ -56,8 +56,8 @@ interface AppContextValue {
   eveningReviewEnabled: boolean;
   morningTime: string;
   eveningTime: string;
-  toggleMorningBriefing: (enabled: boolean) => Promise<void>;
-  toggleEveningReview: (enabled: boolean) => Promise<void>;
+  toggleMorningBriefing: (enabled: boolean) => Promise<boolean>;
+  toggleEveningReview: (enabled: boolean) => Promise<boolean>;
   updateMorningTime: (timeStr: string) => Promise<void>;
   updateEveningTime: (timeStr: string) => Promise<void>;
   isSettingsModalOpen: boolean;
@@ -194,6 +194,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [toast, setToast] = useState<AppToast | null>(null);
+  const [isAppForeground, setIsAppForeground] = useState(() => AppState.currentState === 'active');
+  const [todayStr, setTodayStr] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
 
   const language = useMemo<AppLanguage>(
     () => resolveActiveLanguage(languagePreference, deviceLanguage),
@@ -211,8 +213,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     createTaskReminderCoordinator(defaultNotificationService)
   );
 
-  // Focus sessions and analytics engine
-  const { stats: focusStats, isLoaded: isFocusLoaded, recordSession: recordFocusSession, clearAllSessions } = useFocusStats();
+  // Focus sessions and analytics engine (refreshes across local midnight via todayStr)
+  const { stats: focusStats, isLoaded: isFocusLoaded, recordSession: recordFocusSession, clearAllSessions } = useFocusStats(todayStr);
 
   // Load theme, auto night, custom tags, language, and notification preferences atomically
   useEffect(() => {
@@ -259,10 +261,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Pause/resume active audio and refresh OS locale safely on AppState transitions
+  // Pause/resume active audio, track foreground state, and refresh OS locale safely on AppState transitions
   useEffect(() => {
     let previousState: AppStateStatus = AppState.currentState;
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      setIsAppForeground(nextState === 'active');
       if (nextState === 'background' && previousState !== 'background') {
         pauseAudioForBackground();
       } else if (nextState === 'active' && previousState === 'background') {
@@ -294,15 +297,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return id as TaskTag;
   }, []);
 
-  // Check night hours every 30 seconds
+  // Check night hours only when autoNightShift is enabled AND app is in foreground (zero background CPU wakeups)
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (!autoNightShift || !isAppForeground) return;
+    const checkNight = () => {
       const h = new Date().getHours();
       const night = h >= 20 || h < 7;
       setIsNightTime(prev => (prev !== night ? night : prev));
-    }, 30000);
+    };
+    checkNight();
+    const interval = setInterval(checkNight, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [autoNightShift, isAppForeground]);
 
   const showToast = useCallback((t: AppToast) => {
     setToast(t);
@@ -363,7 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     rolloverOverdueTasks,
     getOverdueTasksCount,
     currentStreak,
-  } = useTasks();
+  } = useTasks(defaultTaskStorage, todayStr);
 
   // Custom Lists Management Engine
   const {
@@ -392,24 +398,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [tasks]
   );
 
-  const handleTimerComplete = useCallback((elapsedSeconds: number) => {
-    recordFocusSession(elapsedSeconds, activeFocusTask?.id, activeFocusTask?.title);
-    if (activeFocusTask) {
-      setCompletedFocusTaskId(activeFocusTask.id);
-      addTaskFocusTime(activeFocusTask.id, elapsedSeconds);
-      const mins = Math.max(1, Math.round(elapsedSeconds / 60));
-      showToast({
-        type: 'success',
-        title: translate(language, 'toasts.focusLoggedTitle'),
-        message: translate(language, 'toasts.focusLoggedMessage', {
-          minutes: mins,
-          title: activeFocusTask.title,
-        }),
-      });
-    }
-    // Offer / trigger Zen Breathing break
-    setIsZenBreathingOpen(true);
-  }, [recordFocusSession, activeFocusTask, addTaskFocusTime, language, showToast]);
+  const handleTimerComplete = useCallback(
+    (elapsedSeconds: number, restoredTask?: { id: string; title: string } | null) => {
+      const targetTask = restoredTask ?? activeFocusTask;
+      recordFocusSession(elapsedSeconds, targetTask?.id, targetTask?.title);
+      if (targetTask) {
+        setCompletedFocusTaskId(targetTask.id);
+        addTaskFocusTime(targetTask.id, elapsedSeconds);
+        const mins = Math.max(1, Math.round(elapsedSeconds / 60));
+        showToast({
+          type: 'success',
+          title: translate(language, 'toasts.focusLoggedTitle'),
+          message: translate(language, 'toasts.focusLoggedMessage', {
+            minutes: mins,
+            title: targetTask.title,
+          }),
+        });
+      }
+      // Offer / trigger Zen Breathing break
+      setIsZenBreathingOpen(true);
+    },
+    [recordFocusSession, activeFocusTask, addTaskFocusTime, language, showToast]
+  );
 
   const startTaskFocus = useCallback((task: { id: string; title: string }) => {
     setCompletedFocusTaskId(null);
@@ -421,8 +431,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       message: translate(language, 'toasts.targetSetMessage', { title: task.title }),
     });
   }, [language, showToast]);
-
-  const [todayStr, setTodayStr] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
 
   const refreshTodayDate = useCallback(() => {
     const now = new Date();
@@ -522,27 +530,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isHydrated = isPrefsLoaded && isTasksLoaded && isListsLoaded && isFocusLoaded;
 
   const toggleMorningBriefing = useCallback(
-    async (enabled: boolean) => {
+    async (enabled: boolean): Promise<boolean> => {
       setMorningBriefingEnabled(enabled);
-      await reminderCoordinatorRef.current.setMorningEnabled(
+      const scheduled = await reminderCoordinatorRef.current.setMorningEnabled(
         enabled,
         todayTasksSnapshot.total,
         language,
         morningTime
       );
+      if (enabled && !scheduled) {
+        setMorningBriefingEnabled(false);
+        await reminderCoordinatorRef.current.setMorningEnabled(false, todayTasksSnapshot.total, language, morningTime);
+        return false;
+      }
+      return enabled;
     },
     [todayTasksSnapshot.total, language, morningTime]
   );
 
   const toggleEveningReview = useCallback(
-    async (enabled: boolean) => {
+    async (enabled: boolean): Promise<boolean> => {
       setEveningReviewEnabled(enabled);
-      await reminderCoordinatorRef.current.setEveningEnabled(
+      const scheduled = await reminderCoordinatorRef.current.setEveningEnabled(
         enabled,
         todayTasksSnapshot.pending,
         language,
         eveningTime
       );
+      if (enabled && !scheduled) {
+        setEveningReviewEnabled(false);
+        await reminderCoordinatorRef.current.setEveningEnabled(false, todayTasksSnapshot.pending, language, eveningTime);
+        return false;
+      }
+      return enabled;
     },
     [todayTasksSnapshot.pending, language, eveningTime]
   );
@@ -1004,6 +1024,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <TimerProvider
           onTimerComplete={handleTimerComplete}
           onActiveSessionChange={setHasActiveTimerSession}
+          activeFocusTask={activeFocusTask}
+          onRestoreFocusTask={setActiveFocusTask}
+          resetSignal={workspaceResetCount}
         >
           {children}
         </TimerProvider>
@@ -1015,10 +1038,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 function TimerProvider({
   onTimerComplete,
   onActiveSessionChange,
+  activeFocusTask,
+  onRestoreFocusTask,
+  resetSignal,
   children,
 }: {
-  onTimerComplete: (durationSeconds: number) => void;
+  onTimerComplete: (durationSeconds: number, restoredTask?: { id: string; title: string } | null) => void;
   onActiveSessionChange: (active: boolean) => void;
+  activeFocusTask: { id: string; title: string } | null;
+  onRestoreFocusTask: (task: { id: string; title: string } | null) => void;
+  resetSignal: number;
   children: ReactNode;
 }) {
   const {
@@ -1031,7 +1060,11 @@ function TimerProvider({
     setTimerMinutes,
     finishEarlySession,
     clearCompletedSession,
-  } = useZenTimer(25, onTimerComplete);
+  } = useZenTimer(25, onTimerComplete, {
+    activeFocusTask,
+    onRestoreFocusTask,
+    resetSignal,
+  });
 
   const hasActive = isTimerRunning || (timeLeft < initialTime && timeLeft > 0);
   useEffect(() => {

@@ -29,6 +29,34 @@ export function isValidDateString(str: unknown): str is string {
   return isValid(parsed);
 }
 
+/**
+ * Accepts canonical YYYY-MM-DD strings as well as legacy ISO datetime strings
+ * (e.g. "2025-05-01T10:30:00.000Z") and extracts the YYYY-MM-DD calendar prefix safely.
+ */
+function normalizeLegacyDateString(raw: unknown): string | null {
+  if (isValidDateString(raw)) return raw;
+  if (typeof raw === 'string') {
+    const match = raw.trim().match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+    if (match && isValidDateString(match[1])) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+function normalizeTimestampMs(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  if (typeof raw === 'string') {
+    const parsed = Date.parse(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.floor(parsed);
+    }
+  }
+  return undefined;
+}
+
 export function isValidTimeString(str: unknown): str is string {
   return typeof str === 'string' && TIME_HH_MM_REGEX.test(str);
 }
@@ -98,7 +126,7 @@ export function validateTask(raw: unknown): Task | null {
   const title = sanitizeText(candidate.title);
   if (!title) return null;
 
-  const date = isValidDateString(candidate.date) ? candidate.date : null;
+  const date = normalizeLegacyDateString(candidate.date);
   if (!date) return null;
 
   let recurrence: RecurrenceType = 'none';
@@ -115,16 +143,22 @@ export function validateTask(raw: unknown): Task | null {
   }
 
   const completedDates: string[] = Array.isArray(candidate.completedDates)
-    ? candidate.completedDates.filter(isValidDateString).slice(0, MAX_DATES_LIST)
+    ? candidate.completedDates
+        .map(normalizeLegacyDateString)
+        .filter((d): d is string => d !== null)
+        .slice(0, MAX_DATES_LIST)
+    : candidate.completed === true || candidate.isCompleted === true
+    ? [date]
     : [];
 
   const excludedDates: string[] | undefined = Array.isArray(candidate.excludedDates)
-    ? candidate.excludedDates.filter(isValidDateString).slice(0, MAX_DATES_LIST)
+    ? candidate.excludedDates
+        .map(normalizeLegacyDateString)
+        .filter((d): d is string => d !== null)
+        .slice(0, MAX_DATES_LIST)
     : undefined;
 
-  const endDate: string | undefined = isValidDateString(candidate.endDate)
-    ? candidate.endDate
-    : undefined;
+  const endDate: string | undefined = normalizeLegacyDateString(candidate.endDate) ?? undefined;
 
   let subtasks: Subtask[] | undefined = undefined;
   if (Array.isArray(candidate.subtasks)) {
@@ -169,12 +203,7 @@ export function validateTask(raw: unknown): Task | null {
   const notes = sanitizeText(candidate.notes, 2000) || undefined;
   const reminderTime = isValidTimeString(candidate.reminderTime) ? candidate.reminderTime : undefined;
 
-  const updatedAt =
-    typeof candidate.updatedAt === 'number' &&
-    Number.isFinite(candidate.updatedAt) &&
-    candidate.updatedAt > 0
-      ? Math.floor(candidate.updatedAt)
-      : undefined;
+  const updatedAt = normalizeTimestampMs(candidate.updatedAt);
 
   return {
     id,
@@ -225,23 +254,18 @@ export function validateCustomList(raw: unknown): CustomList | null {
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       const itemRecord = item as Record<string, unknown>;
       const itemId = sanitizeId(itemRecord.id);
-      const text = sanitizeText(itemRecord.text, 300);
+      const text = sanitizeText(itemRecord.text ?? itemRecord.title, 300);
       if (itemId && text) {
         items.push({
           id: itemId,
           text,
-          completed: Boolean(itemRecord.completed),
+          completed: Boolean(itemRecord.completed ?? itemRecord.isCompleted),
         });
       }
     }
   }
 
-  const updatedAt =
-    typeof candidate.updatedAt === 'number' &&
-    Number.isFinite(candidate.updatedAt) &&
-    candidate.updatedAt > 0
-      ? Math.floor(candidate.updatedAt)
-      : undefined;
+  const updatedAt = normalizeTimestampMs(candidate.updatedAt);
 
   return {
     id,
@@ -267,23 +291,21 @@ export function validateFocusSession(raw: unknown): FocusSession | null {
   const id = sanitizeId(candidate.id);
   if (!id) return null;
 
-  const date = isValidDateString(candidate.date) ? candidate.date : null;
+  const date = normalizeLegacyDateString(candidate.date);
   if (!date) return null;
 
+  const rawDuration = candidate.durationSeconds ?? candidate.duration;
   if (
-    typeof candidate.durationSeconds !== 'number' ||
-    !Number.isFinite(candidate.durationSeconds) ||
-    candidate.durationSeconds <= 0 ||
-    candidate.durationSeconds > 86400
+    typeof rawDuration !== 'number' ||
+    !Number.isFinite(rawDuration) ||
+    rawDuration <= 0 ||
+    rawDuration > 86400
   ) {
     return null;
   }
 
-  if (
-    typeof candidate.timestamp !== 'number' ||
-    !Number.isFinite(candidate.timestamp) ||
-    candidate.timestamp <= 0
-  ) {
+  const timestamp = normalizeTimestampMs(candidate.timestamp ?? candidate.createdAt);
+  if (!timestamp) {
     return null;
   }
 
@@ -293,8 +315,8 @@ export function validateFocusSession(raw: unknown): FocusSession | null {
   return {
     id,
     date,
-    durationSeconds: Math.floor(candidate.durationSeconds),
-    timestamp: Math.floor(candidate.timestamp),
+    durationSeconds: Math.floor(rawDuration),
+    timestamp,
     ...(taskId ? { taskId } : {}),
     ...(taskTitle ? { taskTitle } : {}),
   };

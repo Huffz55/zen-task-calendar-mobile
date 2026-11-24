@@ -24,6 +24,7 @@ import {
 } from './syncKeyManager';
 import { defaultFocusStorage, FOCUS_SESSIONS_STORAGE_KEY } from './focusStorage';
 import { atomicRemoveJson, atomicWriteJson, safeReadJsonArray } from './atomicStorage';
+import { ZEN_TIMER_STATE_KEY } from '../../utils/zenTimerPersistence';
 
 const TASKS_STORAGE_KEY = '@noteapp_mobile_tasks_v1';
 const LISTS_STORAGE_KEY = '@noteapp_mobile_lists_v1';
@@ -643,6 +644,7 @@ export async function clearAllWorkspaceData(): Promise<void> {
     CUSTOM_FOLDERS_STORAGE_KEY,
     SYNC_KEY_STORAGE,
     CLOUD_SYNC_ENABLED_KEY,
+    ZEN_TIMER_STATE_KEY,
   ]);
 
   await clearSyncKey();

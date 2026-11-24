@@ -5,6 +5,7 @@ import { en, getActiveLanguage, tr, translate, type AppLanguage } from '../../i1
 
 interface INotificationService {
   readonly isSupported: boolean;
+  hasPermission(): Promise<boolean>;
   requestPermissions(): Promise<boolean>;
   scheduleDailySummary(hour?: number, minute?: number, taskCount?: number, language?: AppLanguage): Promise<string | null>;
   scheduleEveningWindDown(hour?: number, minute?: number, pendingCount?: number, language?: AppLanguage): Promise<string | null>;
@@ -78,6 +79,16 @@ class MobileNotificationService implements INotificationService {
       this.hasInitializedChannels = true;
     } catch (e) {
       console.warn('Failed to configure Android notification channels', e);
+    }
+  }
+
+  async hasPermission(): Promise<boolean> {
+    if (!this.isSupported || !Notifications) return false;
+    try {
+      const existing = await Notifications.getPermissionsAsync();
+      return Boolean(existing.granted);
+    } catch {
+      return false;
     }
   }
 

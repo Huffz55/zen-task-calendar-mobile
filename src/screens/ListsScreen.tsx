@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -68,7 +68,14 @@ export function ListsScreen({
   const [isAddFolderOpen, setIsAddFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [movingList, setMovingList] = useState<CustomList | null>(null);
+  const folderSubmittingRef = useRef(false);
   const swipeHandlers = useSwipeTabNavigation('lists');
+
+  useEffect(() => {
+    if (isAddFolderOpen) {
+      folderSubmittingRef.current = false;
+    }
+  }, [isAddFolderOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -116,8 +123,10 @@ export function ListsScreen({
   }, [lists, selectedFolder]);
 
   const handleCreateFolder = () => {
+    if (folderSubmittingRef.current) return;
     const clean = newFolderName.trim();
     if (!clean) return;
+    folderSubmittingRef.current = true;
     hapticLight();
     const updated = Array.from(new Set([...allFolders, clean]));
     setSavedFolders(updated);
@@ -274,9 +283,10 @@ export function ListsScreen({
                 setIsAddFolderOpen(true);
               }}
               activeOpacity={0.75}
+              accessibilityRole="button"
             >
               <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
-              <Text style={[styles.folderName, { color: theme.primary }]} numberOfLines={1}>
+              <Text style={[styles.folderName, { color: theme.primary }]} numberOfLines={1} maxFontSizeMultiplier={1.45}>
                 {t('lists.folderButton')}
               </Text>
             </TouchableOpacity>
@@ -291,6 +301,7 @@ export function ListsScreen({
             setIsAddListOpen(true);
           }}
           activeOpacity={0.75}
+          accessibilityRole="button"
         >
           <View style={styles.newListLeft}>
             <View style={[styles.plusCircle, { backgroundColor: theme.primaryLight }]}>
@@ -353,7 +364,7 @@ export function ListsScreen({
                           accessibilityState={{ checked: isCompleted }}
                           accessibilityLabel={task.title}
                         >
-                          {isCompleted && <Ionicons name="checkmark" size={12} color="#ffffff" />}
+                          {isCompleted && <Ionicons name="checkmark" size={12} color={theme.onPrimary} />}
                         </TouchableOpacity>
                         <Text
                           style={[
@@ -372,7 +383,7 @@ export function ListsScreen({
                               hapticLight();
                               onDeleteUnscheduledTask(task.id);
                             }}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                             accessibilityRole="button"
                             accessibilityLabel={t('lists.a11yDeleteItem', { item: task.title })}
                           >
@@ -455,7 +466,7 @@ export function ListsScreen({
           onPress={handleCreateFolder}
           disabled={!newFolderName.trim()}
         >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: newFolderName.trim() ? '#ffffff' : theme.textDim }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: newFolderName.trim() ? theme.onPrimary : theme.textDim }}>
             {t('lists.createFolder')}
           </Text>
         </TouchableOpacity>

@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
+import { CustomTag, DailyTask, RecurrenceType, TaskTag, Subtask } from '../types';
 import { ThemeColors } from '../constants/colors';
 import { Header } from '../components/common/Header';
 import { CalendarGrid } from '../components/calendar/CalendarGrid';
@@ -22,12 +22,14 @@ import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight } from '../hooks/useHaptics';
 import { animateLayout } from '../utils/animations';
+import { normalizeSearchText } from '../utils/localeText';
 import { useSwipeTabNavigation } from '../hooks/useSwipeTabNavigation';
 import { useTranslation } from '../i18n';
 
 interface CalendarScreenProps {
   theme: ThemeColors;
   currentStreak: number;
+  customTags?: CustomTag[];
   selectedDate: Date;
   todayStr?: string;
   onSelectDate: (date: Date) => void;
@@ -69,6 +71,7 @@ interface CalendarScreenProps {
 export function CalendarScreen({
   theme,
   currentStreak,
+  customTags,
   selectedDate,
   todayStr,
   onSelectDate,
@@ -86,7 +89,7 @@ export function CalendarScreen({
   onOpenSettingsModal,
   onOpenSyncModal,
 }: CalendarScreenProps) {
-  const { t, dateLocale } = useTranslation();
+  const { t, language, dateLocale } = useTranslation();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<DailyTask | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<DailyTask | null>(null);
@@ -107,16 +110,16 @@ export function CalendarScreen({
   }, [dayTasks]);
 
   const filteredTasks = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = normalizeSearchText(searchQuery, language);
     return dayTasks.filter(task => {
       const matchesSearch =
         q === '' ||
-        task.title.toLowerCase().includes(q) ||
-        (task.notes ? task.notes.toLowerCase().includes(q) : false);
+        normalizeSearchText(task.title, language).includes(q) ||
+        (task.notes ? normalizeSearchText(task.notes, language).includes(q) : false);
       const matchesTag = selectedTag === 'all' || task.tag === selectedTag;
       return matchesSearch && matchesTag;
     });
-  }, [dayTasks, searchQuery, selectedTag]);
+  }, [dayTasks, searchQuery, selectedTag, language]);
 
   const handleSelectDateSmooth = useCallback(
     (date: Date) => {
@@ -200,6 +203,7 @@ export function CalendarScreen({
               setIsAddModalOpen(true);
             }}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            accessibilityRole="button"
           >
             <Ionicons name="add" size={16} color={theme.primary} />
             <Text style={[styles.addBtnText, { color: theme.primary }]} maxFontSizeMultiplier={1.35}>
@@ -218,6 +222,7 @@ export function CalendarScreen({
               onSelectTag={setSelectedTag}
               theme={theme}
               counts={tagCounts}
+              customTags={customTags}
             />
           </View>
         )}
@@ -231,6 +236,7 @@ export function CalendarScreen({
                   key={task.id}
                   task={task}
                   theme={theme}
+                  customTags={customTags}
                   onToggle={onToggleTask}
                   onDelete={handleDeleteRequest}
                   onEdit={handleEditRequest}
@@ -250,6 +256,7 @@ export function CalendarScreen({
                     setSearchQuery('');
                     setSelectedTag('all');
                   }}
+                  accessibilityRole="button"
                 >
                   <Text style={[styles.clearBtnText, { color: theme.primary }]}>{t('calendar.clearFilter')}</Text>
                 </TouchableOpacity>

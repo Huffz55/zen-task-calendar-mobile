@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { format, isValid, parseISO } from 'date-fns';
 import { ThemeColors, withAlpha } from '../../constants/colors';
@@ -13,7 +13,7 @@ interface ZenHeatmapProps {
   days: HeatmapDay[];
 }
 
-export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
+export const ZenHeatmap = memo(function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
   const { t, language, dateLocale } = useTranslation();
   const [selectedDay, setSelectedDay] = useState<HeatmapDay | null>(null);
 
@@ -127,7 +127,7 @@ export function ZenHeatmap({ theme, days }: ZenHeatmapProps) {
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

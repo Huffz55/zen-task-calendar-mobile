@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedback, Animated } from 'react-native';
 import { DailyTask } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
@@ -28,9 +28,11 @@ export function DeleteTaskModal({
 }: DeleteTaskModalProps) {
   const { t } = useTranslation();
   const [scaleAnim] = useState(() => new Animated.Value(0.94));
+  const actionLockRef = useRef(false);
 
   useEffect(() => {
     if (visible) {
+      actionLockRef.current = false;
       scaleAnim.setValue(0.94);
       Animated.spring(scaleAnim, {
         toValue: 1,
@@ -43,6 +45,14 @@ export function DeleteTaskModal({
   }, [visible, scaleAnim]);
 
   if (!task) return null;
+
+  const runDeleteAction = (action: () => void) => {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
+    hapticWarning();
+    action();
+    onClose();
+  };
 
   const isRecurring = task.recurrence !== 'none';
   const dangerBg = withAlpha(theme.danger, theme.isDark ? 0.18 : 0.1);
@@ -85,33 +95,24 @@ export function DeleteTaskModal({
                   <>
                     <TouchableOpacity
                       style={[styles.btn, { backgroundColor: theme.surfaceMuted }]}
-                      onPress={() => {
-                        hapticWarning();
-                        onDeleteInstance(task.taskId, selectedDateStr);
-                        onClose();
-                      }}
+                      onPress={() => runDeleteAction(() => onDeleteInstance(task.taskId, selectedDateStr))}
+                      accessibilityRole="button"
                     >
                       <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteInstance')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={[styles.btn, { backgroundColor: theme.surfaceMuted }]}
-                      onPress={() => {
-                        hapticWarning();
-                        onDeleteFuture(task.taskId, selectedDateStr);
-                        onClose();
-                      }}
+                      onPress={() => runDeleteAction(() => onDeleteFuture(task.taskId, selectedDateStr))}
+                      accessibilityRole="button"
                     >
                       <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteFuture')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={[styles.btn, { backgroundColor: dangerBg }]}
-                      onPress={() => {
-                        hapticWarning();
-                        onDeleteSingle(task.taskId);
-                        onClose();
-                      }}
+                      onPress={() => runDeleteAction(() => onDeleteSingle(task.taskId))}
+                      accessibilityRole="button"
                     >
                       <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSeries')}</Text>
                     </TouchableOpacity>
@@ -119,11 +120,8 @@ export function DeleteTaskModal({
                 ) : (
                   <TouchableOpacity
                     style={[styles.btn, { backgroundColor: dangerBg }]}
-                    onPress={() => {
-                      hapticWarning();
-                      onDeleteSingle(task.taskId);
-                      onClose();
-                    }}
+                    onPress={() => runDeleteAction(() => onDeleteSingle(task.taskId))}
+                    accessibilityRole="button"
                   >
                     <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSingleButton')}</Text>
                   </TouchableOpacity>

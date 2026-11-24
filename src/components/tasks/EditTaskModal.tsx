@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -77,6 +77,7 @@ function EditTaskForm({
   const [isPinned, setIsPinned] = useState(task.isPinned || false);
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => (task.subtasks ? [...task.subtasks] : []));
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
+  const isSubmittingRef = useRef(false);
 
   const handleAddSubtask = () => {
     const trimmed = newSubtaskInput.trim();
@@ -97,7 +98,8 @@ function EditTaskForm({
   };
 
   const handleSave = () => {
-    if (!task || !title.trim()) return;
+    if (isSubmittingRef.current || !task || !title.trim()) return;
+    isSubmittingRef.current = true;
     hapticSuccess();
     onSave(
       task.taskId,
@@ -234,7 +236,7 @@ function EditTaskForm({
             <Text
               style={[
                 styles.chipText,
-                { color: tag === undefined ? '#ffffff' : theme.textMuted },
+                { color: tag === undefined ? theme.onPrimary : theme.textMuted },
               ]}
             >
               {t('tasks.noTag')}
@@ -369,7 +371,7 @@ function EditTaskForm({
                 <Text
                   style={[
                     styles.chipText,
-                    { color: isSelected ? '#ffffff' : theme.textMuted },
+                    { color: isSelected ? theme.onPrimary : theme.textMuted },
                   ]}
                 >
                   {opt.label}
@@ -402,7 +404,7 @@ function EditTaskForm({
                 <Text
                   style={[
                     styles.chipText,
-                    { color: isSelected ? '#ffffff' : theme.textMuted },
+                    { color: isSelected ? theme.onPrimary : theme.textMuted },
                   ]}
                 >
                   {opt.label}
@@ -540,7 +542,7 @@ function EditTaskForm({
             style={[styles.addSubtaskBtn, { backgroundColor: theme.primary }]}
             onPress={handleAddSubtask}
           >
-            <Ionicons name="add" size={20} color="#ffffff" />
+            <Ionicons name="add" size={20} color={theme.onPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -583,7 +585,7 @@ function EditTaskForm({
           <Text
             style={[
               styles.submitText,
-              { color: title.trim() ? '#ffffff' : theme.textDim },
+              { color: title.trim() ? theme.onPrimary : theme.textDim },
             ]}
           >
             {t('tasks.saveChangesButton')}

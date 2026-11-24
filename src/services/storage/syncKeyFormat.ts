@@ -1,4 +1,5 @@
 import { getSecureRandomInt } from '../../utils/cryptoRandom';
+import { normalizeMachineKey } from '../../utils/localeText';
 
 const CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
@@ -18,10 +19,11 @@ export function generateSyncKey(): string {
 
 /**
  * Validates if a string adheres strictly to the ZEN-XXXX-XXXX pairing format.
+ * Uses locale-independent ASCII uppercasing so Turkish İ/ı never breaks protocol matching.
  */
 export function isValidSyncKey(key: string): boolean {
   if (typeof key !== 'string' || !key) return false;
   if (/[\r\n\t\0]/.test(key)) return false;
-  const cleaned = key.trim().toUpperCase();
+  const cleaned = normalizeMachineKey(key);
   return /^ZEN-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(cleaned);
 }

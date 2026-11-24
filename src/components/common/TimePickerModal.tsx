@@ -174,7 +174,7 @@ export function TimePickerPanel({
                   <Text
                     style={[
                       styles.presetChipText,
-                      { color: isSelected ? '#ffffff' : theme.textMuted },
+                      { color: isSelected ? theme.onPrimary : theme.textMuted },
                     ]}
                     maxFontSizeMultiplier={1.25}
                   >
@@ -307,7 +307,7 @@ function TimePickerModalBody({
           activeOpacity={0.85}
           accessibilityRole="button"
         >
-          <Text style={styles.confirmBtnText} maxFontSizeMultiplier={1.3}>
+          <Text style={[styles.confirmBtnText, { color: theme.onPrimary }]} maxFontSizeMultiplier={1.3}>
             {t('timePicker.save')}
           </Text>
         </TouchableOpacity>

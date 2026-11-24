@@ -165,8 +165,8 @@ export function EveningReviewModal({
               }}
               activeOpacity={0.8}
             >
-              <Ionicons name="arrow-forward-circle-outline" size={17} color="#ffffff" />
-              <Text style={styles.actionBtnText} numberOfLines={1}>
+              <Ionicons name="arrow-forward-circle-outline" size={17} color={theme.onPrimary} />
+              <Text style={[styles.actionBtnText, { color: theme.onPrimary }]} numberOfLines={1}>
                 {t('eveningReview.rolloverAction', { count: overdueCount })}
               </Text>
             </TouchableOpacity>
@@ -179,7 +179,7 @@ export function EveningReviewModal({
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionBtnText}>{t('common.done')}</Text>
+              <Text style={[styles.actionBtnText, { color: theme.onPrimary }]}>{t('common.done')}</Text>
             </TouchableOpacity>
           )}
         </Animated.View>

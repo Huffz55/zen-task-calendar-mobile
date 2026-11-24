@@ -15,6 +15,7 @@ import { Task } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, setGlobalHapticsEnabled } from '../../hooks/useHaptics';
 import { defaultBackupService } from '../../services/storage/backupService';
+import { defaultNotificationService } from '../../services/notifications/notificationService';
 import {
   isSoundEffectsEnabled,
   setSoundEffectsEnabled,
@@ -40,8 +41,8 @@ interface SettingsModalProps {
   eveningReviewEnabled: boolean;
   morningTime?: string;
   eveningTime?: string;
-  onToggleMorningBriefing: (enabled: boolean) => Promise<void>;
-  onToggleEveningReview: (enabled: boolean) => Promise<void>;
+  onToggleMorningBriefing: (enabled: boolean) => Promise<boolean>;
+  onToggleEveningReview: (enabled: boolean) => Promise<boolean>;
   onChangeMorningTime?: (nextTime: string) => Promise<void>;
   onChangeEveningTime?: (nextTime: string) => Promise<void>;
   onClose: () => void;
@@ -116,15 +117,48 @@ export function SettingsModal({
     onShowToast(t(enabled ? 'settings.toasts.sfxOn' : 'settings.toasts.sfxOff'));
   };
 
+  const confirmNotificationPermissionIfNeeded = async (): Promise<boolean> => {
+    if (!defaultNotificationService.isSupported) return true;
+    const alreadyGranted = await defaultNotificationService.hasPermission();
+    if (alreadyGranted) return true;
+
+    return new Promise(resolve => {
+      Alert.alert(
+        t('settings.notificationRationaleTitle'),
+        t('settings.notificationRationaleMessage'),
+        [
+          { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('settings.notificationRationaleAllow'), onPress: () => resolve(true) },
+        ]
+      );
+    });
+  };
+
   const handleToggleMorning = async (enabled: boolean) => {
     hapticLight();
-    await onToggleMorningBriefing(enabled);
+    if (enabled) {
+      const proceed = await confirmNotificationPermissionIfNeeded();
+      if (!proceed) return;
+    }
+    const ok = await onToggleMorningBriefing(enabled);
+    if (enabled && !ok) {
+      onShowToast(t('settings.toasts.notificationPermissionDenied'));
+      return;
+    }
     onShowToast(t(enabled ? 'settings.toasts.morningOn' : 'settings.toasts.morningOff', { time: morningTime }));
   };
 
   const handleToggleEvening = async (enabled: boolean) => {
     hapticLight();
-    await onToggleEveningReview(enabled);
+    if (enabled) {
+      const proceed = await confirmNotificationPermissionIfNeeded();
+      if (!proceed) return;
+    }
+    const ok = await onToggleEveningReview(enabled);
+    if (enabled && !ok) {
+      onShowToast(t('settings.toasts.notificationPermissionDenied'));
+      return;
+    }
     onShowToast(t(enabled ? 'settings.toasts.eveningOn' : 'settings.toasts.eveningOff', { time: eveningTime }));
   };
 

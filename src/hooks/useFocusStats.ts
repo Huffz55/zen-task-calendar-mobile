@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { format, subDays } from 'date-fns';
+import { format, isValid, parseISO, subDays } from 'date-fns';
 import { FocusSession } from '../types';
 
 import { defaultFocusStorage } from '../services/storage/focusStorage';
@@ -22,7 +22,7 @@ export interface HeatmapDay {
   isToday: boolean;
 }
 
-export function useFocusStats() {
+export function useFocusStats(todayStrOverride?: string) {
   const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -65,7 +65,9 @@ export function useFocusStats() {
   }, []);
 
   const stats = useMemo(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const parsedOverride = todayStrOverride ? parseISO(todayStrOverride) : null;
+    const referenceDate = parsedOverride && isValid(parsedOverride) ? parsedOverride : new Date();
+    const todayStr = format(referenceDate, 'yyyy-MM-dd');
     let totalSeconds = 0;
     let todaySeconds = 0;
 
@@ -85,7 +87,7 @@ export function useFocusStats() {
     const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     for (let i = 6; i >= 0; i--) {
-      const d = subDays(new Date(), i);
+      const d = subDays(referenceDate, i);
       const dStr = format(d, 'yyyy-MM-dd');
       const dayIndex = d.getDay();
       const dayName = WEEK_DAYS[dayIndex];
@@ -104,7 +106,7 @@ export function useFocusStats() {
     // 12 Weeks (84 days) Activity Matrix
     const heatmapDays: HeatmapDay[] = [];
     for (let i = 83; i >= 0; i--) {
-      const d = subDays(new Date(), i);
+      const d = subDays(referenceDate, i);
       const dStr = format(d, 'yyyy-MM-dd');
       const daySecs = dateMap.get(dStr) || 0;
       let level = 0;
@@ -130,7 +132,7 @@ export function useFocusStats() {
       maxDaySeconds,
       heatmapDays,
     };
-  }, [sessions]);
+  }, [sessions, todayStrOverride]);
 
   const clearAllSessions = useCallback(() => {
     setSessions([]);

@@ -7,7 +7,7 @@ import { computeCurrentStreak, getDailyTasksForDate } from '../utils/taskSchedul
 import { generateSecureId as generateUniqueId } from '../utils/cryptoRandom';
 import { isValidTimeString } from '../services/validation/validator';
 
-export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
+export function useTasks(storage: ITaskStorage = defaultTaskStorage, todayStr?: string) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -249,8 +249,11 @@ export function useTasks(storage: ITaskStorage = defaultTaskStorage) {
     }).length;
   }, [tasks]);
 
-  // Streak engine calculation (indexed O(N) over active tasks)
-  const currentStreak = useMemo(() => computeCurrentStreak(tasks), [tasks]);
+  // Streak engine calculation (indexed O(N) over active tasks; refreshes on local midnight)
+  const currentStreak = useMemo(() => {
+    const referenceDate = todayStr ? parseISO(todayStr) : new Date();
+    return computeCurrentStreak(tasks, isValid(referenceDate) ? referenceDate : new Date());
+  }, [tasks, todayStr]);
 
   const clearAllTasks = useCallback(() => {
     springLayout();

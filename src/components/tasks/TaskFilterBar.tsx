@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import {
   View,
   Text,
@@ -6,14 +7,15 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { BuiltinTaskTag, TaskTag } from '../../types';
+import { BuiltinTaskTag, CustomTag, TaskTag } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { TAGS, resolveTagConfig } from '../../constants/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
-import { useApp } from '../../context/AppContext';
 import { useTranslation } from '../../i18n';
+
+const EMPTY_CUSTOM_TAGS: CustomTag[] = [];
 
 interface TaskFilterBarProps {
   searchQuery: string;
@@ -22,17 +24,18 @@ interface TaskFilterBarProps {
   onSelectTag: (tag: TaskTag | 'all') => void;
   theme: ThemeColors;
   counts?: Record<string, number>;
+  customTags?: CustomTag[];
 }
 
-export function TaskFilterBar({
+export const TaskFilterBar = memo(function TaskFilterBar({
   searchQuery,
   onSearchChange,
   selectedTag,
   onSelectTag,
   theme,
   counts,
+  customTags = EMPTY_CUSTOM_TAGS,
 }: TaskFilterBarProps) {
-  const { customTags } = useApp();
   const { t, language } = useTranslation();
   const builtinKeys = Object.keys(TAGS) as BuiltinTaskTag[];
   const extraTagKeys = Array.from(
@@ -71,7 +74,7 @@ export function TaskFilterBar({
               animateLayout();
               onSearchChange('');
             }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
             accessibilityRole="button"
             accessibilityLabel={t('tasks.a11yClearSearch')}
           >
@@ -104,13 +107,14 @@ export function TaskFilterBar({
             onSelectTag('all');
           }}
           activeOpacity={0.75}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
           accessibilityRole="button"
           accessibilityState={{ selected: selectedTag === 'all' }}
         >
           <Text
             style={[
               styles.chipText,
-              { color: selectedTag === 'all' ? '#ffffff' : theme.textMuted },
+              { color: selectedTag === 'all' ? theme.onPrimary : theme.textMuted },
             ]}
             numberOfLines={1}
           >
@@ -123,7 +127,9 @@ export function TaskFilterBar({
                 {
                   backgroundColor:
                     selectedTag === 'all'
-                      ? 'rgba(255,255,255,0.25)'
+                      ? theme.isDark
+                        ? 'rgba(0,0,0,0.2)'
+                        : 'rgba(255,255,255,0.25)'
                       : theme.surface,
                 },
               ]}
@@ -131,7 +137,7 @@ export function TaskFilterBar({
               <Text
                 style={[
                   styles.badgeText,
-                  { color: selectedTag === 'all' ? '#ffffff' : theme.textDim },
+                  { color: selectedTag === 'all' ? theme.onPrimary : theme.textDim },
                 ]}
               >
                 {counts.all}
@@ -162,6 +168,7 @@ export function TaskFilterBar({
                 onSelectTag(isSelected ? 'all' : tKey);
               }}
               activeOpacity={0.75}
+              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
             >
@@ -207,7 +214,7 @@ export function TaskFilterBar({
       </ScrollView>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

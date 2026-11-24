@@ -5,6 +5,7 @@ import { ThemeColors } from '../../constants/colors';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { animateLayout } from '../../utils/animations';
 import { useTranslation } from '../../i18n';
 
@@ -28,6 +29,7 @@ export const ListCard = memo(function ListCard({
   onMoveFolder,
 }: ListCardProps) {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const [newItemText, setNewItemText] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -35,9 +37,13 @@ export const ListCard = memo(function ListCard({
   const completedCount = list.items.filter(i => i.completed).length;
   const progress = totalItems > 0 ? completedCount / totalItems : 0;
 
-  const enterAnim = useRef(new Animated.Value(0)).current;
+  const enterAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      enterAnim.setValue(1);
+      return;
+    }
     Animated.spring(enterAnim, {
       toValue: 1,
       damping: 22,
@@ -45,7 +51,7 @@ export const ListCard = memo(function ListCard({
       stiffness: 200,
       useNativeDriver: true,
     }).start();
-  }, [enterAnim]);
+  }, [enterAnim, reducedMotion]);
 
   const handleAddItem = () => {
     if (!newItemText.trim()) return;
@@ -105,8 +111,10 @@ export const ListCard = memo(function ListCard({
                 hapticLight();
                 onMoveFolder(list);
               }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               style={{ padding: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('lists.a11yMoveFolder')}
             >
               <Ionicons name="folder-outline" size={16} color={theme.textDim} />
             </TouchableOpacity>
@@ -117,8 +125,10 @@ export const ListCard = memo(function ListCard({
               hapticLight();
               router.push({ pathname: '/list/[id]', params: { id: list.id } });
             }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={{ padding: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('lists.a11yOpenList')}
           >
             <Ionicons name="open-outline" size={17} color={theme.textDim} />
           </TouchableOpacity>
@@ -128,8 +138,10 @@ export const ListCard = memo(function ListCard({
               hapticWarning();
               onDeleteList(list.id);
             }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={{ padding: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('lists.a11yDeleteList')}
           >
             <Ionicons name="trash-outline" size={17} color={theme.textDim} />
           </TouchableOpacity>
@@ -185,7 +197,7 @@ export const ListCard = memo(function ListCard({
                 accessibilityState={{ checked: item.completed }}
                 accessibilityLabel={item.text}
               >
-                {item.completed && <Ionicons name="checkmark" size={12} color="#ffffff" />}
+                {item.completed && <Ionicons name="checkmark" size={12} color={theme.onPrimary} />}
               </TouchableOpacity>
 
               <Text
@@ -205,7 +217,7 @@ export const ListCard = memo(function ListCard({
                   hapticLight();
                   onDeleteItem(list.id, item.id);
                 }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('lists.a11yDeleteItem', { item: item.text })}
               >
@@ -236,8 +248,11 @@ export const ListCard = memo(function ListCard({
               <TouchableOpacity
                 style={[styles.addBtn, { backgroundColor: theme.primary }]}
                 onPress={handleAddItem}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('lists.a11yAddListItem')}
               >
-                <Ionicons name="arrow-up" size={16} color="#ffffff" />
+                <Ionicons name="arrow-up" size={16} color={theme.onPrimary} />
               </TouchableOpacity>
             )}
           </View>

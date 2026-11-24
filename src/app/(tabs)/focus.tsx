@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useApp, useTimer } from '../../context/AppContext';
 import { FocusScreen } from '../../screens/FocusScreen';
 
@@ -28,6 +29,17 @@ export default function FocusRoute() {
     finishEarlySession,
   } = useTimer();
 
+  const handleClearActiveFocusTask = useCallback(() => {
+    dismissFocusTaskCompletion();
+    setActiveFocusTask(null);
+  }, [dismissFocusTaskCompletion, setActiveFocusTask]);
+
+  const handleOpenZenBreathing = useCallback(() => setIsZenBreathingOpen(true), [setIsZenBreathingOpen]);
+  const handleCloseZenBreathing = useCallback(() => setIsZenBreathingOpen(false), [setIsZenBreathingOpen]);
+  const handleOpenThemeModal = useCallback(() => setIsThemeModalOpen(true), [setIsThemeModalOpen]);
+  const handleOpenSettingsModal = useCallback(() => setIsSettingsModalOpen(true), [setIsSettingsModalOpen]);
+  const handleOpenSyncModal = useCallback(() => setIsSyncModalOpen(true), [setIsSyncModalOpen]);
+
   return (
     <FocusScreen
       theme={theme}
@@ -37,23 +49,20 @@ export default function FocusRoute() {
       isTimerRunning={isTimerRunning}
       focusStats={focusStats}
       activeFocusTask={activeFocusTask}
-      onClearActiveFocusTask={() => {
-        dismissFocusTaskCompletion();
-        setActiveFocusTask(null);
-      }}
+      onClearActiveFocusTask={handleClearActiveFocusTask}
       showFocusTaskCompletion={hasCompletedSession && canCompleteFocusTask}
       onCompleteFocusTask={completeActiveFocusTask}
       onDismissFocusCompletion={dismissFocusTaskCompletion}
       isZenBreathingOpen={isZenBreathingOpen}
-      onOpenZenBreathing={() => setIsZenBreathingOpen(true)}
-      onCloseZenBreathing={() => setIsZenBreathingOpen(false)}
+      onOpenZenBreathing={handleOpenZenBreathing}
+      onCloseZenBreathing={handleCloseZenBreathing}
       onToggleTimer={toggleTimer}
       onResetTimer={resetTimer}
       onSetMinutes={setTimerMinutes}
       onFinishEarlySession={finishEarlySession}
-      onOpenThemeModal={() => setIsThemeModalOpen(true)}
-      onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-      onOpenSyncModal={() => setIsSyncModalOpen(true)}
+      onOpenThemeModal={handleOpenThemeModal}
+      onOpenSettingsModal={handleOpenSettingsModal}
+      onOpenSyncModal={handleOpenSyncModal}
     />
   );
 }

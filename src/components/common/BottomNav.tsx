@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MobileTab } from '../../types';
 import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticSelection } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { PRESS_SPRING_CONFIG } from '../../utils/animations';
 import { useTranslation } from '../../i18n';
 
@@ -34,17 +35,19 @@ function NavTabButton({
   isActive,
   onPress,
   theme,
+  reducedMotion,
 }: {
   item: NavItem;
   label: string;
   isActive: boolean;
   onPress: () => void;
   theme: ThemeColors;
+  reducedMotion: boolean;
 }) {
   const [scale] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !reducedMotion) {
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.08, duration: 80, useNativeDriver: true }),
         Animated.spring(scale, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
@@ -52,13 +55,15 @@ function NavTabButton({
     } else {
       scale.setValue(1);
     }
-  }, [isActive, scale]);
+  }, [isActive, reducedMotion, scale]);
 
   const handlePressIn = () => {
+    if (reducedMotion) return;
     Animated.spring(scale, { toValue: 0.94, ...PRESS_SPRING_CONFIG }).start();
   };
 
   const handlePressOut = () => {
+    if (reducedMotion) return;
     Animated.spring(scale, { toValue: 1, ...PRESS_SPRING_CONFIG }).start();
   };
 
@@ -102,9 +107,10 @@ function NavTabButton({
   );
 }
 
-export function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
+export const BottomNav = memo(function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const safeBottomPadding = Math.max(insets.bottom, 10);
 
   return (
@@ -126,6 +132,7 @@ export function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
             item={item}
             label={t(item.labelKey)}
             isActive={isActive}
+            reducedMotion={reducedMotion}
             onPress={() => {
               if (!isActive) {
                 hapticSelection();
@@ -138,7 +145,7 @@ export function BottomNav({ activeTab, onSelectTab, theme }: BottomNavProps) {
       })}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

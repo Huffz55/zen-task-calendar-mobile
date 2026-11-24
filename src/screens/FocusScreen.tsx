@@ -160,11 +160,12 @@ export function FocusScreen({
                   styles.completeTaskBtn,
                   { backgroundColor: theme.primary, opacity: pressed ? 0.82 : 1 },
                 ]}
+                hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('focus.a11yMarkTaskDone', { title: activeFocusTask.title })}
               >
-                <Ionicons name="checkmark" size={14} color="#ffffff" />
-                <Text style={styles.completeTaskBtnText} maxFontSizeMultiplier={1.25}>
+                <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                <Text style={[styles.completeTaskBtnText, { color: theme.onPrimary }]} maxFontSizeMultiplier={1.25}>
                   {t('focus.markTaskDone')}
                 </Text>
               </Pressable>
@@ -243,6 +244,7 @@ export function FocusScreen({
               onOpenZenBreathing();
             }}
             activeOpacity={0.75}
+            accessibilityRole="button"
           >
             <View style={styles.breathingShortcutLeft}>
               <Ionicons name="leaf-outline" size={17} color={theme.primary} />
@@ -268,6 +270,8 @@ export function FocusScreen({
             setShowHistory(prev => !prev);
           }}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showHistory }}
         >
           <View style={styles.historyToggleLeft}>
             <Ionicons

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'reac
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticMedium, hapticLight, hapticSelection } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from '../../i18n';
 
 interface ZenTimerViewProps {
@@ -27,6 +28,7 @@ export function ZenTimerView({
   onFinishEarly,
 }: ZenTimerViewProps) {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -35,7 +37,7 @@ export function ZenTimerView({
   const [pulseAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
-    if (!isTimerRunning) {
+    if (!isTimerRunning || reducedMotion) {
       pulseAnim.setValue(1);
       return;
     }
@@ -59,7 +61,7 @@ export function ZenTimerView({
     loop.start();
 
     return () => loop.stop();
-  }, [isTimerRunning, pulseAnim]);
+  }, [isTimerRunning, pulseAnim, reducedMotion]);
 
   const handlePlayToggle = () => {
     hapticMedium();
@@ -177,7 +179,7 @@ export function ZenTimerView({
           <Ionicons
             name={isTimerRunning ? 'pause' : 'play'}
             size={26}
-            color="#ffffff"
+            color={theme.onPrimary}
             style={{ marginLeft: isTimerRunning ? 0 : 2 }}
           />
         </TouchableOpacity>

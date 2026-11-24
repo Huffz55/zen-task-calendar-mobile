@@ -150,7 +150,7 @@ export default function ListDetailRoute() {
             accessibilityRole="button"
             accessibilityLabel={t('lists.a11yAddListItem')}
           >
-            <Ionicons name="add" size={20} color={newItemText.trim() ? '#ffffff' : theme.textDim} />
+            <Ionicons name="add" size={20} color={newItemText.trim() ? theme.onPrimary : theme.textDim} />
           </TouchableOpacity>
         </View>
 
@@ -185,7 +185,7 @@ export default function ListDetailRoute() {
               accessibilityState={{ checked: item.completed }}
               accessibilityLabel={item.text}
             >
-              {item.completed && <Ionicons name="checkmark" size={14} color="#ffffff" />}
+              {item.completed && <Ionicons name="checkmark" size={14} color={theme.onPrimary} />}
             </TouchableOpacity>
 
             <Text
@@ -206,7 +206,7 @@ export default function ListDetailRoute() {
                 animateLayout();
                 deleteListItem(list.id, item.id);
               }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               accessibilityRole="button"
               accessibilityLabel={t('lists.a11yRemoveListItem', { item: item.text })}
             >

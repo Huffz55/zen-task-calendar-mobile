@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateSyncKey, isValidSyncKey } from './syncKeyFormat';
+import { normalizeMachineKey } from '../../utils/localeText';
 
 export { generateSyncKey, isValidSyncKey };
 
@@ -45,7 +46,7 @@ async function readFromSecureStorage(): Promise<string | null> {
     if (!SecureStore) return null;
     const secured = await SecureStore.getItemAsync(SECURE_SYNC_KEY);
     if (secured && isValidSyncKey(secured)) {
-      return secured.trim().toUpperCase();
+      return normalizeMachineKey(secured);
     }
   } catch {
     // Ignore when SecureStore is unavailable (e.g., web, test environment, or pre-SecureStore APK)
@@ -119,7 +120,7 @@ export async function getExistingSyncKey(): Promise<string | null> {
   try {
     const legacy = await AsyncStorage.getItem(SYNC_KEY_STORAGE);
     if (legacy && isValidSyncKey(legacy)) {
-      const normalized = legacy.trim().toUpperCase();
+      const normalized = normalizeMachineKey(legacy);
       await writeToSecureStorage(normalized);
       cachedSyncKey = normalized;
       return normalized;
@@ -162,7 +163,7 @@ export async function getSyncKey(): Promise<string> {
  * Persists a new sync key after strict format validation.
  */
 export async function setSyncKey(newKey: string): Promise<boolean> {
-  const normalized = typeof newKey === 'string' ? newKey.trim().toUpperCase() : '';
+  const normalized = typeof newKey === 'string' ? normalizeMachineKey(newKey) : '';
   if (!isValidSyncKey(normalized)) {
     return false;
   }

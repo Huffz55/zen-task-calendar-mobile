@@ -58,12 +58,39 @@ const TAB_SCENE_INTERPOLATOR: NonNullable<
 });
 
 /**
- * Isolated tab bar footer so 1-second focus timer ticks only re-render the compact
- * mini player instead of the entire <Tabs> navigator tree.
+ * Dedicated timer-subscribed slot so 1-second focus ticks only re-render the compact
+ * mini player and never re-render BottomNav or the Tabs navigator tree.
  */
-const TabsFooter = memo(function TabsFooter({ state, navigation }: CustomTabBarProps) {
+const MiniFocusPlayerSlot = memo(function MiniFocusPlayerSlot({
+  isFocusTab,
+  onOpenFocus,
+}: {
+  isFocusTab: boolean;
+  onOpenFocus: () => void;
+}) {
   const { theme, activeFocusTask } = useApp();
   const { timeLeft, initialTime, isTimerRunning, toggleTimer } = useTimer();
+
+  const shouldShowMiniPlayer =
+    !isFocusTab && (isTimerRunning || (timeLeft < initialTime && timeLeft > 0));
+
+  if (!shouldShowMiniPlayer) return null;
+
+  return (
+    <MiniFocusPlayer
+      timeLeft={timeLeft}
+      initialTime={initialTime}
+      isTimerRunning={isTimerRunning}
+      onToggleTimer={toggleTimer}
+      onOpenFocus={onOpenFocus}
+      activeTaskTitle={activeFocusTask?.title}
+      theme={theme}
+    />
+  );
+});
+
+const TabsFooter = memo(function TabsFooter({ state, navigation }: CustomTabBarProps) {
+  const { theme } = useApp();
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // Hide bottom tab bar on Android while soft keyboard is open so inline inputs stay uncluttered
@@ -77,32 +104,27 @@ const TabsFooter = memo(function TabsFooter({ state, navigation }: CustomTabBarP
     };
   }, []);
 
+  const handleSelectTab = useCallback(
+    (tab: MobileTab) => {
+      navigation.navigate(TAB_TO_ROUTE[tab]);
+    },
+    [navigation]
+  );
+
+  const handleOpenFocus = useCallback(() => {
+    navigation.navigate(TAB_TO_ROUTE.focus);
+  }, [navigation]);
+
   if (isKeyboardOpen) {
     return null;
   }
 
   const activeRouteName = state.routes[state.index]?.name ?? 'index';
   const activeTab = ROUTE_TO_TAB[activeRouteName] ?? 'today';
-  const shouldShowMiniPlayer =
-    activeTab !== 'focus' && (isTimerRunning || (timeLeft < initialTime && timeLeft > 0));
-
-  const handleSelectTab = (tab: MobileTab) => {
-    navigation.navigate(TAB_TO_ROUTE[tab]);
-  };
 
   return (
     <View style={{ backgroundColor: theme.background }}>
-      {shouldShowMiniPlayer && (
-        <MiniFocusPlayer
-          timeLeft={timeLeft}
-          initialTime={initialTime}
-          isTimerRunning={isTimerRunning}
-          onToggleTimer={toggleTimer}
-          onOpenFocus={() => handleSelectTab('focus')}
-          activeTaskTitle={activeFocusTask?.title}
-          theme={theme}
-        />
-      )}
+      <MiniFocusPlayerSlot isFocusTab={activeTab === 'focus'} onOpenFocus={handleOpenFocus} />
       <BottomNav
         activeTab={activeTab}
         onSelectTab={handleSelectTab}

@@ -26,6 +26,7 @@ import {
   switchGlobalSyncKey,
 } from '../../services/storage/taskStorage';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { normalizeMachineKey } from '../../utils/localeText';
 import { useTranslation } from '../../i18n';
 
 interface SyncModalProps {
@@ -184,7 +185,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   const handleConnect = async () => {
     Keyboard.dismiss();
     setErrorMsg('');
-    const cleaned = inputKey.trim().toUpperCase();
+    const cleaned = normalizeMachineKey(inputKey);
 
     if (!cleaned) {
       hapticWarning();
@@ -286,11 +287,11 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               activeOpacity={0.85}
             >
               {isTogglingSync ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={theme.onPrimary} />
               ) : (
                 <>
-                  <Ionicons name="cloud-upload-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.enableBtnText}>{t('sync.enableButton')}</Text>
+                  <Ionicons name="cloud-upload-outline" size={16} color={theme.onPrimary} />
+                  <Text style={[styles.enableBtnText, { color: theme.onPrimary }]}>{t('sync.enableButton')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -427,7 +428,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               ]}
               value={inputKey}
               onChangeText={text => {
-                setInputKey(text.toUpperCase());
+                setInputKey(normalizeMachineKey(text));
                 if (errorMsg) setErrorMsg('');
               }}
               placeholder={t('sync.placeholder')}
@@ -449,11 +450,11 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
               activeOpacity={0.8}
             >
               {isConnecting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={theme.onPrimary} />
               ) : (
                 <>
-                  <Text style={styles.connectBtnText}>{t('sync.connect')}</Text>
-                  <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                  <Text style={[styles.connectBtnText, { color: theme.onPrimary }]}>{t('sync.connect')}</Text>
+                  <Ionicons name="arrow-forward" size={15} color={theme.onPrimary} />
                 </>
               )}
             </TouchableOpacity>
@@ -524,7 +525,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   enableBtn: {
-    height: 44,
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -625,17 +628,19 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 44,
+    minHeight: 48,
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
+    paddingVertical: 10,
     fontSize: 13,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     letterSpacing: 1,
   },
   connectBtn: {
-    height: 44,
+    minHeight: 48,
     paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',

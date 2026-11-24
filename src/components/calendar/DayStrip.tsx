@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { format, addDays, subDays, parseISO } from 'date-fns';
 import { ThemeColors } from '../../constants/colors';
@@ -15,7 +15,7 @@ interface DayStripProps {
 
 const DAY_CARD_STRIDE = 58; // width (50) + gap (8)
 
-export function DayStrip({
+export const DayStrip = memo(function DayStrip({
   selectedDate,
   todayStr,
   onSelectDate,
@@ -94,18 +94,18 @@ export function DayStrip({
               <Text
                 style={[
                   styles.dayOfWeek,
-                  { color: isSelected ? '#ffffff' : theme.textDim },
+                  { color: isSelected ? theme.onPrimary : theme.textDim },
                 ]}
-                maxFontSizeMultiplier={1.35}
+                maxFontSizeMultiplier={1.45}
               >
                 {item.dayOfWeek}
               </Text>
               <Text
                 style={[
                   styles.dayNumber,
-                  { color: isSelected ? '#ffffff' : theme.text },
+                  { color: isSelected ? theme.onPrimary : theme.text },
                 ]}
-                maxFontSizeMultiplier={1.35}
+                maxFontSizeMultiplier={1.45}
               >
                 {item.dayNum}
               </Text>
@@ -118,7 +118,7 @@ export function DayStrip({
                       styles.dot,
                       {
                         backgroundColor: isSelected
-                          ? '#ffffff'
+                          ? theme.onPrimary
                           : theme.primary,
                       },
                     ]}
@@ -133,7 +133,7 @@ export function DayStrip({
       </ScrollView>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -144,13 +144,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dayCard: {
-    width: 50,
-    height: 72,
+    minWidth: 50,
+    minHeight: 72,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     paddingVertical: 6,
+    paddingHorizontal: 6,
   },
   dayOfWeek: {
     fontSize: 10,

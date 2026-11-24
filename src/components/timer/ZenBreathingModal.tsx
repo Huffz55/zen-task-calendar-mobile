@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
+import { AppState, type AppStateStatus, View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { playSingingBowl } from '../../services/audio/audioService';
 import { useTranslation } from '../../i18n';
 
@@ -25,22 +26,44 @@ export function ZenBreathingModal({ isOpen, onClose, theme }: ZenBreathingModalP
 function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'isOpen'>) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const [isRunning, setIsRunning] = useState(true);
+  const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [phase, setPhase] = useState<BreathPhase>('Inhale');
   const [remainingSeconds, setRemainingSeconds] = useState(BREATHING_SESSION_SECONDS);
   const [scaleAnim] = useState(() => new Animated.Value(1));
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endTimeRef = useRef<number | null>(null);
+  const remainingMsRef = useRef<number>(BREATHING_SESSION_SECONDS * 1000);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Auto-start 4-4-4 breathing loop; chime plays only when the 3-minute session completes
   useEffect(() => {
-    if (!isRunning) {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      setIsAppActive(nextState === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Auto-start 4-4-4 breathing loop; pauses timers & animations in background and respects Reduce Motion
+  useEffect(() => {
+    if (!isRunning || !isAppActive) {
+      if (endTimeRef.current !== null && isRunning && !isAppActive) {
+        // Keep wall-clock endTimeRef intact so returning to foreground reconciles elapsed time accurately
+      } else if (!isRunning && endTimeRef.current !== null) {
+        remainingMsRef.current = Math.max(0, endTimeRef.current - Date.now());
+        endTimeRef.current = null;
+      }
       scaleAnim.stopAnimation();
+      scaleAnim.setValue(1);
       return;
+    }
+
+    if (endTimeRef.current === null) {
+      endTimeRef.current = Date.now() + remainingMsRef.current;
     }
 
     let isMounted = true;
@@ -48,6 +71,23 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
 
     const runBreathingCycle = () => {
       if (!isMounted) return;
+      setPhase('Inhale');
+
+      if (reducedMotion) {
+        phaseTimerRef.current = setTimeout(() => {
+          if (!isMounted) return;
+          setPhase('Hold');
+          phaseTimerRef.current = setTimeout(() => {
+            if (!isMounted) return;
+            setPhase('Exhale');
+            phaseTimerRef.current = setTimeout(() => {
+              if (!isMounted) return;
+              runBreathingCycle();
+            }, 4000);
+          }, 4000);
+        }, 4000);
+        return;
+      }
 
       // Inhale: 4 seconds (scale up)
       Animated.timing(scaleAnim, {
@@ -60,7 +100,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
 
         // Hold: 4 seconds
         setPhase('Hold');
-        holdTimerRef.current = setTimeout(() => {
+        phaseTimerRef.current = setTimeout(() => {
           if (!isMounted) return;
 
           // Exhale: 4 seconds (scale down)
@@ -72,7 +112,6 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
             useNativeDriver: true,
           }).start(({ finished: exhaleFinished }) => {
             if (isMounted && exhaleFinished) {
-              setPhase('Inhale');
               runBreathingCycle();
             }
           });
@@ -80,31 +119,44 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       });
     };
 
+    const syncCountdown = (): boolean => {
+      if (endTimeRef.current === null) return true;
+      const leftMs = Math.max(0, endTimeRef.current - Date.now());
+      remainingMsRef.current = leftMs;
+      const leftSecs = Math.max(0, Math.ceil(leftMs / 1000));
+      setRemainingSeconds(prev => (prev !== leftSecs ? leftSecs : prev));
+      if (leftMs <= 0) {
+        endTimeRef.current = null;
+        hapticSuccess();
+        void playSingingBowl();
+        onCloseRef.current();
+        return true;
+      }
+      return false;
+    };
+
+    if (syncCountdown()) {
+      return;
+    }
+
     runBreathingCycle();
 
     const ticker = setInterval(() => {
-      setRemainingSeconds(prev => {
-        if (prev <= 1) {
-          clearInterval(ticker);
-          hapticSuccess();
-          void playSingingBowl();
-          onCloseRef.current();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      if (syncCountdown()) {
+        clearInterval(ticker);
+      }
+    }, 500);
 
     return () => {
       isMounted = false;
       clearInterval(ticker);
-      if (holdTimerRef.current) {
-        clearTimeout(holdTimerRef.current);
-        holdTimerRef.current = null;
+      if (phaseTimerRef.current) {
+        clearTimeout(phaseTimerRef.current);
+        phaseTimerRef.current = null;
       }
       scaleAnim.stopAnimation();
     };
-  }, [isRunning, scaleAnim]);
+  }, [isRunning, isAppActive, reducedMotion, scaleAnim]);
 
   const handleTogglePause = () => {
     hapticLight();
@@ -191,7 +243,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
                 },
               ]}
             >
-              <Text style={styles.phaseText} maxFontSizeMultiplier={1.35}>
+              <Text style={[styles.phaseText, { color: theme.onPrimary }]} maxFontSizeMultiplier={1.35}>
                 {isRunning ? phaseLabel : t('breathing.paused')}
               </Text>
             </View>
@@ -228,10 +280,10 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
           <Ionicons
             name={isRunning ? 'pause' : 'play'}
             size={15}
-            color={isRunning ? theme.text : '#ffffff'}
+            color={isRunning ? theme.text : theme.onPrimary}
           />
           <Text
-            style={[styles.finishBtnText, { color: isRunning ? theme.text : '#ffffff' }]}
+            style={[styles.finishBtnText, { color: isRunning ? theme.text : theme.onPrimary }]}
             maxFontSizeMultiplier={1.35}
           >
             {isRunning ? t('breathing.pause') : t('breathing.resume')}

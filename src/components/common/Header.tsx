@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors } from '../../constants/colors';
@@ -16,7 +17,7 @@ interface HeaderProps {
   subtitle?: string;
 }
 
-export function Header({
+export const Header = memo(function Header({
   theme,
   currentStreak,
   onOpenThemeModal,
@@ -79,7 +80,7 @@ export function Header({
               onOpenEveningReview();
             }}
             activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t('header.a11yEveningReview')}
           >
@@ -95,7 +96,7 @@ export function Header({
               onOpenSyncModal();
             }}
             activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t('header.a11yCloudSync')}
           >
@@ -111,7 +112,7 @@ export function Header({
               onOpenSettingsModal();
             }}
             activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t('header.a11ySettings')}
           >
@@ -136,7 +137,7 @@ export function Header({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

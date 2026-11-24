@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import {
   format,
@@ -26,7 +26,7 @@ interface CalendarGridProps {
   theme: ThemeColors;
 }
 
-export function CalendarGrid({
+export const CalendarGrid = memo(function CalendarGrid({
   selectedDate,
   todayStr,
   onSelectDate,
@@ -151,7 +151,7 @@ export function CalendarGrid({
                   styles.dayText,
                   {
                     color: isSelected
-                      ? '#ffffff'
+                      ? theme.onPrimary
                       : !isCurrentMonth
                       ? theme.textDim
                       : theme.text,
@@ -159,7 +159,7 @@ export function CalendarGrid({
                     fontWeight: isSelected || isTodayDate ? '700' : '400',
                   },
                 ]}
-                maxFontSizeMultiplier={1.35}
+                maxFontSizeMultiplier={1.45}
               >
                 {format(day, 'd', { locale: dateLocale })}
               </Text>
@@ -170,7 +170,7 @@ export function CalendarGrid({
                   <View
                     style={[
                       styles.dot,
-                      { backgroundColor: isSelected ? '#ffffff' : theme.primary },
+                      { backgroundColor: isSelected ? theme.onPrimary : theme.primary },
                     ]}
                   />
                 ) : (
@@ -183,7 +183,7 @@ export function CalendarGrid({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -232,7 +232,8 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: '14.2857%',
-    height: 48,
+    minHeight: 48,
+    paddingVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 2,

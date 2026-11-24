@@ -109,6 +109,8 @@ export const tr: TranslationDictionary = {
     a11yDeleteList: 'Listeyi sil',
     a11yAddListItem: 'Liste maddesi ekle',
     a11yRemoveListItem: '{{item}} maddesini kaldır',
+    a11yMoveFolder: 'Listeyi klasöre taşı',
+    a11yOpenList: 'Listeyi tam ekran aç',
     unscheduledTasksTitle: 'Tarihsiz Görevler',
   },
   focus: {
@@ -294,6 +296,9 @@ export const tr: TranslationDictionary = {
     footerVersion: 'Sürüm 1.0.0',
     clearConfirmTitle: 'Tüm Veriler Silinsin mi?',
     clearConfirmMessage: 'Tüm görevler, listeler, odak geçmişi ve eşitlenen veriler kalıcı olarak silinecek.',
+    notificationRationaleTitle: 'Hatırlatıcı Bildirimlerine İzin Ver?',
+    notificationRationaleMessage: 'Kanso bildirimleri yalnızca senin açtığın günlük plan ve görev hatırlatıcıları için cihaz içinde kullanır. Pazarlama veya takip bildirimi gönderilmez.',
+    notificationRationaleAllow: 'Devam Et',
     toasts: {
       sfxOn: 'Ses efektleri açıldı',
       sfxOff: 'Ses efektleri kapatıldı',
@@ -301,6 +306,7 @@ export const tr: TranslationDictionary = {
       morningOff: 'Sabah planı kapatıldı',
       eveningOn: 'Akşam özeti saat {{time}} için planlandı',
       eveningOff: 'Akşam özeti kapatıldı',
+      notificationPermissionDenied: 'Hatırlatıcılar için cihaz ayarlarından bildirim izni ver',
       morningTimeUpdated: 'Sabah planı saati {{time}} olarak güncellendi',
       eveningTimeUpdated: 'Akşam özeti saati {{time}} olarak güncellendi',
       hapticsOn: 'Titreşim açıldı',

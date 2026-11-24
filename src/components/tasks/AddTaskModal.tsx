@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -59,6 +59,13 @@ export function AddTaskModal({
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
   const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | 'reminder' | null>(null);
+  const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      isSubmittingRef.current = false;
+    }
+  }, [visible]);
 
   const formattedDate = useMemo(() => {
     const parsed = parseISO(selectedDateStr);
@@ -86,7 +93,8 @@ export function AddTaskModal({
   };
 
   const handleSave = () => {
-    if (!title.trim()) return;
+    if (isSubmittingRef.current || !title.trim()) return;
+    isSubmittingRef.current = true;
     playWaterDrop();
     hapticSuccess();
     onAddTask(
@@ -530,7 +538,7 @@ export function AddTaskModal({
                         <Text
                           style={[
                             styles.chipText,
-                            { color: isSelected ? '#ffffff' : theme.textMuted },
+                            { color: isSelected ? theme.onPrimary : theme.textMuted },
                           ]}
                         >
                           {opt.label}
@@ -566,7 +574,7 @@ export function AddTaskModal({
                         <Text
                           style={[
                             styles.chipText,
-                            { color: isSelected ? '#ffffff' : theme.textMuted },
+                            { color: isSelected ? theme.onPrimary : theme.textMuted },
                           ]}
                         >
                           {opt.label}
@@ -621,7 +629,7 @@ export function AddTaskModal({
                     style={[styles.addSubtaskBtn, { backgroundColor: theme.primary }]}
                     onPress={handleAddSubtask}
                   >
-                    <Ionicons name="add" size={20} color="#ffffff" />
+                    <Ionicons name="add" size={20} color={theme.onPrimary} />
                   </TouchableOpacity>
                 </View>
 
@@ -664,11 +672,12 @@ export function AddTaskModal({
           ]}
           onPress={handleSave}
           disabled={!title.trim()}
+          accessibilityRole="button"
         >
           <Text
             style={[
               styles.submitText,
-              { color: title.trim() ? '#ffffff' : theme.textDim },
+              { color: title.trim() ? theme.onPrimary : theme.textDim },
             ]}
           >
             {t('tasks.addTaskButton')}

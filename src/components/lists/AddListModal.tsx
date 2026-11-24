@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -59,9 +59,11 @@ function AddListForm({
   const [selectedFolder, setSelectedFolder] = useState<string | undefined>(defaultFolder || undefined);
   const [customFolder, setCustomFolder] = useState('');
   const [isAddingFolder, setIsAddingFolder] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const handleSave = () => {
-    if (!title.trim()) return;
+    if (isSubmittingRef.current || !title.trim()) return;
+    isSubmittingRef.current = true;
     hapticSuccess();
     const chosenFolder = isAddingFolder && customFolder.trim() ? customFolder.trim() : selectedFolder;
     onAddList(title.trim(), chosenFolder);
@@ -129,7 +131,7 @@ function AddListForm({
             <Text
               style={[
                 styles.folderChipText,
-                { color: !selectedFolder && !isAddingFolder ? '#ffffff' : theme.textMuted },
+                { color: !selectedFolder && !isAddingFolder ? theme.onPrimary : theme.textMuted },
               ]}
             >
               {t('common.none')}
@@ -157,12 +159,12 @@ function AddListForm({
                 <Ionicons
                   name="folder-outline"
                   size={13}
-                  color={isSelected ? '#ffffff' : theme.textMuted}
+                  color={isSelected ? theme.onPrimary : theme.textMuted}
                 />
                 <Text
                   style={[
                     styles.folderChipText,
-                    { color: isSelected ? '#ffffff' : theme.textMuted },
+                    { color: isSelected ? theme.onPrimary : theme.textMuted },
                   ]}
                   numberOfLines={1}
                 >
@@ -220,7 +222,7 @@ function AddListForm({
           onPress={handleSave}
           disabled={!title.trim()}
         >
-          <Text style={[styles.submitText, { color: title.trim() ? '#ffffff' : theme.textDim }]}>
+          <Text style={[styles.submitText, { color: title.trim() ? theme.onPrimary : theme.textDim }]}>
             {t('lists.createList')}
           </Text>
         </TouchableOpacity>
