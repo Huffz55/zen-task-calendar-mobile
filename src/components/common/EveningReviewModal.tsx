@@ -1,9 +1,22 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
-import { ThemeColors } from '../../constants/colors';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  BackHandler,
+  Easing,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticSuccess, hapticLight } from '../../hooks/useHaptics';
+import { ThemeColors } from '../../constants/colors';
+import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { formatDurationCompact, useTranslation } from '../../i18n';
+import { CloseButton } from './CloseButton';
 
 interface EveningReviewModalProps {
   isOpen: boolean;
@@ -17,6 +30,8 @@ interface EveningReviewModalProps {
   onRollover: () => void;
 }
 
+const MODAL_ANIM_MS = 240;
+
 export function EveningReviewModal({
   isOpen,
   onClose,
@@ -29,60 +44,135 @@ export function EveningReviewModal({
   onRollover,
 }: EveningReviewModalProps) {
   const { t, language } = useTranslation();
-  const [scaleAnim] = useState(() => new Animated.Value(0.94));
+  const reducedMotion = useReducedMotion();
+  const [isExiting, setIsExiting] = useState(false);
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [scaleAnim] = useState(() => new Animated.Value(0.95));
+  const isClosingRef = useRef(false);
+  const wasOpenRef = useRef(false);
+
+  const shouldRender = isOpen || isExiting;
+
+  const dismissAnimated = useCallback(
+    (afterClose?: () => void) => {
+      if (isClosingRef.current) return;
+      isClosingRef.current = true;
+      setIsExiting(true);
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
+
+      const finish = () => {
+        isClosingRef.current = false;
+        afterClose?.();
+        onClose();
+        setIsExiting(false);
+      };
+
+      if (reducedMotion) {
+        fadeAnim.setValue(0);
+        scaleAnim.setValue(0.95);
+        finish();
+        return;
+      }
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 200,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(() => finish());
+    },
+    [fadeAnim, onClose, reducedMotion, scaleAnim]
+  );
 
   useEffect(() => {
-    if (isOpen) {
-      scaleAnim.setValue(0.94);
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        damping: 18,
-        stiffness: 240,
-        mass: 0.7,
-        useNativeDriver: true,
-      }).start();
+    if (isOpen && !wasOpenRef.current) {
+      wasOpenRef.current = true;
+      isClosingRef.current = false;
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
+      if (reducedMotion) {
+        fadeAnim.setValue(1);
+        scaleAnim.setValue(1);
+        return;
+      }
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.95);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: MODAL_ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: MODAL_ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
     }
-  }, [isOpen, scaleAnim]);
+    if (!isOpen && wasOpenRef.current) {
+      wasOpenRef.current = false;
+    }
+  }, [fadeAnim, isOpen, reducedMotion, scaleAnim]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!shouldRender || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismissAnimated();
+      return true;
+    });
+    return () => sub.remove();
+  }, [dismissAnimated, shouldRender]);
+
+  if (!shouldRender) return null;
 
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isPerfect = totalTasks > 0 && completedTasks === totalTasks;
 
   return (
     <Modal
-      visible={isOpen}
+      visible={shouldRender}
       transparent
       statusBarTranslucent
       navigationBarTranslucent
-      animationType="fade"
-      onRequestClose={onClose}
+      animationType="none"
+      onRequestClose={() => dismissAnimated()}
     >
       <View style={styles.overlay}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissAnimated()} />
+        </Animated.View>
+
         <Animated.View
           style={[
             styles.card,
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,
+              opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],
             },
           ]}
         >
           {/* Close button */}
-          <TouchableOpacity
-            style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
-            onPress={() => {
-              hapticLight();
-              onClose();
-            }}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
+          <CloseButton
+            theme={theme}
+            onPress={() => dismissAnimated()}
             accessibilityLabel={t('eveningReview.a11yClose')}
-          >
-            <Ionicons name="close" size={18} color={theme.textDim} />
-          </TouchableOpacity>
+            style={styles.closeBtnPos}
+          />
 
           {/* Header */}
           <View style={styles.header}>
@@ -160,8 +250,7 @@ export function EveningReviewModal({
               style={[styles.actionBtn, { backgroundColor: theme.primary }]}
               onPress={() => {
                 hapticSuccess();
-                onRollover();
-                onClose();
+                dismissAnimated(onRollover);
               }}
               activeOpacity={0.8}
             >
@@ -175,7 +264,7 @@ export function EveningReviewModal({
               style={[styles.actionBtn, { backgroundColor: theme.primary }]}
               onPress={() => {
                 hapticLight();
-                onClose();
+                dismissAnimated();
               }}
               activeOpacity={0.8}
             >
@@ -191,9 +280,11 @@ export function EveningReviewModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'center',
     padding: 24,
+  },
+  backdrop: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
   card: {
     borderRadius: 26,
@@ -205,15 +296,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 4,
   },
-  closeBtn: {
+  closeBtnPos: {
     position: 'absolute',
     top: 16,
     right: 16,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 10,
   },
   header: {

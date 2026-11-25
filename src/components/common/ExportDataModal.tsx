@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { hapticLight } from '../../hooks/useHaptics';
+import { CloseButton } from './CloseButton';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 import { useTranslation } from '../../i18n';
 
@@ -63,7 +64,7 @@ export function ExportDataModal({
   ];
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%">
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%" closeDisabled={isBusy}>
       <View style={styles.header}>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
@@ -73,19 +74,7 @@ export function ExportDataModal({
             {t('exportModal.subtitle')}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('exportModal.a11yClose')}
-          disabled={isBusy}
-        >
-          <Ionicons name="close" size={18} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} disabled={isBusy} accessibilityLabel={t('exportModal.a11yClose')} />
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -210,13 +199,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     marginTop: 2,
-  },
-  closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollContent: {
     paddingBottom: 10,

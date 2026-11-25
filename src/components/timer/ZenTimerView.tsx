@@ -32,7 +32,7 @@ export function ZenTimerView({
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  const presets = [15, 25, 45, 60];
+  const presets = [15, 30, 45, 60];
 
   const [pulseAnim] = useState(() => new Animated.Value(1));
 

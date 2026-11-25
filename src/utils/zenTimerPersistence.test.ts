@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearPersistedTimerState,
+  DEFAULT_FOCUS_MINUTES,
+  DEFAULT_FOCUS_SECONDS,
   loadPersistedTimerState,
   reconcilePersistedTimer,
   savePersistedTimerState,
@@ -116,5 +118,20 @@ describe('zenTimerPersistence (Android Process Death recovery)', () => {
     storage.data[ZEN_TIMER_STATE_KEY] = '{broken-json';
     expect(await loadPersistedTimerState(storage, now)).toBeNull();
     expect(storage.data[ZEN_TIMER_STATE_KEY]).toBeUndefined();
+  });
+
+  it('defaults initialTime to 30 minutes (1800s) when unpersisted or missing', () => {
+    expect(DEFAULT_FOCUS_MINUTES).toBe(30);
+    expect(DEFAULT_FOCUS_SECONDS).toBe(1800);
+    expect(reconcilePersistedTimer(null)).toEqual({
+      status: 'idle',
+      initialTime: 1800,
+      activeTask: null,
+    });
+    expect(reconcilePersistedTimer({})).toEqual({
+      status: 'idle',
+      initialTime: 1800,
+      activeTask: null,
+    });
   });
 });

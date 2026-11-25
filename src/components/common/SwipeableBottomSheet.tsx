@@ -1,7 +1,8 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   BackHandler,
+  Dimensions,
   Easing,
   Keyboard,
   KeyboardAvoidingView,
@@ -11,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
   type GestureResponderHandlers,
   type NativeScrollEvent,
@@ -22,6 +24,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ThemeColors } from '../../constants/colors';
 import { hapticSelection } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface SwipeableBottomSheetProps {
   visible: boolean;
@@ -31,17 +34,19 @@ interface SwipeableBottomSheetProps {
   maxHeight?: ViewStyle['maxHeight'];
   sheetStyle?: StyleProp<ViewStyle>;
   useKeyboardAvoiding?: boolean;
+  closeDisabled?: boolean;
 }
 
 interface BottomSheetContextValue {
   reportScrollOffset: (offsetY: number) => void;
+  requestClose: () => void;
 }
 
 const BottomSheetContext = createContext<BottomSheetContextValue | null>(null);
 
 const DISMISS_DISTANCE = 80;
 const DISMISS_VELOCITY = 0.5;
-const SHEET_HIDDEN_Y = 540;
+const SHEET_ANIM_DURATION_MS = 240;
 
 interface SheetController {
   translateY: Animated.Value;
@@ -49,24 +54,36 @@ interface SheetController {
   handlePanHandlers: GestureResponderHandlers;
   sheetPanHandlers: GestureResponderHandlers;
   contextValue: BottomSheetContextValue;
-  setOnClose: (fn: () => void) => void;
+  updateConfig: (cfg: {
+    onClose: () => void;
+    setExiting: (exiting: boolean) => void;
+    hiddenY: number;
+    reducedMotion: boolean;
+    closeDisabled: boolean;
+  }) => void;
   playOpen: () => void;
+  resetHidden: () => void;
   dismissWithAnimation: () => void;
 }
 
-function createSheetController(initialOnClose: () => void): SheetController {
-  const translateY = new Animated.Value(SHEET_HIDDEN_Y);
+function createSheetController(initialHiddenY: number): SheetController {
+  const translateY = new Animated.Value(initialHiddenY);
   const backdropOpacity = new Animated.Value(0);
 
   let scrollOffset = 0;
-  let isClosing = false;
+  let closing = false;
   let dragBaseDy = 0;
   let hasPassedThreshold = false;
-  let onCloseHandler = initialOnClose;
+  let hiddenY = initialHiddenY;
+  let reducedMotion = false;
+  let closeDisabled = false;
+  let onCloseHandler: () => void = () => {};
+  let setExitingHandler: (exiting: boolean) => void = () => {};
 
   const updateDrag = (nextY: number) => {
     translateY.setValue(nextY);
-    backdropOpacity.setValue(Math.max(0.2, 1 - nextY / 420));
+    const fadeRange = Math.max(360, hiddenY * 0.55);
+    backdropOpacity.setValue(Math.max(0.15, 1 - nextY / fadeRange));
     if (nextY > DISMISS_DISTANCE && !hasPassedThreshold) {
       hasPassedThreshold = true;
       hapticSelection();
@@ -75,64 +92,88 @@ function createSheetController(initialOnClose: () => void): SheetController {
     }
   };
 
+  const finishClose = () => {
+    // Keep translateY at hiddenY and backdropOpacity at 0 until the next open;
+    // never reset translateY back to 0 during close so there is zero jump-back flicker.
+    onCloseHandler();
+    setExitingHandler(false);
+  };
+
   const dismissWithAnimation = () => {
-    if (isClosing) return;
-    isClosing = true;
+    if (closing || closeDisabled) return;
+    closing = true;
+    setExitingHandler(true);
     Keyboard.dismiss();
+    translateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+
+    if (reducedMotion) {
+      translateY.setValue(hiddenY);
+      backdropOpacity.setValue(0);
+      finishClose();
+      return;
+    }
 
     Animated.parallel([
       Animated.timing(translateY, {
-        toValue: SHEET_HIDDEN_Y,
-        duration: 185,
+        toValue: hiddenY,
+        duration: SHEET_ANIM_DURATION_MS,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
         toValue: 0,
-        duration: 175,
-        easing: Easing.out(Easing.quad),
+        duration: SHEET_ANIM_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start(() => {
-      isClosing = false;
-      onCloseHandler();
+      finishClose();
     });
   };
 
   const snapBack = () => {
+    if (closing) return;
     hasPassedThreshold = false;
+    if (reducedMotion) {
+      translateY.setValue(0);
+      backdropOpacity.setValue(1);
+      return;
+    }
     Animated.parallel([
-      Animated.spring(translateY, {
+      Animated.timing(translateY, {
         toValue: 0,
-        damping: 24,
-        stiffness: 260,
-        mass: 0.75,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
         toValue: 1,
-        duration: 150,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start();
   };
 
   const handlePanResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => !isClosing,
-    onStartShouldSetPanResponderCapture: () => !isClosing,
-    onMoveShouldSetPanResponder: () => !isClosing,
-    onMoveShouldSetPanResponderCapture: () => !isClosing,
+    onStartShouldSetPanResponder: () => !closing && !closeDisabled,
+    onStartShouldSetPanResponderCapture: () => !closing && !closeDisabled,
+    onMoveShouldSetPanResponder: () => !closing && !closeDisabled,
+    onMoveShouldSetPanResponderCapture: () => !closing && !closeDisabled,
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: () => {
+      if (closing) return;
       dragBaseDy = 0;
       hasPassedThreshold = false;
       translateY.stopAnimation();
     },
     onPanResponderMove: (_, gs) => {
-      if (isClosing) return;
+      if (closing) return;
       updateDrag(Math.max(0, gs.dy));
     },
     onPanResponderRelease: (_, gs) => {
+      if (closing) return;
       if (gs.dy > DISMISS_DISTANCE || gs.vy > DISMISS_VELOCITY) {
         dismissWithAnimation();
       } else {
@@ -140,6 +181,7 @@ function createSheetController(initialOnClose: () => void): SheetController {
       }
     },
     onPanResponderTerminate: () => {
+      if (closing) return;
       snapBack();
     },
   });
@@ -149,21 +191,23 @@ function createSheetController(initialOnClose: () => void): SheetController {
     onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponderCapture: (_, gs) => {
-      if (isClosing) return false;
+      if (closing || closeDisabled) return false;
       if (scrollOffset > 2) return false;
       return gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.25;
     },
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: (_, gs) => {
+      if (closing) return;
       dragBaseDy = Math.max(0, gs.dy);
       hasPassedThreshold = false;
       translateY.stopAnimation();
     },
     onPanResponderMove: (_, gs) => {
-      if (isClosing) return;
+      if (closing) return;
       updateDrag(Math.max(0, gs.dy - dragBaseDy));
     },
     onPanResponderRelease: (_, gs) => {
+      if (closing) return;
       const dragDistance = Math.max(0, gs.dy - dragBaseDy);
       if (dragDistance > DISMISS_DISTANCE || gs.vy > DISMISS_VELOCITY) {
         dismissWithAnimation();
@@ -172,33 +216,53 @@ function createSheetController(initialOnClose: () => void): SheetController {
       }
     },
     onPanResponderTerminate: () => {
+      if (closing) return;
       snapBack();
     },
   });
 
   const playOpen = () => {
-    isClosing = false;
+    closing = false;
     scrollOffset = 0;
     dragBaseDy = 0;
     hasPassedThreshold = false;
-    translateY.setValue(SHEET_HIDDEN_Y);
+    translateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+
+    if (reducedMotion) {
+      translateY.setValue(0);
+      backdropOpacity.setValue(1);
+      return;
+    }
+
+    translateY.setValue(hiddenY);
     backdropOpacity.setValue(0);
 
     Animated.parallel([
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 210,
-        easing: Easing.out(Easing.quad),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: SHEET_ANIM_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.spring(translateY, {
-        toValue: 0,
-        damping: 26,
-        stiffness: 300,
-        mass: 0.78,
+      Animated.timing(backdropOpacity, {
+        toValue: 1,
+        duration: SHEET_ANIM_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start();
+  };
+
+  const resetHidden = () => {
+    closing = false;
+    scrollOffset = 0;
+    dragBaseDy = 0;
+    hasPassedThreshold = false;
+    translateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+    translateY.setValue(hiddenY);
+    backdropOpacity.setValue(0);
   };
 
   return {
@@ -210,13 +274,28 @@ function createSheetController(initialOnClose: () => void): SheetController {
       reportScrollOffset: (offsetY: number) => {
         scrollOffset = offsetY;
       },
+      requestClose: dismissWithAnimation,
     },
-    setOnClose: (fn: () => void) => {
-      onCloseHandler = fn;
+    updateConfig: (cfg) => {
+      onCloseHandler = cfg.onClose;
+      setExitingHandler = cfg.setExiting;
+      hiddenY = cfg.hiddenY;
+      reducedMotion = cfg.reducedMotion;
+      closeDisabled = cfg.closeDisabled;
     },
     playOpen,
+    resetHidden,
     dismissWithAnimation,
   };
+}
+
+/**
+ * Returns the nearest parent SwipeableBottomSheet animated-close trigger, or null
+ * when called outside a SwipeableBottomSheet.
+ */
+export function useBottomSheetClose(): (() => void) | null {
+  const sheetCtx = useContext(BottomSheetContext);
+  return sheetCtx ? sheetCtx.requestClose : null;
 }
 
 /**
@@ -266,28 +345,55 @@ export function SwipeableBottomSheet({
   maxHeight = '88%',
   sheetStyle,
   useKeyboardAvoiding = false,
+  closeDisabled = false,
 }: SwipeableBottomSheetProps) {
   const insets = useSafeAreaInsets();
-  const [controller] = useState(() => createSheetController(onClose));
+  const reducedMotion = useReducedMotion();
+  const { height: windowHeight } = useWindowDimensions();
+  const hiddenY = Math.max(600, windowHeight);
+
+  const [isExiting, setIsExiting] = useState(false);
+  const [controller] = useState(() =>
+    createSheetController(Math.max(600, Dimensions.get('window').height))
+  );
+  const wasVisibleRef = useRef(false);
+
+  const shouldRender = visible || isExiting;
 
   useEffect(() => {
-    controller.setOnClose(onClose);
-  }, [controller, onClose]);
+    controller.updateConfig({
+      onClose,
+      setExiting: setIsExiting,
+      hiddenY,
+      reducedMotion,
+      closeDisabled,
+    });
+  }, [closeDisabled, controller, hiddenY, onClose, reducedMotion]);
 
   useEffect(() => {
-    if (visible) {
+    if (visible && !wasVisibleRef.current) {
+      wasVisibleRef.current = true;
       controller.playOpen();
+      return;
     }
-  }, [controller, visible]);
+    if (!visible && wasVisibleRef.current) {
+      wasVisibleRef.current = false;
+      if (!isExiting) {
+        controller.resetHidden();
+      }
+    }
+  }, [controller, isExiting, visible]);
 
   useEffect(() => {
-    if (!visible || Platform.OS !== 'android') return;
+    if (!shouldRender || Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       controller.dismissWithAnimation();
       return true;
     });
     return () => sub.remove();
-  }, [controller, visible]);
+  }, [controller, shouldRender]);
+
+  if (!shouldRender) return null;
 
   const safeBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 18) + 8;
 
@@ -333,7 +439,7 @@ export function SwipeableBottomSheet({
 
   return (
     <Modal
-      visible={visible}
+      visible={shouldRender}
       transparent
       statusBarTranslucent
       navigationBarTranslucent

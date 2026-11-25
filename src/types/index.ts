@@ -10,7 +10,7 @@ export interface CustomTag {
   color: string;
 }
 
-export type AppTheme = 'sakura' | 'matcha' | 'nordic' | 'midnight';
+export type AppTheme = 'matcha' | 'sakura' | 'nordic' | 'midnight';
 
 export type MobileTab = 'today' | 'calendar' | 'lists' | 'focus';
 

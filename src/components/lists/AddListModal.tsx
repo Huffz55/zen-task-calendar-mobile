@@ -11,7 +11,8 @@ import { ThemeColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
 import { animateLayout } from '../../utils/animations';
-import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { CloseButton } from '../common/CloseButton';
+import { BottomSheetScrollView, SwipeableBottomSheet, useBottomSheetClose } from '../common/SwipeableBottomSheet';
 import { useTranslation } from '../../i18n';
 
 interface AddListModalProps {
@@ -55,6 +56,7 @@ function AddListForm({
   onAddList,
 }: Omit<AddListModalProps, 'visible'>) {
   const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
   const [title, setTitle] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string | undefined>(defaultFolder || undefined);
   const [customFolder, setCustomFolder] = useState('');
@@ -67,25 +69,14 @@ function AddListForm({
     hapticSuccess();
     const chosenFolder = isAddingFolder && customFolder.trim() ? customFolder.trim() : selectedFolder;
     onAddList(title.trim(), chosenFolder);
-    onClose();
+    (sheetClose ?? onClose)();
   };
 
   return (
     <>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>{t('lists.addListTitle')}</Text>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={styles.closeBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('lists.a11yCloseNewList')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('lists.a11yCloseNewList')} />
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
@@ -241,9 +232,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  closeBtn: {
-    padding: 6,
   },
   input: {
     fontSize: 15,

@@ -25,7 +25,8 @@ import {
   enableCloudSync,
   switchGlobalSyncKey,
 } from '../../services/storage/taskStorage';
-import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { CloseButton } from './CloseButton';
+import { BottomSheetScrollView, SwipeableBottomSheet, useBottomSheetClose } from './SwipeableBottomSheet';
 import { normalizeMachineKey } from '../../utils/localeText';
 import { useTranslation } from '../../i18n';
 
@@ -37,7 +38,24 @@ interface SyncModalProps {
 }
 
 export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalProps) {
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="90%" useKeyboardAvoiding>
+      <SyncModalBody visible={visible} theme={theme} onShowToast={onShowToast} />
+    </SwipeableBottomSheet>
+  );
+}
+
+function SyncModalBody({
+  visible,
+  theme,
+  onShowToast,
+}: {
+  visible: boolean;
+  theme: ThemeColors;
+  onShowToast: (toast: AppToast) => void;
+}) {
   const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [isLoadingState, setIsLoadingState] = useState(true);
   const [isTogglingSync, setIsTogglingSync] = useState(false);
@@ -56,10 +74,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   }, []);
 
   const handleClose = () => {
-    setIsLoadingState(true);
-    setShowUnlinkConfirm(false);
-    setErrorMsg('');
-    onClose();
+    sheetClose?.();
   };
 
   useEffect(() => {
@@ -231,7 +246,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
   };
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="90%" useKeyboardAvoiding>
+    <>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
@@ -249,19 +264,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            handleClose();
-          }}
-          style={styles.closeBtn}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('sync.a11yClose')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('sync.a11yClose')} />
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
@@ -468,7 +471,7 @@ export function SyncModal({ visible, theme, onClose, onShowToast }: SyncModalPro
           ) : null}
         </View>
       </BottomSheetScrollView>
-    </SwipeableBottomSheet>
+    </>
   );
 }
 
@@ -499,9 +502,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginTop: 1,
-  },
-  closeBtn: {
-    padding: 6,
   },
   card: {
     padding: 16,

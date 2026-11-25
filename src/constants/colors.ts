@@ -7,6 +7,7 @@ export interface ThemeColors {
   background: string;
   surface: string;
   surfaceMuted: string;
+  surfaceElevated: string;
   card: string;
   border: string;
   text: string;
@@ -26,30 +27,6 @@ export interface ThemeColors {
 }
 
 export const THEMES: Record<AppTheme, ThemeColors> = {
-  sakura: {
-    name: 'Sakura Rose',
-    icon: '🌸',
-    isDark: false,
-    background: '#fff7fa',
-    surface: '#ffffff',
-    surfaceMuted: '#fdf2f8',
-    card: '#ffffff',
-    border: '#fce7f3',
-    text: '#1f2937',
-    textSecondary: '#5c6370',
-    textMuted: '#5c6370',
-    textDim: '#646b78',
-    primary: '#d11d6b',
-    onPrimary: '#ffffff',
-    primaryLight: '#fdf2f8',
-    primaryDark: '#9d174d',
-    accent: '#e14d8c',
-    success: '#0f766e',
-    warning: '#b45309',
-    danger: '#dc2626',
-    tabBar: 'rgba(255, 255, 255, 0.95)',
-    tabBarBorder: '#fce7f3',
-  },
   matcha: {
     name: 'Matcha Garden',
     icon: '🍵',
@@ -57,6 +34,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     background: '#f2f7f3',
     surface: '#ffffff',
     surfaceMuted: '#edf5ee',
+    surfaceElevated: '#edf5ee',
     card: '#ffffff',
     border: '#dbeade',
     text: '#193022',
@@ -74,6 +52,31 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     tabBar: 'rgba(255, 255, 255, 0.95)',
     tabBarBorder: '#dbeade',
   },
+  sakura: {
+    name: 'Sakura Rose',
+    icon: '🌸',
+    isDark: false,
+    background: '#fff7fa',
+    surface: '#ffffff',
+    surfaceMuted: '#fdf2f8',
+    surfaceElevated: '#fdf2f8',
+    card: '#ffffff',
+    border: '#fce7f3',
+    text: '#1f2937',
+    textSecondary: '#5c6370',
+    textMuted: '#5c6370',
+    textDim: '#646b78',
+    primary: '#d11d6b',
+    onPrimary: '#ffffff',
+    primaryLight: '#fdf2f8',
+    primaryDark: '#9d174d',
+    accent: '#e14d8c',
+    success: '#0f766e',
+    warning: '#b45309',
+    danger: '#dc2626',
+    tabBar: 'rgba(255, 255, 255, 0.95)',
+    tabBarBorder: '#fce7f3',
+  },
   nordic: {
     name: 'Nordic Breeze',
     icon: '🌊',
@@ -81,6 +84,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     background: '#f1f6fa',
     surface: '#ffffff',
     surfaceMuted: '#e8f2f8',
+    surfaceElevated: '#e8f2f8',
     card: '#ffffff',
     border: '#d6e6f2',
     text: '#17283c',
@@ -105,6 +109,7 @@ export const THEMES: Record<AppTheme, ThemeColors> = {
     background: '#121019',
     surface: '#1a1824',
     surfaceMuted: '#242131',
+    surfaceElevated: '#282436',
     card: '#1e1c29',
     border: '#2e293f',
     text: '#f3f4f6',

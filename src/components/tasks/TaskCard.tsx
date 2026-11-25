@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,10 +17,87 @@ import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '../.
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { playBambooTap, playSoftSwoosh } from '../../services/audio/audioService';
 import { animateLayout, PRESS_SPRING_CONFIG } from '../../utils/animations';
-import { SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { CloseButton } from '../common/CloseButton';
+import { SwipeableBottomSheet, useBottomSheetClose } from '../common/SwipeableBottomSheet';
 import { formatDurationCompact, formatMinutesCompact, useTranslation } from '../../i18n';
 
 const EMPTY_CUSTOM_TAGS: CustomTag[] = [];
+
+function createTaskSwipeController(panX: Animated.Value) {
+  let swipeThreshold: 'left' | 'right' | null = null;
+  let onToggleHandler: (source: 'checkbox' | 'swipe') => void = () => {};
+  let onDeleteHandler: (task: DailyTask) => void = () => {};
+  let currentTask: DailyTask | null = null;
+
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      return Math.abs(gestureState.dx) > 16 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4;
+    },
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => {
+      swipeThreshold = null;
+    },
+    onPanResponderMove: (_, gestureState) => {
+      const rawDx = gestureState.dx;
+      const clamped =
+        rawDx > 95
+          ? 95 + (rawDx - 95) * 0.25
+          : rawDx < -95
+          ? -95 + (rawDx + 95) * 0.25
+          : rawDx;
+      panX.setValue(clamped);
+
+      if (rawDx > 78 && swipeThreshold !== 'right') {
+        swipeThreshold = 'right';
+        hapticSelection();
+      } else if (rawDx < -78 && swipeThreshold !== 'left') {
+        swipeThreshold = 'left';
+        hapticSelection();
+      } else if (Math.abs(rawDx) <= 70 && swipeThreshold !== null) {
+        swipeThreshold = null;
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      swipeThreshold = null;
+      if (gestureState.dx > 78) {
+        onToggleHandler('swipe');
+      } else if (gestureState.dx < -78 && currentTask) {
+        playSoftSwoosh();
+        hapticWarning();
+        onDeleteHandler(currentTask);
+      }
+      Animated.spring(panX, {
+        toValue: 0,
+        damping: 20,
+        stiffness: 240,
+        mass: 0.7,
+        useNativeDriver: true,
+      }).start();
+    },
+    onPanResponderTerminate: () => {
+      swipeThreshold = null;
+      Animated.spring(panX, {
+        toValue: 0,
+        damping: 20,
+        stiffness: 240,
+        useNativeDriver: true,
+      }).start();
+    },
+  });
+
+  return {
+    panHandlers: panResponder.panHandlers,
+    updateHandlers: (cfg: {
+      onToggle: (source: 'checkbox' | 'swipe') => void;
+      onDelete: (task: DailyTask) => void;
+      task: DailyTask;
+    }) => {
+      onToggleHandler = cfg.onToggle;
+      onDeleteHandler = cfg.onDelete;
+      currentTask = cfg.task;
+    },
+  };
+}
 
 interface TaskCardProps {
   task: DailyTask;
@@ -82,7 +159,7 @@ export const TaskCard = memo(function TaskCard({
   const [checkScale] = useState(() => new Animated.Value(1));
   const [cardScale] = useState(() => new Animated.Value(1));
   const [panX] = useState(() => new Animated.Value(0));
-  const swipeThresholdRef = useRef<'left' | 'right' | null>(null);
+  const [swipeController] = useState(() => createTaskSwipeController(panX));
 
   useEffect(() => {
     if (reducedMotion) {
@@ -124,6 +201,14 @@ export const TaskCard = memo(function TaskCard({
     [onToggle, task.isCompleted, task.taskId, triggerCheckBounce]
   );
 
+  useEffect(() => {
+    swipeController.updateHandlers({
+      onToggle: handleToggleFromGesture,
+      onDelete,
+      task,
+    });
+  }, [handleToggleFromGesture, onDelete, swipeController, task]);
+
   const handleCardPressIn = () => {
     if (!onEdit || reducedMotion) return;
     Animated.spring(cardScale, { toValue: 0.985, ...PRESS_SPRING_CONFIG }).start();
@@ -133,68 +218,6 @@ export const TaskCard = memo(function TaskCard({
     if (!onEdit || reducedMotion) return;
     Animated.spring(cardScale, { toValue: 1, ...PRESS_SPRING_CONFIG }).start();
   };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 16 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4;
-        },
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => {
-          swipeThresholdRef.current = null;
-        },
-        onPanResponderMove: (_, gestureState) => {
-          const rawDx = gestureState.dx;
-          const clamped =
-            rawDx > 95
-              ? 95 + (rawDx - 95) * 0.25
-              : rawDx < -95
-              ? -95 + (rawDx + 95) * 0.25
-              : rawDx;
-          panX.setValue(clamped);
-
-          if (rawDx > 78 && swipeThresholdRef.current !== 'right') {
-            swipeThresholdRef.current = 'right';
-            hapticSelection();
-          } else if (rawDx < -78 && swipeThresholdRef.current !== 'left') {
-            swipeThresholdRef.current = 'left';
-            hapticSelection();
-          } else if (Math.abs(rawDx) <= 70 && swipeThresholdRef.current !== null) {
-            swipeThresholdRef.current = null;
-          }
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          swipeThresholdRef.current = null;
-          if (gestureState.dx > 78) {
-            // Swiped right -> Complete (swoosh sound only; suppress checkbox tap sound)
-            handleToggleFromGesture('swipe');
-          } else if (gestureState.dx < -78) {
-            // Swiped left -> Delete
-            playSoftSwoosh();
-            hapticWarning();
-            onDelete(task);
-          }
-          Animated.spring(panX, {
-            toValue: 0,
-            damping: 20,
-            stiffness: 240,
-            mass: 0.7,
-            useNativeDriver: true,
-          }).start();
-        },
-        onPanResponderTerminate: () => {
-          swipeThresholdRef.current = null;
-          Animated.spring(panX, {
-            toValue: 0,
-            damping: 20,
-            stiffness: 240,
-            useNativeDriver: true,
-          }).start();
-        },
-      }),
-    [handleToggleFromGesture, onDelete, panX, task]
-  );
 
   const subtasks = task.subtasks || [];
   const completedSubtasksCount = subtasks.filter(s => s.isCompleted).length;
@@ -252,7 +275,7 @@ export const TaskCard = memo(function TaskCard({
 
       {/* Foreground Draggable Card */}
       <Animated.View
-        {...panResponder.panHandlers}
+        {...swipeController.panHandlers}
         style={[
           styles.card,
           {
@@ -545,83 +568,15 @@ export const TaskCard = memo(function TaskCard({
 
         {/* Mobile Task Actions Bottom Sheet Modal */}
         <SwipeableBottomSheet visible={isMenuOpen} onClose={() => setIsMenuOpen(false)} theme={theme} maxHeight="75%">
-          <View style={[styles.menuHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
-              {task.title}
-            </Text>
-          </View>
-
-          {onTogglePin && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                hapticLight();
-                setIsMenuOpen(false);
-                onTogglePin(task.taskId);
-              }}
-            >
-              <Ionicons
-                name={task.isPinned ? 'star' : 'star-outline'}
-                size={18}
-                color={task.isPinned ? theme.warning : theme.text}
-              />
-              <Text style={[styles.menuItemText, { color: theme.text }]}>
-                {task.isPinned ? t('tasks.menuUnpinFocus') : t('tasks.menuPinFocus')}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {onDeferTask && !task.isCompleted && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                hapticLight();
-                setIsMenuOpen(false);
-                onDeferTask(task.taskId);
-              }}
-            >
-              <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
-              <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuDeferTomorrow')}</Text>
-            </TouchableOpacity>
-          )}
-
-          {onEdit && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                hapticLight();
-                setIsMenuOpen(false);
-                onEdit(task);
-              }}
-            >
-              <Ionicons name="pencil-outline" size={18} color={theme.text} />
-              <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuEditTask')}</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
-
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              hapticWarning();
-              setIsMenuOpen(false);
-              onDelete(task);
-            }}
-          >
-            <Ionicons name="trash-outline" size={18} color={theme.danger} />
-            <Text style={[styles.menuItemText, { color: theme.danger, fontWeight: '600' }]}>{t('tasks.menuDeleteTask')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.cancelBtn, { backgroundColor: theme.surfaceMuted }]}
-            onPress={() => {
-              hapticLight();
-              setIsMenuOpen(false);
-            }}
-          >
-            <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
-          </TouchableOpacity>
+          <TaskActionsSheetBody
+            task={task}
+            theme={theme}
+            onTogglePin={onTogglePin}
+            onDeferTask={onDeferTask}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onImmediateClose={() => setIsMenuOpen(false)}
+          />
         </SwipeableBottomSheet>
 
         {/* Expandable Note Preview */}
@@ -688,6 +643,110 @@ export const TaskCard = memo(function TaskCard({
     </Animated.View>
   );
 });
+
+function TaskActionsSheetBody({
+  task,
+  theme,
+  onTogglePin,
+  onDeferTask,
+  onEdit,
+  onDelete,
+  onImmediateClose,
+}: {
+  task: DailyTask;
+  theme: ThemeColors;
+  onTogglePin?: (taskId: string) => void;
+  onDeferTask?: (taskId: string) => void;
+  onEdit?: (task: DailyTask) => void;
+  onDelete: (task: DailyTask) => void;
+  onImmediateClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
+
+  return (
+    <>
+      <View style={[styles.menuHeader, { borderBottomColor: theme.border }]}>
+        <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+          {task.title}
+        </Text>
+        <CloseButton theme={theme} accessibilityLabel={t('common.close')} />
+      </View>
+
+      {onTogglePin && (
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => {
+            hapticLight();
+            onTogglePin(task.taskId);
+            sheetClose?.();
+          }}
+        >
+          <Ionicons
+            name={task.isPinned ? 'star' : 'star-outline'}
+            size={18}
+            color={task.isPinned ? theme.warning : theme.text}
+          />
+          <Text style={[styles.menuItemText, { color: theme.text }]}>
+            {task.isPinned ? t('tasks.menuUnpinFocus') : t('tasks.menuPinFocus')}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {onDeferTask && !task.isCompleted && (
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => {
+            hapticLight();
+            onDeferTask(task.taskId);
+            sheetClose?.();
+          }}
+        >
+          <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.text} />
+          <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuDeferTomorrow')}</Text>
+        </TouchableOpacity>
+      )}
+
+      {onEdit && (
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => {
+            hapticLight();
+            onImmediateClose();
+            onEdit(task);
+          }}
+        >
+          <Ionicons name="pencil-outline" size={18} color={theme.text} />
+          <Text style={[styles.menuItemText, { color: theme.text }]}>{t('tasks.menuEditTask')}</Text>
+        </TouchableOpacity>
+      )}
+
+      <View style={[styles.menuDivider, { backgroundColor: theme.border }]} />
+
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => {
+          hapticWarning();
+          onImmediateClose();
+          onDelete(task);
+        }}
+      >
+        <Ionicons name="trash-outline" size={18} color={theme.danger} />
+        <Text style={[styles.menuItemText, { color: theme.danger, fontWeight: '600' }]}>{t('tasks.menuDeleteTask')}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.cancelBtn, { backgroundColor: theme.surfaceMuted }]}
+        onPress={() => {
+          hapticLight();
+          sheetClose?.();
+        }}
+      >
+        <Text style={[styles.cancelBtnText, { color: theme.textMuted }]}>{t('common.cancel')}</Text>
+      </TouchableOpacity>
+    </>
+  );
+}
 
 const styles = StyleSheet.create({
   swipeContainer: {
@@ -866,14 +925,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   menuHeader: {
-    paddingBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     marginBottom: 6,
   },
   menuTitle: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 15,
     fontWeight: '700',
-    opacity: 0.8,
   },
   menuItem: {
     flexDirection: 'row',

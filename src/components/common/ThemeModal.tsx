@@ -2,8 +2,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AppTheme } from '../../types';
 import { THEMES, ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
-import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { hapticSelection } from '../../hooks/useHaptics';
+import { CloseButton } from './CloseButton';
+import { SwipeableBottomSheet, useBottomSheetClose } from './SwipeableBottomSheet';
 import { useTranslation } from '../../i18n';
 
 interface ThemeModalProps {
@@ -21,27 +22,33 @@ export function ThemeModal({
   onSelectTheme,
   onClose,
 }: ThemeModalProps) {
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%">
+      <ThemeModalBody
+        currentTheme={currentTheme}
+        theme={theme}
+        onSelectTheme={onSelectTheme}
+      />
+    </SwipeableBottomSheet>
+  );
+}
+
+function ThemeModalBody({
+  currentTheme,
+  theme,
+  onSelectTheme,
+}: Omit<ThemeModalProps, 'visible' | 'onClose'>) {
   const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
   const themeEntries = Object.entries(THEMES) as [AppTheme, ThemeColors][];
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="80%">
+    <>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
           {t('themes.modalTitle')}
         </Text>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={styles.closeBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('themes.a11yClose')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('themes.a11yClose')} />
       </View>
 
       <View style={styles.optionsList}>
@@ -61,7 +68,7 @@ export function ThemeModal({
               onPress={() => {
                 hapticSelection();
                 onSelectTheme(key);
-                onClose();
+                sheetClose?.();
               }}
               activeOpacity={0.75}
               accessibilityRole="button"
@@ -117,7 +124,7 @@ export function ThemeModal({
           );
         })}
       </View>
-    </SwipeableBottomSheet>
+    </>
   );
 }
 
@@ -131,9 +138,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  closeBtn: {
-    padding: 8,
   },
   optionsList: {
     gap: 10,

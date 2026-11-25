@@ -22,6 +22,7 @@ import { validateCustomTag, safeJsonParse, sanitizeText } from '../services/vali
 import { useTasks } from '../hooks/useTasks';
 import { useLists } from '../hooks/useLists';
 import { useZenTimer } from '../hooks/useZenTimer';
+import { DEFAULT_FOCUS_MINUTES } from '../utils/zenTimerPersistence';
 import { useFocusStats, DayFocusStat, HeatmapDay } from '../hooks/useFocusStats';
 import { hapticSuccess, hapticWarning } from '../hooks/useHaptics';
 import {
@@ -1060,7 +1061,7 @@ function TimerProvider({
     setTimerMinutes,
     finishEarlySession,
     clearCompletedSession,
-  } = useZenTimer(25, onTimerComplete, {
+  } = useZenTimer(DEFAULT_FOCUS_MINUTES, onTimerComplete, {
     activeFocusTask,
     onRestoreFocusTask,
     resetSignal,

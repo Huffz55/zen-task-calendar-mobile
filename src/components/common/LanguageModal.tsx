@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
-import { hapticLight, hapticSelection } from '../../hooks/useHaptics';
-import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { hapticSelection } from '../../hooks/useHaptics';
+import { CloseButton } from './CloseButton';
+import { SwipeableBottomSheet, useBottomSheetClose } from './SwipeableBottomSheet';
 import { resolveDeviceLanguage, useTranslation, type LanguagePreference } from '../../i18n';
 
 interface LanguageModalProps {
@@ -20,7 +21,24 @@ export function LanguageModal({
   onSelectLanguage,
   onClose,
 }: LanguageModalProps) {
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="55%">
+      <LanguageModalBody
+        theme={theme}
+        currentPreference={currentPreference}
+        onSelectLanguage={onSelectLanguage}
+      />
+    </SwipeableBottomSheet>
+  );
+}
+
+function LanguageModalBody({
+  theme,
+  currentPreference,
+  onSelectLanguage,
+}: Omit<LanguageModalProps, 'visible' | 'onClose'>) {
   const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
   const deviceLang = resolveDeviceLanguage();
   const resolvedSystemLabel = t(
     deviceLang === 'tr' ? 'settings.languageOptions.tr' : 'settings.languageOptions.en'
@@ -36,23 +54,12 @@ export function LanguageModal({
   ];
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="55%">
+    <>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
           {t('settings.language')}
         </Text>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings.a11yCloseLanguage')}
-        >
-          <Ionicons name="close" size={18} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('settings.a11yCloseLanguage')} />
       </View>
 
       <View style={styles.optionsList}>
@@ -71,7 +78,7 @@ export function LanguageModal({
               onPress={() => {
                 hapticSelection();
                 onSelectLanguage(option.id);
-                onClose();
+                sheetClose?.();
               }}
               activeOpacity={0.75}
               accessibilityRole="button"
@@ -98,7 +105,7 @@ export function LanguageModal({
           );
         })}
       </View>
-    </SwipeableBottomSheet>
+    </>
   );
 }
 
@@ -114,13 +121,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   optionsList: {
     gap: 10,

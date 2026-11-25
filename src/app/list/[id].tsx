@@ -73,7 +73,7 @@ export default function ListDetailRoute() {
       {/* Header Bar */}
       <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: safeTopPadding }]}>
         <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.surfaceMuted }]}
+          style={[styles.headerBtn, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}
           onPress={() => {
             hapticLight();
             router.back();
@@ -82,7 +82,7 @@ export default function ListDetailRoute() {
           accessibilityRole="button"
           accessibilityLabel={t('lists.a11yGoBack')}
         >
-          <Ionicons name="arrow-back" size={20} color={theme.text} />
+          <Ionicons name="arrow-back" size={18} color={theme.text} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
@@ -95,7 +95,7 @@ export default function ListDetailRoute() {
         </View>
 
         <TouchableOpacity
-          style={[styles.headerBtn, { backgroundColor: theme.surfaceMuted }]}
+          style={[styles.headerBtn, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}
           onPress={() => {
             hapticWarning();
             handleDeleteList(list.id);
@@ -240,9 +240,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

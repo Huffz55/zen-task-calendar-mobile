@@ -7,6 +7,7 @@ import { defaultNotificationService } from '../services/notifications/notificati
 import { isCompletionChimeEnabled, playZenChime } from '../services/audio/audioService';
 import {
   clearPersistedTimerState,
+  DEFAULT_FOCUS_MINUTES,
   loadPersistedTimerState,
   savePersistedTimerState,
   type PersistedFocusTask,
@@ -19,7 +20,7 @@ interface UseZenTimerOptions {
 }
 
 export function useZenTimer(
-  defaultMinutes = 25,
+  defaultMinutes = DEFAULT_FOCUS_MINUTES,
   onTimerComplete?: (durationSeconds: number, restoredTask?: PersistedFocusTask | null) => void,
   options?: UseZenTimerOptions
 ) {

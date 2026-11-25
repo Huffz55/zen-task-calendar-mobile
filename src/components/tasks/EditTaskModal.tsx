@@ -12,7 +12,8 @@ import { TAGS, CUSTOM_TAG_COLORS, resolveTagConfig } from '../../constants/tags'
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
 import { animateLayout, springLayout } from '../../utils/animations';
-import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { CloseButton } from '../common/CloseButton';
+import { BottomSheetScrollView, SwipeableBottomSheet, useBottomSheetClose } from '../common/SwipeableBottomSheet';
 import { TimePickerPanel } from '../common/TimePickerModal';
 import { useApp } from '../../context/AppContext';
 import { formatMinutesCompact, useTranslation } from '../../i18n';
@@ -64,6 +65,7 @@ function EditTaskForm({
 }) {
   const { customTags, addCustomTag } = useApp();
   const { t, language } = useTranslation();
+  const sheetClose = useBottomSheetClose();
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? '');
   const [tag, setTag] = useState<TaskTag | undefined>(task.tag);
@@ -112,7 +114,7 @@ function EditTaskForm({
       reminderTime ?? null,
       recurrence
     );
-    onClose();
+    (sheetClose ?? onClose)();
   };
 
   const handleCreateCustomTag = () => {
@@ -162,18 +164,7 @@ function EditTaskForm({
               : t('tasks.singleTaskLabel')}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={styles.closeBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('tasks.a11yCloseEdit')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('tasks.a11yCloseEdit')} />
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
@@ -610,9 +601,6 @@ const styles = StyleSheet.create({
   dateSubtitle: {
     fontSize: 12,
     marginTop: 2,
-  },
-  closeBtn: {
-    padding: 6,
   },
   input: {
     fontSize: 16,

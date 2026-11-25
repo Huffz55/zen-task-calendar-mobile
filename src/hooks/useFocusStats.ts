@@ -112,7 +112,7 @@ export function useFocusStats(todayStrOverride?: string) {
       let level = 0;
       if (daySecs >= 5400) level = 4; // 90m+
       else if (daySecs >= 3000) level = 3; // 50m+
-      else if (daySecs >= 1500) level = 2; // 25m+
+      else if (daySecs >= 1800) level = 2; // 30m+
       else if (daySecs > 0) level = 1; // 1m+
 
       heatmapDays.push({

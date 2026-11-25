@@ -7,7 +7,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
 import { hapticLight } from '../../hooks/useHaptics';
-import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { CloseButton } from './CloseButton';
+import { BottomSheetScrollView, SwipeableBottomSheet, useBottomSheetClose } from './SwipeableBottomSheet';
 import { useTranslation } from '../../i18n';
 
 interface PrivacyPolicyModalProps {
@@ -17,7 +18,16 @@ interface PrivacyPolicyModalProps {
 }
 
 export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyModalProps) {
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="82%">
+      <PrivacyPolicyContent theme={theme} />
+    </SwipeableBottomSheet>
+  );
+}
+
+function PrivacyPolicyContent({ theme }: { theme: ThemeColors }) {
   const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
 
   const sections = [
     {
@@ -48,7 +58,7 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
   ];
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={onClose} theme={theme} maxHeight="82%">
+    <>
       <View style={styles.header}>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
@@ -58,18 +68,7 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
             {t('privacy.subtitle')}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={styles.closeBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('privacy.a11yClose')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('privacy.a11yClose')} />
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -98,13 +97,13 @@ export function PrivacyPolicyModal({ visible, theme, onClose }: PrivacyPolicyMod
         style={[styles.doneBtn, { backgroundColor: theme.primary }]}
         onPress={() => {
           hapticLight();
-          onClose();
+          sheetClose?.();
         }}
         activeOpacity={0.85}
       >
         <Text style={styles.doneBtnText}>{t('common.close')}</Text>
       </TouchableOpacity>
-    </SwipeableBottomSheet>
+    </>
   );
 }
 
@@ -127,9 +126,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     marginTop: 2,
-  },
-  closeBtn: {
-    padding: 6,
   },
   scrollContent: {
     gap: 10,

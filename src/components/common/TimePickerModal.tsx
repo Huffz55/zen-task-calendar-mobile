@@ -5,7 +5,8 @@ import { ThemeColors, withAlpha } from '../../constants/colors';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
 import { formatClockTime, parseClockTime } from '../../services/notifications/reminderScheduler';
 import { useTranslation } from '../../i18n';
-import { SwipeableBottomSheet } from './SwipeableBottomSheet';
+import { CloseButton } from './CloseButton';
+import { SwipeableBottomSheet, useBottomSheetClose } from './SwipeableBottomSheet';
 
 interface TimePickerPanelProps {
   value: string;
@@ -239,6 +240,8 @@ function TimePickerModalBody({
   onClose,
 }: Omit<TimePickerModalProps, 'visible'>) {
   const { t } = useTranslation();
+  const sheetClose = useBottomSheetClose();
+  const closeSheet = sheetClose ?? onClose;
   const [draftTime, setDraftTime] = useState(() => parseClockTime(initialTime, '09:00').formatted);
 
   return (
@@ -247,18 +250,7 @@ function TimePickerModalBody({
         <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1} maxFontSizeMultiplier={1.35}>
           {title}
         </Text>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('timePicker.a11yClose')}
-        >
-          <Ionicons name="close" size={18} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('timePicker.a11yClose')} />
       </View>
 
       <TimePickerPanel
@@ -270,7 +262,7 @@ function TimePickerModalBody({
           onClear
             ? () => {
                 onClear();
-                onClose();
+                closeSheet();
               }
             : undefined
         }
@@ -281,7 +273,7 @@ function TimePickerModalBody({
           style={[styles.cancelBtn, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}
           onPress={() => {
             hapticLight();
-            onClose();
+            closeSheet();
           }}
           activeOpacity={0.75}
           accessibilityRole="button"
@@ -302,7 +294,7 @@ function TimePickerModalBody({
           onPress={() => {
             hapticSuccess();
             onConfirm(draftTime);
-            onClose();
+            closeSheet();
           }}
           activeOpacity={0.85}
           accessibilityRole="button"
@@ -330,13 +322,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     flex: 1,
     marginRight: 8,
-  },
-  closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   panel: {
     borderRadius: 20,

@@ -26,6 +26,7 @@ import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { ExportDataModal, type ExportFormat } from './ExportDataModal';
 import { LanguageModal } from './LanguageModal';
 import { TimePickerModal } from './TimePickerModal';
+import { CloseButton } from './CloseButton';
 import { BottomSheetScrollView, SwipeableBottomSheet } from './SwipeableBottomSheet';
 import { resolveActiveLanguage, translate, useTranslation, type LanguagePreference } from '../../i18n';
 
@@ -293,18 +294,7 @@ export function SettingsModal({
               {t('settings.subtitleCounts', { tasks: totalTasks, lists: totalLists })}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => {
-              hapticLight();
-              onClose();
-            }}
-            style={[styles.closeBtn, { backgroundColor: theme.surfaceMuted }]}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings.a11yClose')}
-          >
-            <Ionicons name="close" size={18} color={theme.textDim} />
-          </TouchableOpacity>
+          <CloseButton theme={theme} accessibilityLabel={t('settings.a11yClose')} />
         </View>
 
         <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -732,13 +722,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollContent: {
     paddingBottom: 16,

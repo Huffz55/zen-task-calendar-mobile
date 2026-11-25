@@ -17,7 +17,8 @@ import { safeJsonParse, sanitizeText } from '../services/validation/validator';
 import { Header } from '../components/common/Header';
 import { ListCard } from '../components/lists/ListCard';
 import { AddListModal } from '../components/lists/AddListModal';
-import { BottomSheetScrollView, SwipeableBottomSheet } from '../components/common/SwipeableBottomSheet';
+import { CloseButton } from '../components/common/CloseButton';
+import { BottomSheetScrollView, SwipeableBottomSheet, useBottomSheetClose } from '../components/common/SwipeableBottomSheet';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection } from '../hooks/useHaptics';
 import { animateLayout } from '../utils/animations';
@@ -429,47 +430,16 @@ export function ListsScreen({
         maxHeight="50%"
         useKeyboardAvoiding
       >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>{t('lists.newFolderTitle')}</Text>
-          <TouchableOpacity
-            onPress={() => {
-              hapticLight();
-              setIsAddFolderOpen(false);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={20} color={theme.textDim} />
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          style={[
-            styles.folderInput,
-            { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border },
-          ]}
+        <NewFolderSheetBody
+          theme={theme}
+          title={t('lists.newFolderTitle')}
           placeholder={t('lists.folderNamePlaceholder')}
-          placeholderTextColor={theme.textDim}
+          submitLabel={t('lists.createFolder')}
+          closeLabel={t('common.close')}
           value={newFolderName}
           onChangeText={setNewFolderName}
-          autoFocus
-          maxLength={32}
-          returnKeyType="done"
-          onSubmitEditing={handleCreateFolder}
+          onSubmit={handleCreateFolder}
         />
-        <TouchableOpacity
-          style={[
-            styles.modalSubmitBtn,
-            {
-              backgroundColor: newFolderName.trim() ? theme.primary : theme.surfaceMuted,
-              opacity: newFolderName.trim() ? 1 : 0.6,
-            },
-          ]}
-          onPress={handleCreateFolder}
-          disabled={!newFolderName.trim()}
-        >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: newFolderName.trim() ? theme.onPrimary : theme.textDim }}>
-            {t('lists.createFolder')}
-          </Text>
-        </TouchableOpacity>
       </SwipeableBottomSheet>
 
       {/* Move List to Folder Sheet */}
@@ -479,76 +449,166 @@ export function ListsScreen({
         theme={theme}
         maxHeight="65%"
       >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
-            {t('lists.moveListTitle', { title: movingList?.title || t('lists.defaultListLabel') })}
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
+        <MoveListSheetBody
+          theme={theme}
+          movingList={movingList}
+          allFolders={allFolders}
+          title={t('lists.moveListTitle', { title: movingList?.title || t('lists.defaultListLabel') })}
+          noFolderLabel={t('lists.noFolder')}
+          closeLabel={t('common.close')}
+          onSelectFolder={(folder) => {
+            if (movingList) {
               hapticLight();
-              setMovingList(null);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={20} color={theme.textDim} />
-          </TouchableOpacity>
-        </View>
-        <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.moveOptions}>
-          <TouchableOpacity
-            style={[
-              styles.moveOptionRow,
-              {
-                backgroundColor: !movingList?.folder ? theme.primaryLight : theme.surfaceMuted,
-                borderColor: !movingList?.folder ? theme.primary : theme.border,
-              },
-            ]}
-            onPress={() => {
-              if (movingList) {
-                hapticLight();
-                onUpdateListFolder?.(movingList.id, undefined);
-              }
-              setMovingList(null);
-            }}
-          >
-            <Ionicons name="layers-outline" size={18} color={theme.text} />
-            <Text style={[styles.moveOptionText, { color: theme.text }]} numberOfLines={1}>
-              {t('lists.noFolder')}
-            </Text>
-          </TouchableOpacity>
-          {allFolders.map(f => {
-            const active = movingList?.folder === f;
-            return (
-              <TouchableOpacity
-                key={f}
-                style={[
-                  styles.moveOptionRow,
-                  {
-                    backgroundColor: active ? theme.primaryLight : theme.surfaceMuted,
-                    borderColor: active ? theme.primary : theme.border,
-                  },
-                ]}
-                onPress={() => {
-                  if (movingList) {
-                    hapticLight();
-                    onUpdateListFolder?.(movingList.id, f);
-                  }
-                  setMovingList(null);
-                }}
-              >
-                <Ionicons name="folder-outline" size={18} color={active ? theme.primary : theme.text} />
-                <Text
-                  style={[styles.moveOptionText, { color: active ? theme.primary : theme.text }]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {f}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </BottomSheetScrollView>
+              onUpdateListFolder?.(movingList.id, folder);
+            }
+          }}
+        />
       </SwipeableBottomSheet>
     </KeyboardAvoidingView>
+  );
+}
+
+function NewFolderSheetBody({
+  theme,
+  title,
+  placeholder,
+  submitLabel,
+  closeLabel,
+  value,
+  onChangeText,
+  onSubmit,
+}: {
+  theme: ThemeColors;
+  title: string;
+  placeholder: string;
+  submitLabel: string;
+  closeLabel: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  onSubmit: () => void;
+}) {
+  const sheetClose = useBottomSheetClose();
+  const handleCreate = () => {
+    if (!value.trim()) return;
+    onSubmit();
+    sheetClose?.();
+  };
+
+  return (
+    <>
+      <View style={styles.modalHeader}>
+        <Text style={[styles.modalTitle, { color: theme.text }]}>{title}</Text>
+        <CloseButton theme={theme} accessibilityLabel={closeLabel} />
+      </View>
+      <TextInput
+        style={[
+          styles.folderInput,
+          { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border },
+        ]}
+        placeholder={placeholder}
+        placeholderTextColor={theme.textDim}
+        value={value}
+        onChangeText={onChangeText}
+        autoFocus
+        maxLength={32}
+        returnKeyType="done"
+        onSubmitEditing={handleCreate}
+      />
+      <TouchableOpacity
+        style={[
+          styles.modalSubmitBtn,
+          {
+            backgroundColor: value.trim() ? theme.primary : theme.surfaceMuted,
+            opacity: value.trim() ? 1 : 0.6,
+          },
+        ]}
+        onPress={handleCreate}
+        disabled={!value.trim()}
+      >
+        <Text style={{ fontSize: 15, fontWeight: '700', color: value.trim() ? theme.onPrimary : theme.textDim }}>
+          {submitLabel}
+        </Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+function MoveListSheetBody({
+  theme,
+  movingList,
+  allFolders,
+  title,
+  noFolderLabel,
+  closeLabel,
+  onSelectFolder,
+}: {
+  theme: ThemeColors;
+  movingList: CustomList | null;
+  allFolders: string[];
+  title: string;
+  noFolderLabel: string;
+  closeLabel: string;
+  onSelectFolder: (folder?: string) => void;
+}) {
+  const sheetClose = useBottomSheetClose();
+
+  return (
+    <>
+      <View style={styles.modalHeader}>
+        <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+          {title}
+        </Text>
+        <CloseButton theme={theme} accessibilityLabel={closeLabel} />
+      </View>
+      <BottomSheetScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.moveOptions}>
+        <TouchableOpacity
+          style={[
+            styles.moveOptionRow,
+            {
+              backgroundColor: !movingList?.folder ? theme.primaryLight : theme.surfaceMuted,
+              borderColor: !movingList?.folder ? theme.primary : theme.border,
+            },
+          ]}
+          onPress={() => {
+            onSelectFolder(undefined);
+            sheetClose?.();
+          }}
+        >
+          <Ionicons name="layers-outline" size={18} color={theme.text} />
+          <Text style={[styles.moveOptionText, { color: theme.text }]} numberOfLines={1}>
+            {noFolderLabel}
+          </Text>
+        </TouchableOpacity>
+        {allFolders.map(f => {
+          const active = movingList?.folder === f;
+          return (
+            <TouchableOpacity
+              key={f}
+              style={[
+                styles.moveOptionRow,
+                {
+                  backgroundColor: active ? theme.primaryLight : theme.surfaceMuted,
+                  borderColor: active ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => {
+                onSelectFolder(f);
+                sheetClose?.();
+              }}
+            >
+              <Ionicons name="folder-outline" size={18} color={active ? theme.primary : theme.text} />
+              <Text
+                style={[styles.moveOptionText, { color: active ? theme.primary : theme.text }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {f}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </BottomSheetScrollView>
+    </>
   );
 }
 

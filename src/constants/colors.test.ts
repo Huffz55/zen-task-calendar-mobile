@@ -32,6 +32,10 @@ describe('Theme color tokens WCAG 2.2 AA contrast', () => {
     }
   });
 
+  it('places Matcha Garden first as the default theme', () => {
+    expect(Object.keys(THEMES)[0]).toBe('matcha');
+  });
+
   it('uses layered dark charcoal instead of pure #000000 for Midnight dark mode', () => {
     expect(THEMES.midnight.isDark).toBe(true);
     expect(THEMES.midnight.background.toLowerCase()).not.toBe('#000000');

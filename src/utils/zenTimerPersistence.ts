@@ -1,6 +1,8 @@
 import { safeJsonParse, sanitizeText } from '../services/validation/validator';
 
 export const ZEN_TIMER_STATE_KEY = '@noteapp_zen_timer_state_v1';
+export const DEFAULT_FOCUS_MINUTES = 30;
+export const DEFAULT_FOCUS_SECONDS = DEFAULT_FOCUS_MINUTES * 60;
 
 export interface PersistedFocusTask {
   id: string;
@@ -69,7 +71,7 @@ function sanitizeFocusTask(raw: unknown): PersistedFocusTask | null {
 export function reconcilePersistedTimer(
   raw: unknown,
   nowMs: number = Date.now(),
-  defaultSeconds = 25 * 60
+  defaultSeconds = DEFAULT_FOCUS_SECONDS
 ): ReconciledZenTimer {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { status: 'idle', initialTime: defaultSeconds, activeTask: null };
@@ -135,7 +137,7 @@ export function reconcilePersistedTimer(
 export async function loadPersistedTimerState(
   storage: TimerStateStorage,
   nowMs: number = Date.now(),
-  defaultSeconds = 25 * 60
+  defaultSeconds = DEFAULT_FOCUS_SECONDS
 ): Promise<ReconciledZenTimer | null> {
   try {
     const raw = await storage.getItem(ZEN_TIMER_STATE_KEY);

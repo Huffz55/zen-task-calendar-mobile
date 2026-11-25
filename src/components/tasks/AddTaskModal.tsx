@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -14,7 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { hapticLight, hapticSelection, hapticSuccess } from '../../hooks/useHaptics';
 import { playWaterDrop, playBambooTap } from '../../services/audio/audioService';
 import { animateLayout, springLayout } from '../../utils/animations';
-import { BottomSheetScrollView, SwipeableBottomSheet } from '../common/SwipeableBottomSheet';
+import { CloseButton } from '../common/CloseButton';
+import { BottomSheetScrollView, SwipeableBottomSheet, useBottomSheetClose } from '../common/SwipeableBottomSheet';
 import { TimePickerPanel } from '../common/TimePickerModal';
 import { useApp } from '../../context/AppContext';
 import { formatMinutesCompact, useTranslation } from '../../i18n';
@@ -44,8 +46,43 @@ export function AddTaskModal({
   onClose,
   onAddTask,
 }: AddTaskModalProps) {
+  const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | 'reminder' | null>(null);
+
+  const handleClose = () => {
+    setActiveSection(null);
+    onClose();
+  };
+
+  return (
+    <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
+      <AddTaskForm
+        visible={visible}
+        selectedDateStr={selectedDateStr}
+        theme={theme}
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
+        onAddTask={onAddTask}
+      />
+    </SwipeableBottomSheet>
+  );
+}
+
+function AddTaskForm({
+  visible,
+  selectedDateStr,
+  theme,
+  activeSection,
+  setActiveSection,
+  onAddTask,
+}: Omit<AddTaskModalProps, 'onClose'> & {
+  activeSection: 'tag' | 'time' | 'subtasks' | 'repeat' | 'reminder' | null;
+  setActiveSection: React.Dispatch<
+    React.SetStateAction<'tag' | 'time' | 'subtasks' | 'repeat' | 'reminder' | null>
+  >;
+}) {
   const { customTags, addCustomTag } = useApp();
   const { t, language, dateLocale } = useTranslation();
+  const sheetClose = useBottomSheetClose();
   const [title, setTitle] = useState('');
   const [tag, setTag] = useState<TaskTag | undefined>(undefined);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
@@ -58,7 +95,6 @@ export function AddTaskModal({
   const [reminderTime, setReminderTime] = useState<string | undefined>(undefined);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
-  const [activeSection, setActiveSection] = useState<'tag' | 'time' | 'subtasks' | 'repeat' | 'reminder' | null>(null);
   const isSubmittingRef = useRef(false);
 
   useEffect(() => {
@@ -118,12 +154,7 @@ export function AddTaskModal({
     setSubtasks([]);
     setNewSubtaskInput('');
     setActiveSection(null);
-    onClose();
-  };
-
-  const handleClose = () => {
-    setActiveSection(null);
-    onClose();
+    sheetClose?.();
   };
 
   const handleCreateCustomTag = () => {
@@ -159,7 +190,7 @@ export function AddTaskModal({
   ];
 
   return (
-    <SwipeableBottomSheet visible={visible} onClose={handleClose} theme={theme} maxHeight="88%" useKeyboardAvoiding>
+    <>
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1, marginRight: 8 }}>
@@ -170,18 +201,7 @@ export function AddTaskModal({
             {formattedDate}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            hapticLight();
-            handleClose();
-          }}
-          style={styles.closeBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={t('tasks.a11yCloseAdd')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+        <CloseButton theme={theme} accessibilityLabel={t('tasks.a11yCloseAdd')} />
       </View>
 
       <BottomSheetScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
@@ -684,7 +704,7 @@ export function AddTaskModal({
           </Text>
         </TouchableOpacity>
       </BottomSheetScrollView>
-    </SwipeableBottomSheet>
+    </>
   );
 }
 
@@ -703,9 +723,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
-  },
-  closeBtn: {
-    padding: 6,
   },
   input: {
     fontSize: 16,

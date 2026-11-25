@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { AppState, type AppStateStatus, View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { AppState, type AppStateStatus, BackHandler, Platform, View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { playSingingBowl } from '../../services/audio/audioService';
 import { useTranslation } from '../../i18n';
+import { CloseButton } from '../common/CloseButton';
 
 interface ZenBreathingModalProps {
   isOpen: boolean;
@@ -32,14 +33,56 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
   const [phase, setPhase] = useState<BreathPhase>('Inhale');
   const [remainingSeconds, setRemainingSeconds] = useState(BREATHING_SESSION_SECONDS);
   const [scaleAnim] = useState(() => new Animated.Value(1));
+  const [fadeAnim] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
   const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endTimeRef = useRef<number | null>(null);
   const remainingMsRef = useRef<number>(BREATHING_SESSION_SECONDS * 1000);
+  const isClosingRef = useRef(false);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      fadeAnim.setValue(1);
+      return;
+    }
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim, reducedMotion]);
+
+  const dismissAnimated = useCallback(() => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    fadeAnim.stopAnimation();
+    if (reducedMotion) {
+      onCloseRef.current();
+      return;
+    }
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      onCloseRef.current();
+    });
+  }, [fadeAnim, reducedMotion]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismissAnimated();
+      return true;
+    });
+    return () => sub.remove();
+  }, [dismissAnimated]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
@@ -129,7 +172,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         endTimeRef.current = null;
         hapticSuccess();
         void playSingingBowl();
-        onCloseRef.current();
+        dismissAnimated();
         return true;
       }
       return false;
@@ -156,7 +199,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       }
       scaleAnim.stopAnimation();
     };
-  }, [isRunning, isAppActive, reducedMotion, scaleAnim]);
+  }, [dismissAnimated, isRunning, isAppActive, reducedMotion, scaleAnim]);
 
   const handleTogglePause = () => {
     hapticLight();
@@ -169,8 +212,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
   };
 
   const handleCloseSilent = () => {
-    hapticLight();
-    onClose();
+    dismissAnimated();
   };
 
   const mins = Math.floor(remainingSeconds / 60);
@@ -191,26 +233,25 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       transparent
       statusBarTranslucent
       navigationBarTranslucent
-      animationType="fade"
+      animationType="none"
       onRequestClose={handleCloseSilent}
     >
-      <View
+      <Animated.View
         style={[
           styles.overlay,
-          { backgroundColor: withAlpha(theme.background, theme.isDark ? 0.94 : 0.96) },
+          {
+            backgroundColor: withAlpha(theme.background, theme.isDark ? 0.94 : 0.96),
+            opacity: fadeAnim,
+          },
         ]}
       >
         {/* Close / Skip button */}
-        <TouchableOpacity
-          style={[styles.closeBtn, { top: safeCloseTop, backgroundColor: theme.surface, borderColor: theme.border }]}
+        <CloseButton
+          theme={theme}
           onPress={handleCloseSilent}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
           accessibilityLabel={t('breathing.a11yClose')}
-        >
-          <Ionicons name="close" size={20} color={theme.textDim} />
-        </TouchableOpacity>
+          style={[styles.closeBtn, { top: safeCloseTop }]}
+        />
 
         {/* Header */}
         <View style={styles.header}>
@@ -289,7 +330,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
             {isRunning ? t('breathing.pause') : t('breathing.resume')}
           </Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -304,12 +345,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     position: 'absolute',
     right: 24,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',

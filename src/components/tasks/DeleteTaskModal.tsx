@@ -1,8 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TouchableWithoutFeedback, Animated } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  BackHandler,
+  Easing,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { DailyTask } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from '../../i18n';
 
 interface DeleteTaskModalProps {
@@ -16,6 +28,8 @@ interface DeleteTaskModalProps {
   onDeleteFuture: (taskId: string, dateStr: string) => void;
 }
 
+const DIALOG_ANIM_MS = 220;
+
 export function DeleteTaskModal({
   visible,
   task,
@@ -27,31 +41,110 @@ export function DeleteTaskModal({
   onDeleteFuture,
 }: DeleteTaskModalProps) {
   const { t } = useTranslation();
-  const [scaleAnim] = useState(() => new Animated.Value(0.94));
+  const reducedMotion = useReducedMotion();
+  const isOpen = visible && task !== null;
+  const [isExiting, setIsExiting] = useState(false);
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [scaleAnim] = useState(() => new Animated.Value(0.95));
   const actionLockRef = useRef(false);
+  const isClosingRef = useRef(false);
+  const wasOpenRef = useRef(false);
+
+  const shouldRender = isOpen || isExiting;
+
+  const dismissAnimated = useCallback(
+    (afterClose?: () => void) => {
+      if (isClosingRef.current) return;
+      isClosingRef.current = true;
+      setIsExiting(true);
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
+
+      const finish = () => {
+        isClosingRef.current = false;
+        afterClose?.();
+        onClose();
+        setIsExiting(false);
+      };
+
+      if (reducedMotion) {
+        fadeAnim.setValue(0);
+        scaleAnim.setValue(0.95);
+        finish();
+        return;
+      }
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(() => finish());
+    },
+    [fadeAnim, onClose, reducedMotion, scaleAnim]
+  );
 
   useEffect(() => {
-    if (visible) {
+    if (isOpen && !wasOpenRef.current) {
+      wasOpenRef.current = true;
+      isClosingRef.current = false;
       actionLockRef.current = false;
-      scaleAnim.setValue(0.94);
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        damping: 18,
-        stiffness: 240,
-        mass: 0.7,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible, scaleAnim]);
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
 
-  if (!task) return null;
+      if (reducedMotion) {
+        fadeAnim.setValue(1);
+        scaleAnim.setValue(1);
+        return;
+      }
+
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.95);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: DIALOG_ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: DIALOG_ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+    if (!isOpen && wasOpenRef.current) {
+      wasOpenRef.current = false;
+    }
+  }, [fadeAnim, isOpen, reducedMotion, scaleAnim]);
+
+  useEffect(() => {
+    if (!shouldRender || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismissAnimated();
+      return true;
+    });
+    return () => sub.remove();
+  }, [dismissAnimated, shouldRender]);
+
+  if (!shouldRender || !task) return null;
 
   const runDeleteAction = (action: () => void) => {
-    if (actionLockRef.current) return;
+    if (actionLockRef.current || isClosingRef.current) return;
     actionLockRef.current = true;
     hapticWarning();
-    action();
-    onClose();
+    dismissAnimated(action);
   };
 
   const isRecurring = task.recurrence !== 'none';
@@ -59,88 +152,89 @@ export function DeleteTaskModal({
 
   return (
     <Modal
-      visible={visible}
+      visible={shouldRender}
       transparent
       statusBarTranslucent
       navigationBarTranslucent
-      animationType="fade"
-      onRequestClose={onClose}
+      animationType="none"
+      onRequestClose={() => dismissAnimated()}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <Animated.View
-              style={[
-                styles.dialog,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
-              <Text style={[styles.title, { color: theme.text }]}>
-                {isRecurring ? t('tasks.deleteRecurringTitle') : t('tasks.deleteTitle')}
-              </Text>
-              <Text
-                style={[styles.subtitle, { color: theme.textDim }]}
-                numberOfLines={2}
-                ellipsizeMode="tail"
-              >
-                {t('tasks.deletePrompt', { title: task.title })}
-              </Text>
+      <View style={styles.overlay}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissAnimated()} />
+        </Animated.View>
 
-              <View style={styles.optionsCol}>
-                {isRecurring ? (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.btn, { backgroundColor: theme.surfaceMuted }]}
-                      onPress={() => runDeleteAction(() => onDeleteInstance(task.taskId, selectedDateStr))}
-                      accessibilityRole="button"
-                    >
-                      <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteInstance')}</Text>
-                    </TouchableOpacity>
+        <Animated.View
+          style={[
+            styles.dialog,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <Text style={[styles.title, { color: theme.text }]}>
+            {isRecurring ? t('tasks.deleteRecurringTitle') : t('tasks.deleteTitle')}
+          </Text>
+          <Text
+            style={[styles.subtitle, { color: theme.textDim }]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {t('tasks.deletePrompt', { title: task.title })}
+          </Text>
 
-                    <TouchableOpacity
-                      style={[styles.btn, { backgroundColor: theme.surfaceMuted }]}
-                      onPress={() => runDeleteAction(() => onDeleteFuture(task.taskId, selectedDateStr))}
-                      accessibilityRole="button"
-                    >
-                      <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteFuture')}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.btn, { backgroundColor: dangerBg }]}
-                      onPress={() => runDeleteAction(() => onDeleteSingle(task.taskId))}
-                      accessibilityRole="button"
-                    >
-                      <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSeries')}</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.btn, { backgroundColor: dangerBg }]}
-                    onPress={() => runDeleteAction(() => onDeleteSingle(task.taskId))}
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSingleButton')}</Text>
-                  </TouchableOpacity>
-                )}
+          <View style={styles.optionsCol}>
+            {isRecurring ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.btn, { backgroundColor: theme.surfaceMuted }]}
+                  onPress={() => runDeleteAction(() => onDeleteInstance(task.taskId, selectedDateStr))}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteInstance')}</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: theme.border }]}
-                  onPress={() => {
-                    hapticLight();
-                    onClose();
-                  }}
+                  style={[styles.btn, { backgroundColor: theme.surfaceMuted }]}
+                  onPress={() => runDeleteAction(() => onDeleteFuture(task.taskId, selectedDateStr))}
+                  accessibilityRole="button"
                 >
-                  <Text style={[styles.cancelText, { color: theme.textDim }]}>{t('common.cancel')}</Text>
+                  <Text style={[styles.btnText, { color: theme.text }]}>{t('tasks.deleteFuture')}</Text>
                 </TouchableOpacity>
-              </View>
-            </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+
+                <TouchableOpacity
+                  style={[styles.btn, { backgroundColor: dangerBg }]}
+                  onPress={() => runDeleteAction(() => onDeleteSingle(task.taskId))}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSeries')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity
+                style={[styles.btn, { backgroundColor: dangerBg }]}
+                onPress={() => runDeleteAction(() => onDeleteSingle(task.taskId))}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.btnText, { color: theme.danger }]}>{t('tasks.deleteSingleButton')}</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.cancelBtn, { borderColor: theme.border }]}
+              onPress={() => {
+                hapticLight();
+                dismissAnimated();
+              }}
+            >
+              <Text style={[styles.cancelText, { color: theme.textDim }]}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
@@ -148,10 +242,12 @@ export function DeleteTaskModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  backdrop: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   dialog: {
     width: '100%',
