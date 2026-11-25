@@ -1,19 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Easing,
   Keyboard,
   KeyboardAvoidingView,
-  Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
   View,
-  type GestureResponderHandlers,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -21,10 +15,25 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import {
+  Gesture,
+  GestureDetector,
+  type NativeGesture,
+} from 'react-native-gesture-handler';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ThemeColors } from '../../constants/colors';
 import { hapticSelection } from '../../hooks/useHaptics';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { ModalPortal } from './ModalPortal';
 
 interface SwipeableBottomSheetProps {
   visible: boolean;
@@ -40,330 +49,19 @@ interface SwipeableBottomSheetProps {
 interface BottomSheetContextValue {
   reportScrollOffset: (offsetY: number) => void;
   requestClose: () => void;
+  nativeScrollGesture: NativeGesture;
 }
 
 const BottomSheetContext = createContext<BottomSheetContextValue | null>(null);
 
 const DISMISS_DISTANCE = 80;
-const DISMISS_VELOCITY = 0.5;
-const OPEN_ANIM_DURATION_MS = 290;
-const CLOSE_ANIM_DURATION_MS = 270;
+const DISMISS_VELOCITY_PX_S = 500;
+const OPEN_ANIM_DURATION_MS = 280;
+const CLOSE_ANIM_DURATION_MS = 260;
+const SNAP_BACK_DURATION_MS = 200;
 const SHEET_OFFSCREEN_PADDING = 32;
 const OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 const CLOSE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
-
-interface SheetController {
-  translateY: Animated.Value;
-  backdropOpacity: Animated.Value;
-  handlePanHandlers: GestureResponderHandlers;
-  sheetPanHandlers: GestureResponderHandlers;
-  contextValue: BottomSheetContextValue;
-  updateConfig: (cfg: {
-    onClose: () => void;
-    fallbackHiddenY: number;
-    reducedMotion: boolean;
-    closeDisabled: boolean;
-    sheetHeightRef: React.MutableRefObject<number>;
-    isClosingRef: React.MutableRefObject<boolean>;
-  }) => void;
-  notifyLayoutMeasured: () => void;
-  playOpen: () => void;
-  resetHidden: () => void;
-  dismissWithAnimation: () => void;
-  dispose: () => void;
-}
-
-function createSheetController(initialHiddenY: number): SheetController {
-  const translateY = new Animated.Value(initialHiddenY);
-  const backdropOpacity = new Animated.Value(0);
-
-  let scrollOffset = 0;
-  let dragBaseDy = 0;
-  let hasPassedThreshold = false;
-  let fallbackHiddenY = initialHiddenY;
-  let reducedMotion = false;
-  let closeDisabled = false;
-  let pendingOpen = false;
-  let hasMeasuredThisMount = false;
-  let openRafId: number | null = null;
-  let onCloseHandler: () => void = () => {};
-  let sheetHeightRef: React.MutableRefObject<number> = { current: 0 };
-  let isClosingRef: React.MutableRefObject<boolean> = { current: false };
-
-  const getDismissY = () =>
-    sheetHeightRef.current > 0
-      ? sheetHeightRef.current + SHEET_OFFSCREEN_PADDING
-      : fallbackHiddenY;
-
-  const cancelOpenRaf = () => {
-    if (openRafId !== null) {
-      cancelAnimationFrame(openRafId);
-      openRafId = null;
-    }
-  };
-
-  const updateDrag = (nextY: number) => {
-    translateY.setValue(nextY);
-    const fadeRange = Math.max(200, getDismissY() * 0.75);
-    backdropOpacity.setValue(Math.max(0.15, 1 - nextY / fadeRange));
-    if (nextY > DISMISS_DISTANCE && !hasPassedThreshold) {
-      hasPassedThreshold = true;
-      hapticSelection();
-    } else if (nextY <= DISMISS_DISTANCE - 10 && hasPassedThreshold) {
-      hasPassedThreshold = false;
-    }
-  };
-
-  const finishClose = () => {
-    // Keep translateY off-screen and backdropOpacity at 0 until the next open;
-    // dismiss keyboard only after slide-out completes so Android KeyboardAvoidingView
-    // never relayouts mid-animation.
-    Keyboard.dismiss();
-    onCloseHandler();
-  };
-
-  const dismissWithAnimation = () => {
-    if (isClosingRef.current || closeDisabled) return;
-    isClosingRef.current = true;
-    pendingOpen = false;
-    cancelOpenRaf();
-    translateY.stopAnimation();
-    backdropOpacity.stopAnimation();
-
-    const dismissY = getDismissY();
-
-    if (reducedMotion) {
-      translateY.setValue(dismissY);
-      backdropOpacity.setValue(0);
-      finishClose();
-      return;
-    }
-
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: dismissY,
-        duration: CLOSE_ANIM_DURATION_MS,
-        easing: CLOSE_EASING,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: CLOSE_ANIM_DURATION_MS,
-        easing: CLOSE_EASING,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      if (isClosingRef.current) {
-        finishClose();
-      }
-    });
-  };
-
-  const snapBack = () => {
-    if (isClosingRef.current) return;
-    hasPassedThreshold = false;
-    if (reducedMotion) {
-      translateY.setValue(0);
-      backdropOpacity.setValue(1);
-      return;
-    }
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 200,
-        easing: OPEN_EASING,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 180,
-        easing: OPEN_EASING,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const handlePanResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => !isClosingRef.current && !closeDisabled,
-    onStartShouldSetPanResponderCapture: () => !isClosingRef.current && !closeDisabled,
-    onMoveShouldSetPanResponder: () => !isClosingRef.current && !closeDisabled,
-    onMoveShouldSetPanResponderCapture: () => !isClosingRef.current && !closeDisabled,
-    onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: () => {
-      if (isClosingRef.current) return;
-      dragBaseDy = 0;
-      hasPassedThreshold = false;
-      translateY.stopAnimation();
-    },
-    onPanResponderMove: (_, gs) => {
-      if (isClosingRef.current) return;
-      updateDrag(Math.max(0, gs.dy));
-    },
-    onPanResponderRelease: (_, gs) => {
-      if (isClosingRef.current) return;
-      if (gs.dy > DISMISS_DISTANCE || gs.vy > DISMISS_VELOCITY) {
-        dismissWithAnimation();
-      } else {
-        snapBack();
-      }
-    },
-    onPanResponderTerminate: () => {
-      if (isClosingRef.current) return;
-      snapBack();
-    },
-  });
-
-  const sheetPanResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponderCapture: (_, gs) => {
-      if (isClosingRef.current || closeDisabled) return false;
-      if (scrollOffset > 2) return false;
-      return gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.25;
-    },
-    onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: (_, gs) => {
-      if (isClosingRef.current) return;
-      dragBaseDy = Math.max(0, gs.dy);
-      hasPassedThreshold = false;
-      translateY.stopAnimation();
-    },
-    onPanResponderMove: (_, gs) => {
-      if (isClosingRef.current) return;
-      updateDrag(Math.max(0, gs.dy - dragBaseDy));
-    },
-    onPanResponderRelease: (_, gs) => {
-      if (isClosingRef.current) return;
-      const dragDistance = Math.max(0, gs.dy - dragBaseDy);
-      if (dragDistance > DISMISS_DISTANCE || gs.vy > DISMISS_VELOCITY) {
-        dismissWithAnimation();
-      } else {
-        snapBack();
-      }
-    },
-    onPanResponderTerminate: () => {
-      if (isClosingRef.current) return;
-      snapBack();
-    },
-  });
-
-  const startOpenAnimation = () => {
-    openRafId = null;
-    if (!pendingOpen || isClosingRef.current) return;
-    pendingOpen = false;
-
-    if (reducedMotion) {
-      translateY.setValue(0);
-      backdropOpacity.setValue(1);
-      return;
-    }
-
-    translateY.setValue(getDismissY());
-    backdropOpacity.setValue(0);
-
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: OPEN_ANIM_DURATION_MS,
-        easing: OPEN_EASING,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: OPEN_ANIM_DURATION_MS,
-        easing: OPEN_EASING,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const notifyLayoutMeasured = () => {
-    hasMeasuredThisMount = true;
-    if (!pendingOpen || isClosingRef.current) return;
-    cancelOpenRaf();
-    openRafId = requestAnimationFrame(startOpenAnimation);
-  };
-
-  const playOpen = () => {
-    isClosingRef.current = false;
-    scrollOffset = 0;
-    dragBaseDy = 0;
-    hasPassedThreshold = false;
-    cancelOpenRaf();
-    translateY.stopAnimation();
-    backdropOpacity.stopAnimation();
-
-    if (reducedMotion) {
-      pendingOpen = false;
-      translateY.setValue(0);
-      backdropOpacity.setValue(1);
-      return;
-    }
-
-    translateY.setValue(getDismissY());
-    backdropOpacity.setValue(0);
-    pendingOpen = true;
-
-    // Wait until after the initial layout pass + next clean frame so mount cost
-    // does not drop the opening animation's first frames.
-    openRafId = requestAnimationFrame(() => {
-      if (!pendingOpen || isClosingRef.current) return;
-      if (hasMeasuredThisMount) {
-        startOpenAnimation();
-      } else {
-        openRafId = requestAnimationFrame(startOpenAnimation);
-      }
-    });
-  };
-
-  const resetHidden = () => {
-    isClosingRef.current = false;
-    pendingOpen = false;
-    hasMeasuredThisMount = false;
-    scrollOffset = 0;
-    dragBaseDy = 0;
-    hasPassedThreshold = false;
-    cancelOpenRaf();
-    translateY.stopAnimation();
-    backdropOpacity.stopAnimation();
-    translateY.setValue(getDismissY());
-    backdropOpacity.setValue(0);
-  };
-
-  const dispose = () => {
-    cancelOpenRaf();
-    pendingOpen = false;
-    translateY.stopAnimation();
-    backdropOpacity.stopAnimation();
-  };
-
-  return {
-    translateY,
-    backdropOpacity,
-    handlePanHandlers: handlePanResponder.panHandlers,
-    sheetPanHandlers: sheetPanResponder.panHandlers,
-    contextValue: {
-      reportScrollOffset: (offsetY: number) => {
-        scrollOffset = offsetY;
-      },
-      requestClose: dismissWithAnimation,
-    },
-    updateConfig: (cfg) => {
-      onCloseHandler = cfg.onClose;
-      fallbackHiddenY = cfg.fallbackHiddenY;
-      reducedMotion = cfg.reducedMotion;
-      closeDisabled = cfg.closeDisabled;
-      sheetHeightRef = cfg.sheetHeightRef;
-      isClosingRef = cfg.isClosingRef;
-    },
-    notifyLayoutMeasured,
-    playOpen,
-    resetHidden,
-    dismissWithAnimation,
-    dispose,
-  };
-}
 
 /**
  * Returns the nearest parent SwipeableBottomSheet animated-close trigger, or null
@@ -376,7 +74,8 @@ export function useBottomSheetClose(): (() => void) | null {
 
 /**
  * ScrollView aware of parent SwipeableBottomSheet so downward pull-to-dismiss
- * engages smoothly when scrolled to top (`offsetY <= 0`) without clipping normal scrolling.
+ * engages smoothly on the UI thread when scrolled to top (`offsetY <= 0`)
+ * without interfering with normal scrolling.
  */
 export function BottomSheetScrollView({
   onScroll,
@@ -396,7 +95,7 @@ export function BottomSheetScrollView({
     [sheetCtx, onScroll]
   );
 
-  return (
+  const scrollNode = (
     <ScrollView
       {...rest}
       bounces={bounces}
@@ -407,14 +106,19 @@ export function BottomSheetScrollView({
       {children}
     </ScrollView>
   );
+
+  if (sheetCtx) {
+    return (
+      <GestureDetector gesture={sheetCtx.nativeScrollGesture}>
+        {scrollNode}
+      </GestureDetector>
+    );
+  }
+
+  return scrollNode;
 }
 
-/**
- * Reusable modal bottom sheet with independent backdrop fade, native-driver
- * sheet translation, >=44px drag handle responder, and top-of-scroll pull-to-dismiss.
- */
-export function SwipeableBottomSheet({
-  visible,
+function SwipeableBottomSheetContent({
   onClose,
   theme,
   children,
@@ -422,60 +126,529 @@ export function SwipeableBottomSheet({
   sheetStyle,
   useKeyboardAvoiding = false,
   closeDisabled = false,
-}: SwipeableBottomSheetProps) {
+}: Omit<SwipeableBottomSheetProps, 'visible'>) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { height: windowHeight } = useWindowDimensions();
   const fallbackHiddenY = Math.max(600, windowHeight);
 
-  const sheetHeightRef = useRef(0);
-  const isClosingRef = useRef(false);
-  const wasVisibleRef = useRef(false);
-  const [controller] = useState(() =>
-    createSheetController(Math.max(600, Dimensions.get('window').height))
-  );
+  // UI-thread shared values (mutated via .set()/.get() for React Compiler compatibility)
+  const sheetHeightSV = useSharedValue(0);
+  const fallbackHiddenYSV = useSharedValue(fallbackHiddenY);
+  const hasMeasuredSV = useSharedValue(false);
+  const translateY = useSharedValue(reducedMotion ? 0 : fallbackHiddenY);
+  const backdropOpacity = useSharedValue(reducedMotion ? 1 : 0);
+  const isClosingSV = useSharedValue(false);
+  const closePhaseSV = useSharedValue<0 | 1 | 2>(0); // 0=idle, 1=closing, 2=closed
+  const closeDisabledSV = useSharedValue(closeDisabled);
+  const reducedMotionSV = useSharedValue(reducedMotion);
+  const scrollOffsetSV = useSharedValue(0);
+  const hasPassedThresholdSV = useSharedValue(false);
+  const isHandleActiveSV = useSharedValue(false);
+  const canSheetDragSV = useSharedValue(false);
+  const sheetDragOriginYSV = useSharedValue(0);
+
+  // JS refs for double-close guards and stable callbacks
+  const isClosingJSRef = useRef(false);
+  const hasCompletedCloseRef = useRef(false);
+  const closeDisabledRef = useRef(closeDisabled);
+  const reducedMotionRef = useRef(reducedMotion);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
-    controller.updateConfig({
-      onClose,
-      fallbackHiddenY,
-      reducedMotion,
-      closeDisabled,
-      sheetHeightRef,
-      isClosingRef,
-    });
-  }, [closeDisabled, controller, fallbackHiddenY, onClose, reducedMotion]);
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
-    if (visible && !wasVisibleRef.current) {
-      wasVisibleRef.current = true;
-      controller.playOpen();
-      return;
-    }
-    if (!visible && wasVisibleRef.current) {
-      wasVisibleRef.current = false;
-      controller.resetHidden();
-    }
-  }, [controller, visible]);
+    fallbackHiddenYSV.set(fallbackHiddenY);
+  }, [fallbackHiddenY, fallbackHiddenYSV]);
+
+  useEffect(() => {
+    closeDisabledRef.current = closeDisabled;
+    closeDisabledSV.set(closeDisabled);
+  }, [closeDisabled, closeDisabledSV]);
+
+  useEffect(() => {
+    reducedMotionRef.current = reducedMotion;
+    reducedMotionSV.set(reducedMotion);
+  }, [reducedMotion, reducedMotionSV]);
 
   useEffect(() => {
     return () => {
-      controller.dispose();
+      cancelAnimation(translateY);
+      cancelAnimation(backdropOpacity);
     };
-  }, [controller]);
+  }, [backdropOpacity, translateY]);
+
+  const finishCloseOnJS = useCallback(() => {
+    if (hasCompletedCloseRef.current) return;
+    hasCompletedCloseRef.current = true;
+    // Dismiss keyboard only after slide-out completes so Android KeyboardAvoidingView
+    // never relayouts mid-animation.
+    Keyboard.dismiss();
+    onCloseRef.current();
+  }, []);
+
+  const markClosingOnJS = useCallback(() => {
+    isClosingJSRef.current = true;
+  }, []);
+
+  useAnimatedReaction(
+    () => closePhaseSV.get(),
+    (phase, prevPhase) => {
+      if (phase === 1 && prevPhase !== 1) {
+        scheduleOnRN(markClosingOnJS);
+      } else if (phase === 2 && prevPhase !== 2) {
+        scheduleOnRN(finishCloseOnJS);
+      }
+    }
+  );
+
+  const dismissWithAnimation = useCallback(() => {
+    if (closeDisabledRef.current || isClosingJSRef.current) return;
+    isClosingJSRef.current = true;
+
+    scheduleOnUI(() => {
+      'worklet';
+      if (isClosingSV.get() || closeDisabledSV.get()) return;
+      isClosingSV.set(true);
+      closePhaseSV.set(1);
+      cancelAnimation(translateY);
+      cancelAnimation(backdropOpacity);
+
+      const targetY =
+        sheetHeightSV.get() > 0
+          ? sheetHeightSV.get() + SHEET_OFFSCREEN_PADDING
+          : fallbackHiddenYSV.get();
+
+      if (reducedMotionSV.get()) {
+        translateY.set(targetY);
+        backdropOpacity.set(0);
+        closePhaseSV.set(2);
+        return;
+      }
+
+      backdropOpacity.set(
+        withTiming(0, {
+          duration: CLOSE_ANIM_DURATION_MS,
+          easing: CLOSE_EASING,
+        })
+      );
+      translateY.set(
+        withTiming(
+          targetY,
+          {
+            duration: CLOSE_ANIM_DURATION_MS,
+            easing: CLOSE_EASING,
+          },
+          finished => {
+            'worklet';
+            if (finished) {
+              closePhaseSV.set(2);
+            }
+          }
+        )
+      );
+    });
+  }, [
+    backdropOpacity,
+    closeDisabledSV,
+    closePhaseSV,
+    fallbackHiddenYSV,
+    isClosingSV,
+    reducedMotionSV,
+    sheetHeightSV,
+    translateY,
+  ]);
 
   const handleSheetLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const nextHeight = event.nativeEvent.layout.height;
-      if (nextHeight > 0) {
-        sheetHeightRef.current = nextHeight;
-        controller.notifyLayoutMeasured();
-      }
+      if (nextHeight <= 0) return;
+
+      const isReduced = reducedMotionRef.current;
+      scheduleOnUI((measuredHeight: number, reduced: boolean) => {
+        'worklet';
+        sheetHeightSV.set(measuredHeight);
+        if (hasMeasuredSV.get() || isClosingSV.get()) return;
+
+        hasMeasuredSV.set(true);
+        if (reduced) {
+          translateY.set(0);
+          backdropOpacity.set(1);
+          return;
+        }
+
+        // Start from exact measured height + padding on the same UI-thread frame
+        // so there is zero first-frame jump and no screen-height overshoot.
+        translateY.set(measuredHeight + SHEET_OFFSCREEN_PADDING);
+        backdropOpacity.set(0);
+        translateY.set(
+          withTiming(0, {
+            duration: OPEN_ANIM_DURATION_MS,
+            easing: OPEN_EASING,
+          })
+        );
+        backdropOpacity.set(
+          withTiming(1, {
+            duration: OPEN_ANIM_DURATION_MS,
+            easing: OPEN_EASING,
+          })
+        );
+      }, nextHeight, isReduced);
     },
-    [controller]
+    [backdropOpacity, hasMeasuredSV, isClosingSV, sheetHeightSV, translateY]
   );
 
-  if (!visible) return null;
+  const reportScrollOffset = useCallback(
+    (offsetY: number) => {
+      scrollOffsetSV.set(offsetY);
+    },
+    [scrollOffsetSV]
+  );
+
+  const nativeScrollGesture = useMemo(() => Gesture.Native(), []);
+
+  const sheetPanGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!closeDisabled)
+        .activeOffsetY(10)
+        .failOffsetY(-5)
+        .failOffsetX([-16, 16])
+        .simultaneousWithExternalGesture(nativeScrollGesture)
+        .onBegin(() => {
+          'worklet';
+          canSheetDragSV.set(
+            !isClosingSV.get() &&
+              !closeDisabledSV.get() &&
+              !isHandleActiveSV.get() &&
+              scrollOffsetSV.get() <= 2
+          );
+        })
+        .onStart(event => {
+          'worklet';
+          if (
+            !canSheetDragSV.get() ||
+            isClosingSV.get() ||
+            closeDisabledSV.get() ||
+            isHandleActiveSV.get() ||
+            scrollOffsetSV.get() > 2
+          ) {
+            canSheetDragSV.set(false);
+            return;
+          }
+          sheetDragOriginYSV.set(Math.max(0, event.translationY));
+          hasPassedThresholdSV.set(false);
+          cancelAnimation(translateY);
+          cancelAnimation(backdropOpacity);
+        })
+        .onUpdate(event => {
+          'worklet';
+          if (
+            !canSheetDragSV.get() ||
+            isClosingSV.get() ||
+            isHandleActiveSV.get() ||
+            scrollOffsetSV.get() > 2
+          ) {
+            return;
+          }
+          const nextY = Math.max(0, event.translationY - sheetDragOriginYSV.get());
+          translateY.set(nextY);
+
+          const dismissY =
+            sheetHeightSV.get() > 0
+              ? sheetHeightSV.get() + SHEET_OFFSCREEN_PADDING
+              : fallbackHiddenYSV.get();
+          const fadeRange = Math.max(200, dismissY * 0.75);
+          backdropOpacity.set(Math.max(0.15, 1 - nextY / fadeRange));
+
+          if (nextY > DISMISS_DISTANCE && !hasPassedThresholdSV.get()) {
+            hasPassedThresholdSV.set(true);
+            scheduleOnRN(hapticSelection);
+          } else if (nextY <= DISMISS_DISTANCE - 10 && hasPassedThresholdSV.get()) {
+            hasPassedThresholdSV.set(false);
+          }
+        })
+        .onEnd(event => {
+          'worklet';
+          if (!canSheetDragSV.get() || isClosingSV.get() || isHandleActiveSV.get()) {
+            return;
+          }
+          const dragDistance = Math.max(0, event.translationY - sheetDragOriginYSV.get());
+          const shouldDismiss =
+            dragDistance > DISMISS_DISTANCE || event.velocityY > DISMISS_VELOCITY_PX_S;
+
+          if (shouldDismiss) {
+            isClosingSV.set(true);
+            closePhaseSV.set(1);
+            const targetY =
+              sheetHeightSV.get() > 0
+                ? sheetHeightSV.get() + SHEET_OFFSCREEN_PADDING
+                : fallbackHiddenYSV.get();
+
+            if (reducedMotionSV.get()) {
+              translateY.set(targetY);
+              backdropOpacity.set(0);
+              closePhaseSV.set(2);
+              return;
+            }
+
+            backdropOpacity.set(
+              withTiming(0, {
+                duration: CLOSE_ANIM_DURATION_MS,
+                easing: CLOSE_EASING,
+              })
+            );
+            translateY.set(
+              withTiming(
+                targetY,
+                {
+                  duration: CLOSE_ANIM_DURATION_MS,
+                  easing: CLOSE_EASING,
+                },
+                finished => {
+                  'worklet';
+                  if (finished) {
+                    closePhaseSV.set(2);
+                  }
+                }
+              )
+            );
+          } else {
+            hasPassedThresholdSV.set(false);
+            if (reducedMotionSV.get()) {
+              translateY.set(0);
+              backdropOpacity.set(1);
+              return;
+            }
+            translateY.set(
+              withTiming(0, {
+                duration: SNAP_BACK_DURATION_MS,
+                easing: OPEN_EASING,
+              })
+            );
+            backdropOpacity.set(
+              withTiming(1, {
+                duration: 180,
+                easing: OPEN_EASING,
+              })
+            );
+          }
+        })
+        .onFinalize((_, success) => {
+          'worklet';
+          const wasDragging = canSheetDragSV.get();
+          canSheetDragSV.set(false);
+          if (!success && wasDragging && !isClosingSV.get() && translateY.get() > 0) {
+            hasPassedThresholdSV.set(false);
+            if (reducedMotionSV.get()) {
+              translateY.set(0);
+              backdropOpacity.set(1);
+              return;
+            }
+            translateY.set(
+              withTiming(0, {
+                duration: SNAP_BACK_DURATION_MS,
+                easing: OPEN_EASING,
+              })
+            );
+            backdropOpacity.set(
+              withTiming(1, {
+                duration: 180,
+                easing: OPEN_EASING,
+              })
+            );
+          }
+        }),
+    [
+      backdropOpacity,
+      canSheetDragSV,
+      closeDisabled,
+      closeDisabledSV,
+      closePhaseSV,
+      fallbackHiddenYSV,
+      hasPassedThresholdSV,
+      isClosingSV,
+      isHandleActiveSV,
+      nativeScrollGesture,
+      reducedMotionSV,
+      scrollOffsetSV,
+      sheetDragOriginYSV,
+      sheetHeightSV,
+      translateY,
+    ]
+  );
+
+  const handlePanGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!closeDisabled)
+        .activeOffsetY(4)
+        .failOffsetX([-24, 24])
+        .blocksExternalGesture(sheetPanGesture)
+        .onBegin(() => {
+          'worklet';
+          isHandleActiveSV.set(true);
+          canSheetDragSV.set(false);
+        })
+        .onStart(() => {
+          'worklet';
+          if (isClosingSV.get() || closeDisabledSV.get()) return;
+          hasPassedThresholdSV.set(false);
+          cancelAnimation(translateY);
+          cancelAnimation(backdropOpacity);
+        })
+        .onUpdate(event => {
+          'worklet';
+          if (isClosingSV.get() || closeDisabledSV.get()) return;
+          const nextY = Math.max(0, event.translationY);
+          translateY.set(nextY);
+
+          const dismissY =
+            sheetHeightSV.get() > 0
+              ? sheetHeightSV.get() + SHEET_OFFSCREEN_PADDING
+              : fallbackHiddenYSV.get();
+          const fadeRange = Math.max(200, dismissY * 0.75);
+          backdropOpacity.set(Math.max(0.15, 1 - nextY / fadeRange));
+
+          if (nextY > DISMISS_DISTANCE && !hasPassedThresholdSV.get()) {
+            hasPassedThresholdSV.set(true);
+            scheduleOnRN(hapticSelection);
+          } else if (nextY <= DISMISS_DISTANCE - 10 && hasPassedThresholdSV.get()) {
+            hasPassedThresholdSV.set(false);
+          }
+        })
+        .onEnd(event => {
+          'worklet';
+          if (isClosingSV.get() || closeDisabledSV.get()) return;
+          const dragDistance = Math.max(0, event.translationY);
+          const shouldDismiss =
+            dragDistance > DISMISS_DISTANCE || event.velocityY > DISMISS_VELOCITY_PX_S;
+
+          if (shouldDismiss) {
+            isClosingSV.set(true);
+            closePhaseSV.set(1);
+            const targetY =
+              sheetHeightSV.get() > 0
+                ? sheetHeightSV.get() + SHEET_OFFSCREEN_PADDING
+                : fallbackHiddenYSV.get();
+
+            if (reducedMotionSV.get()) {
+              translateY.set(targetY);
+              backdropOpacity.set(0);
+              closePhaseSV.set(2);
+              return;
+            }
+
+            backdropOpacity.set(
+              withTiming(0, {
+                duration: CLOSE_ANIM_DURATION_MS,
+                easing: CLOSE_EASING,
+              })
+            );
+            translateY.set(
+              withTiming(
+                targetY,
+                {
+                  duration: CLOSE_ANIM_DURATION_MS,
+                  easing: CLOSE_EASING,
+                },
+                finished => {
+                  'worklet';
+                  if (finished) {
+                    closePhaseSV.set(2);
+                  }
+                }
+              )
+            );
+          } else {
+            hasPassedThresholdSV.set(false);
+            if (reducedMotionSV.get()) {
+              translateY.set(0);
+              backdropOpacity.set(1);
+              return;
+            }
+            translateY.set(
+              withTiming(0, {
+                duration: SNAP_BACK_DURATION_MS,
+                easing: OPEN_EASING,
+              })
+            );
+            backdropOpacity.set(
+              withTiming(1, {
+                duration: 180,
+                easing: OPEN_EASING,
+              })
+            );
+          }
+        })
+        .onFinalize((_, success) => {
+          'worklet';
+          isHandleActiveSV.set(false);
+          if (!success && !isClosingSV.get() && translateY.get() > 0) {
+            hasPassedThresholdSV.set(false);
+            if (reducedMotionSV.get()) {
+              translateY.set(0);
+              backdropOpacity.set(1);
+              return;
+            }
+            translateY.set(
+              withTiming(0, {
+                duration: SNAP_BACK_DURATION_MS,
+                easing: OPEN_EASING,
+              })
+            );
+            backdropOpacity.set(
+              withTiming(1, {
+                duration: 180,
+                easing: OPEN_EASING,
+              })
+            );
+          }
+        }),
+    [
+      backdropOpacity,
+      canSheetDragSV,
+      closeDisabled,
+      closeDisabledSV,
+      closePhaseSV,
+      fallbackHiddenYSV,
+      hasPassedThresholdSV,
+      isClosingSV,
+      isHandleActiveSV,
+      reducedMotionSV,
+      sheetHeightSV,
+      sheetPanGesture,
+      translateY,
+    ]
+  );
+
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.get(),
+  }));
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => {
+    if (!hasMeasuredSV.get() && !reducedMotionSV.get()) {
+      return {
+        opacity: 0,
+        transform: [{ translateY: fallbackHiddenYSV.get() }],
+      };
+    }
+    return {
+      opacity: 1,
+      transform: [{ translateY: translateY.get() }],
+    };
+  });
+
+  const contextValue = useMemo<BottomSheetContextValue>(
+    () => ({
+      reportScrollOffset,
+      requestClose: dismissWithAnimation,
+      nativeScrollGesture,
+    }),
+    [dismissWithAnimation, nativeScrollGesture, reportScrollOffset]
+  );
 
   const safeBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 18) + 8;
 
@@ -483,54 +656,59 @@ export function SwipeableBottomSheet({
     <View style={styles.overlay}>
       <Animated.View
         collapsable={false}
-        style={[
-          StyleSheet.absoluteFill,
-          styles.backdrop,
-          { opacity: controller.backdropOpacity },
-        ]}
+        style={[StyleSheet.absoluteFill, styles.backdrop, backdropAnimatedStyle]}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={controller.dismissWithAnimation} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={dismissWithAnimation}
+          accessible={false}
+        />
       </Animated.View>
-      <Animated.View
-        renderToHardwareTextureAndroid
-        collapsable={false}
-        onLayout={handleSheetLayout}
-        {...controller.sheetPanHandlers}
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            maxHeight,
-            paddingBottom: safeBottomPadding,
-            transform: [{ translateY: controller.translateY }],
-          },
-          sheetStyle,
-        ]}
-      >
-        <View style={styles.dragArea} {...controller.handlePanHandlers}>
-          <View
-            style={[
-              styles.dragHandle,
-              { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.18)' },
-            ]}
-          />
-        </View>
-        <BottomSheetContext.Provider value={controller.contextValue}>
-          {children}
-        </BottomSheetContext.Provider>
-      </Animated.View>
+
+      <GestureDetector gesture={sheetPanGesture}>
+        <Animated.View
+          collapsable={false}
+          onLayout={handleSheetLayout}
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              maxHeight,
+              paddingBottom: safeBottomPadding,
+            },
+            sheetStyle,
+            sheetAnimatedStyle,
+          ]}
+        >
+          <GestureDetector gesture={handlePanGesture}>
+            <View style={styles.dragArea}>
+              <View
+                style={[
+                  styles.dragHandle,
+                  {
+                    backgroundColor: theme.isDark
+                      ? 'rgba(255,255,255,0.24)'
+                      : 'rgba(0,0,0,0.18)',
+                  },
+                ]}
+              />
+            </View>
+          </GestureDetector>
+
+          <BottomSheetContext.Provider value={contextValue}>
+            {children}
+          </BottomSheetContext.Provider>
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      statusBarTranslucent
-      navigationBarTranslucent
-      animationType="none"
-      onRequestClose={controller.dismissWithAnimation}
+    <ModalPortal
+      visible
+      onRequestClose={dismissWithAnimation}
+      isClosingRef={isClosingJSRef}
     >
       {useKeyboardAvoiding ? (
         <KeyboardAvoidingView
@@ -542,7 +720,28 @@ export function SwipeableBottomSheet({
       ) : (
         content
       )}
-    </Modal>
+    </ModalPortal>
+  );
+}
+
+/**
+ * Reusable portal-backed bottom sheet powered by Reanimated v4 and Gesture Handler
+ * for 60/120 Hz native UI-thread slide/fade transitions, >=44px drag handle gesture,
+ * and top-of-scroll pull-to-dismiss without Android Modal window jank.
+ */
+export function SwipeableBottomSheet(props: SwipeableBottomSheetProps) {
+  if (!props.visible) return null;
+  return (
+    <SwipeableBottomSheetContent
+      onClose={props.onClose}
+      theme={props.theme}
+      maxHeight={props.maxHeight}
+      sheetStyle={props.sheetStyle}
+      useKeyboardAvoiding={props.useKeyboardAvoiding}
+      closeDisabled={props.closeDisabled}
+    >
+      {props.children}
+    </SwipeableBottomSheetContent>
   );
 }
 

@@ -1,19 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
-  Animated,
-  Easing,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { DailyTask } from '../../types';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { hapticLight, hapticWarning } from '../../hooks/useHaptics';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from '../../i18n';
+import { ModalPortal } from '../common/ModalPortal';
 
 interface DeleteTaskModalProps {
   visible: boolean;
@@ -26,13 +32,27 @@ interface DeleteTaskModalProps {
   onDeleteFuture: (taskId: string, dateStr: string) => void;
 }
 
-const OPEN_ANIM_MS = 280;
-const CLOSE_ANIM_MS = 260;
+const OPEN_ANIM_MS = 240;
+const CLOSE_ANIM_MS = 220;
 const OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 const CLOSE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 
-export function DeleteTaskModal({
-  visible,
+export function DeleteTaskModal(props: DeleteTaskModalProps) {
+  if (!props.visible || !props.task) return null;
+  return (
+    <DeleteTaskContent
+      task={props.task}
+      selectedDateStr={props.selectedDateStr}
+      theme={props.theme}
+      onClose={props.onClose}
+      onDeleteSingle={props.onDeleteSingle}
+      onDeleteInstance={props.onDeleteInstance}
+      onDeleteFuture={props.onDeleteFuture}
+    />
+  );
+}
+
+function DeleteTaskContent({
   task,
   selectedDateStr,
   theme,
@@ -40,130 +60,110 @@ export function DeleteTaskModal({
   onDeleteSingle,
   onDeleteInstance,
   onDeleteFuture,
-}: DeleteTaskModalProps) {
+}: Omit<DeleteTaskModalProps, 'visible' | 'task'> & { task: DailyTask }) {
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
-  const isOpen = visible && task !== null;
-  const [fadeAnim] = useState(() => new Animated.Value(0));
-  const [scaleAnim] = useState(() => new Animated.Value(0.95));
+
+  const progress = useSharedValue(reducedMotion ? 1 : 0);
+  const isClosingSV = useSharedValue(false);
+  const reducedMotionSV = useSharedValue(reducedMotion);
+
   const actionLockRef = useRef(false);
-  const isClosingRef = useRef(false);
-  const wasOpenRef = useRef(false);
-  const openRafRef = useRef<number | null>(null);
+  const isClosingJSRef = useRef(false);
+  const hasCompletedCloseRef = useRef(false);
+  const pendingAfterCloseRef = useRef<(() => void) | undefined>(undefined);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  const cancelOpenRaf = useCallback(() => {
-    if (openRafRef.current !== null) {
-      cancelAnimationFrame(openRafRef.current);
-      openRafRef.current = null;
+  useEffect(() => {
+    reducedMotionSV.set(reducedMotion);
+  }, [reducedMotion, reducedMotionSV]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      progress.set(1);
+      return;
     }
+
+    progress.set(
+      withTiming(1, {
+        duration: OPEN_ANIM_MS,
+        easing: OPEN_EASING,
+      })
+    );
+
+    return () => {
+      cancelAnimation(progress);
+    };
+  }, [progress, reducedMotion]);
+
+  const finishCloseOnJS = useCallback(() => {
+    if (hasCompletedCloseRef.current) return;
+    hasCompletedCloseRef.current = true;
+    const afterClose = pendingAfterCloseRef.current;
+    pendingAfterCloseRef.current = undefined;
+    afterClose?.();
+    onCloseRef.current();
   }, []);
 
   const dismissAnimated = useCallback(
     (afterClose?: () => void) => {
-      if (isClosingRef.current) return;
-      isClosingRef.current = true;
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
+      if (isClosingJSRef.current) return;
+      isClosingJSRef.current = true;
+      pendingAfterCloseRef.current = afterClose;
 
-      const finish = () => {
-        afterClose?.();
-        onCloseRef.current();
-      };
+      scheduleOnUI(() => {
+        'worklet';
+        if (isClosingSV.get()) return;
+        isClosingSV.set(true);
+        cancelAnimation(progress);
 
-      if (reducedMotion) {
-        fadeAnim.setValue(0);
-        scaleAnim.setValue(0.95);
-        finish();
-        return;
-      }
-
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: CLOSE_ANIM_MS,
-          easing: CLOSE_EASING,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.95,
-          duration: CLOSE_ANIM_MS,
-          easing: CLOSE_EASING,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        if (isClosingRef.current) {
-          finish();
+        if (reducedMotionSV.get()) {
+          progress.set(0);
+          scheduleOnRN(finishCloseOnJS);
+          return;
         }
+
+        progress.set(
+          withTiming(
+            0,
+            {
+              duration: CLOSE_ANIM_MS,
+              easing: CLOSE_EASING,
+            },
+            finished => {
+              'worklet';
+              if (finished) {
+                scheduleOnRN(finishCloseOnJS);
+              }
+            }
+          )
+        );
       });
     },
-    [cancelOpenRaf, fadeAnim, reducedMotion, scaleAnim]
+    [finishCloseOnJS, isClosingSV, progress, reducedMotionSV]
   );
 
-  useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
-      wasOpenRef.current = true;
-      isClosingRef.current = false;
-      actionLockRef.current = false;
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.get(),
+  }));
 
-      if (reducedMotion) {
-        fadeAnim.setValue(1);
-        scaleAnim.setValue(1);
-        return;
-      }
-
-      fadeAnim.setValue(0);
-      scaleAnim.setValue(0.95);
-      openRafRef.current = requestAnimationFrame(() => {
-        openRafRef.current = null;
-        if (isClosingRef.current) return;
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: OPEN_ANIM_MS,
-            easing: OPEN_EASING,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: OPEN_ANIM_MS,
-            easing: OPEN_EASING,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      });
-      return;
-    }
-    if (!isOpen && wasOpenRef.current) {
-      wasOpenRef.current = false;
-      isClosingRef.current = false;
-      actionLockRef.current = false;
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
-    }
-  }, [cancelOpenRaf, fadeAnim, isOpen, reducedMotion, scaleAnim]);
-
-  useEffect(() => {
-    return () => {
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
+  const dialogAnimatedStyle = useAnimatedStyle(() => {
+    const p = progress.get();
+    return {
+      opacity: p,
+      transform: [
+        { translateY: (1 - p) * 10 },
+        { scale: 0.95 + 0.05 * p },
+      ],
     };
-  }, [cancelOpenRaf, fadeAnim, scaleAnim]);
-
-  if (!isOpen || !task) return null;
+  });
 
   const runDeleteAction = (action: () => void) => {
-    if (actionLockRef.current || isClosingRef.current) return;
+    if (actionLockRef.current || isClosingJSRef.current) return;
     actionLockRef.current = true;
     hapticWarning();
     dismissAnimated(action);
@@ -173,33 +173,32 @@ export function DeleteTaskModal({
   const dangerBg = withAlpha(theme.danger, theme.isDark ? 0.18 : 0.1);
 
   return (
-    <Modal
-      visible={isOpen}
-      transparent
-      statusBarTranslucent
-      navigationBarTranslucent
-      animationType="none"
+    <ModalPortal
+      visible
       onRequestClose={() => dismissAnimated()}
+      isClosingRef={isClosingJSRef}
     >
       <View style={styles.overlay}>
         <Animated.View
           collapsable={false}
-          style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}
+          style={[StyleSheet.absoluteFill, styles.backdrop, backdropAnimatedStyle]}
         >
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissAnimated()} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => dismissAnimated()}
+            accessible={false}
+          />
         </Animated.View>
 
         <Animated.View
-          renderToHardwareTextureAndroid
           collapsable={false}
           style={[
             styles.dialog,
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
             },
+            dialogAnimatedStyle,
           ]}
         >
           <Text style={[styles.title, { color: theme.text }]}>
@@ -262,7 +261,7 @@ export function DeleteTaskModal({
           </View>
         </Animated.View>
       </View>
-    </Modal>
+    </ModalPortal>
   );
 }
 

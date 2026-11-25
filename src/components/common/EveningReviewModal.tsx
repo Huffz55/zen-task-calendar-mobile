@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
-  Animated,
-  Easing,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../../constants/colors';
 import { hapticLight, hapticSuccess } from '../../hooks/useHaptics';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { formatDurationCompact, useTranslation } from '../../i18n';
 import { CloseButton } from './CloseButton';
+import { ModalPortal } from './ModalPortal';
 
 interface EveningReviewModalProps {
   isOpen: boolean;
@@ -28,13 +34,28 @@ interface EveningReviewModalProps {
   onRollover: () => void;
 }
 
-const OPEN_ANIM_MS = 280;
-const CLOSE_ANIM_MS = 260;
+const OPEN_ANIM_MS = 260;
+const CLOSE_ANIM_MS = 240;
 const OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 const CLOSE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 
-export function EveningReviewModal({
-  isOpen,
+export function EveningReviewModal(props: EveningReviewModalProps) {
+  if (!props.isOpen) return null;
+  return (
+    <EveningReviewContent
+      onClose={props.onClose}
+      theme={props.theme}
+      completedTasks={props.completedTasks}
+      totalTasks={props.totalTasks}
+      focusSeconds={props.focusSeconds}
+      currentStreak={props.currentStreak}
+      overdueCount={props.overdueCount}
+      onRollover={props.onRollover}
+    />
+  );
+}
+
+function EveningReviewContent({
   onClose,
   theme,
   completedTasks,
@@ -43,153 +64,137 @@ export function EveningReviewModal({
   currentStreak,
   overdueCount,
   onRollover,
-}: EveningReviewModalProps) {
+}: Omit<EveningReviewModalProps, 'isOpen'>) {
   const { t, language } = useTranslation();
   const reducedMotion = useReducedMotion();
-  const [fadeAnim] = useState(() => new Animated.Value(0));
-  const [scaleAnim] = useState(() => new Animated.Value(0.95));
-  const isClosingRef = useRef(false);
-  const wasOpenRef = useRef(false);
-  const openRafRef = useRef<number | null>(null);
+
+  const progress = useSharedValue(reducedMotion ? 1 : 0);
+  const isClosingSV = useSharedValue(false);
+  const reducedMotionSV = useSharedValue(reducedMotion);
+
+  const isClosingJSRef = useRef(false);
+  const hasCompletedCloseRef = useRef(false);
+  const pendingAfterCloseRef = useRef<(() => void) | undefined>(undefined);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  const cancelOpenRaf = useCallback(() => {
-    if (openRafRef.current !== null) {
-      cancelAnimationFrame(openRafRef.current);
-      openRafRef.current = null;
+  useEffect(() => {
+    reducedMotionSV.set(reducedMotion);
+  }, [reducedMotion, reducedMotionSV]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      progress.set(1);
+      return;
     }
+
+    progress.set(
+      withTiming(1, {
+        duration: OPEN_ANIM_MS,
+        easing: OPEN_EASING,
+      })
+    );
+
+    return () => {
+      cancelAnimation(progress);
+    };
+  }, [progress, reducedMotion]);
+
+  const finishCloseOnJS = useCallback(() => {
+    if (hasCompletedCloseRef.current) return;
+    hasCompletedCloseRef.current = true;
+    const afterClose = pendingAfterCloseRef.current;
+    pendingAfterCloseRef.current = undefined;
+    afterClose?.();
+    onCloseRef.current();
   }, []);
 
   const dismissAnimated = useCallback(
     (afterClose?: () => void) => {
-      if (isClosingRef.current) return;
-      isClosingRef.current = true;
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
+      if (isClosingJSRef.current) return;
+      isClosingJSRef.current = true;
+      pendingAfterCloseRef.current = afterClose;
 
-      const finish = () => {
-        afterClose?.();
-        onCloseRef.current();
-      };
+      scheduleOnUI(() => {
+        'worklet';
+        if (isClosingSV.get()) return;
+        isClosingSV.set(true);
+        cancelAnimation(progress);
 
-      if (reducedMotion) {
-        fadeAnim.setValue(0);
-        scaleAnim.setValue(0.95);
-        finish();
-        return;
-      }
-
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: CLOSE_ANIM_MS,
-          easing: CLOSE_EASING,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.95,
-          duration: CLOSE_ANIM_MS,
-          easing: CLOSE_EASING,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        if (isClosingRef.current) {
-          finish();
+        if (reducedMotionSV.get()) {
+          progress.set(0);
+          scheduleOnRN(finishCloseOnJS);
+          return;
         }
+
+        progress.set(
+          withTiming(
+            0,
+            {
+              duration: CLOSE_ANIM_MS,
+              easing: CLOSE_EASING,
+            },
+            finished => {
+              'worklet';
+              if (finished) {
+                scheduleOnRN(finishCloseOnJS);
+              }
+            }
+          )
+        );
       });
     },
-    [cancelOpenRaf, fadeAnim, reducedMotion, scaleAnim]
+    [finishCloseOnJS, isClosingSV, progress, reducedMotionSV]
   );
 
-  useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
-      wasOpenRef.current = true;
-      isClosingRef.current = false;
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
-      if (reducedMotion) {
-        fadeAnim.setValue(1);
-        scaleAnim.setValue(1);
-        return;
-      }
-      fadeAnim.setValue(0);
-      scaleAnim.setValue(0.95);
-      openRafRef.current = requestAnimationFrame(() => {
-        openRafRef.current = null;
-        if (isClosingRef.current) return;
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: OPEN_ANIM_MS,
-            easing: OPEN_EASING,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: OPEN_ANIM_MS,
-            easing: OPEN_EASING,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      });
-      return;
-    }
-    if (!isOpen && wasOpenRef.current) {
-      wasOpenRef.current = false;
-      isClosingRef.current = false;
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
-    }
-  }, [cancelOpenRaf, fadeAnim, isOpen, reducedMotion, scaleAnim]);
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.get(),
+  }));
 
-  useEffect(() => {
-    return () => {
-      cancelOpenRaf();
-      fadeAnim.stopAnimation();
-      scaleAnim.stopAnimation();
+  const cardAnimatedStyle = useAnimatedStyle(() => {
+    const p = progress.get();
+    return {
+      opacity: p,
+      transform: [
+        { translateY: (1 - p) * 12 },
+        { scale: 0.95 + 0.05 * p },
+      ],
     };
-  }, [cancelOpenRaf, fadeAnim, scaleAnim]);
-
-  if (!isOpen) return null;
+  });
 
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isPerfect = totalTasks > 0 && completedTasks === totalTasks;
 
   return (
-    <Modal
-      visible={isOpen}
-      transparent
-      statusBarTranslucent
-      navigationBarTranslucent
-      animationType="none"
+    <ModalPortal
+      visible
       onRequestClose={() => dismissAnimated()}
+      isClosingRef={isClosingJSRef}
     >
       <View style={styles.overlay}>
         <Animated.View
           collapsable={false}
-          style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}
+          style={[StyleSheet.absoluteFill, styles.backdrop, backdropAnimatedStyle]}
         >
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissAnimated()} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => dismissAnimated()}
+            accessible={false}
+          />
         </Animated.View>
 
         <Animated.View
-          renderToHardwareTextureAndroid
           collapsable={false}
           style={[
             styles.card,
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
             },
+            cardAnimatedStyle,
           ]}
         >
           {/* Close button */}
@@ -299,7 +304,7 @@ export function EveningReviewModal({
           )}
         </Animated.View>
       </View>
-    </Modal>
+    </ModalPortal>
   );
 }
 

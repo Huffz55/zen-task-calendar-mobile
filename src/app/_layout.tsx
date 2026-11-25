@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -9,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { AppProvider, useApp } from '../context/AppContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { ModalPortalHost, ModalPortalProvider } from '../components/common/ModalPortal';
 import { Toast } from '../components/common/Toast';
 import { ThemeModal } from '../components/common/ThemeModal';
 import { SettingsModal } from '../components/common/SettingsModal';
@@ -117,6 +119,9 @@ function RootLayoutContent() {
         />
       </Stack>
 
+      {/* Root LIFO Modal & Bottom Sheet Portal Host */}
+      <ModalPortalHost />
+
       {/* Floating Toast Notification */}
       <Toast
         toast={toast}
@@ -172,13 +177,17 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <AppProvider>
-          <RootLayoutContent />
-        </AppProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={styles.root}>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <ModalPortalProvider>
+            <AppProvider>
+              <RootLayoutContent />
+            </AppProvider>
+          </ModalPortalProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 
