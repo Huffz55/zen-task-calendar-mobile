@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, type AppStateStatus, BackHandler, Platform, View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
+import { AppState, type AppStateStatus, View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, withAlpha } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,8 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
   const [scaleAnim] = useState(() => new Animated.Value(1));
   const [fadeAnim] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
   const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const openRafRef = useRef<number | null>(null);
   const endTimeRef = useRef<number | null>(null);
   const remainingMsRef = useRef<number>(BREATHING_SESSION_SECONDS * 1000);
   const isClosingRef = useRef(false);
@@ -49,17 +51,41 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       fadeAnim.setValue(1);
       return;
     }
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 240,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    openRafRef.current = requestAnimationFrame(() => {
+      openRafRef.current = null;
+      if (isClosingRef.current) return;
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 280,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      if (openRafRef.current !== null) {
+        cancelAnimationFrame(openRafRef.current);
+        openRafRef.current = null;
+      }
+      fadeAnim.stopAnimation();
+    };
   }, [fadeAnim, reducedMotion]);
 
   const dismissAnimated = useCallback(() => {
     if (isClosingRef.current) return;
     isClosingRef.current = true;
+    if (openRafRef.current !== null) {
+      cancelAnimationFrame(openRafRef.current);
+      openRafRef.current = null;
+    }
+    if (phaseTimerRef.current) {
+      clearTimeout(phaseTimerRef.current);
+      phaseTimerRef.current = null;
+    }
+    if (tickerRef.current) {
+      clearInterval(tickerRef.current);
+      tickerRef.current = null;
+    }
+    scaleAnim.stopAnimation();
     fadeAnim.stopAnimation();
     if (reducedMotion) {
       onCloseRef.current();
@@ -67,22 +93,13 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
     }
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 200,
-      easing: Easing.out(Easing.cubic),
+      duration: 260,
+      easing: Easing.bezier(0.32, 0.72, 0, 1),
       useNativeDriver: true,
     }).start(() => {
       onCloseRef.current();
     });
-  }, [fadeAnim, reducedMotion]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      dismissAnimated();
-      return true;
-    });
-    return () => sub.remove();
-  }, [dismissAnimated]);
+  }, [fadeAnim, reducedMotion, scaleAnim]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
@@ -113,18 +130,18 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
     scaleAnim.setValue(1);
 
     const runBreathingCycle = () => {
-      if (!isMounted) return;
+      if (!isMounted || isClosingRef.current) return;
       setPhase('Inhale');
 
       if (reducedMotion) {
         phaseTimerRef.current = setTimeout(() => {
-          if (!isMounted) return;
+          if (!isMounted || isClosingRef.current) return;
           setPhase('Hold');
           phaseTimerRef.current = setTimeout(() => {
-            if (!isMounted) return;
+            if (!isMounted || isClosingRef.current) return;
             setPhase('Exhale');
             phaseTimerRef.current = setTimeout(() => {
-              if (!isMounted) return;
+              if (!isMounted || isClosingRef.current) return;
               runBreathingCycle();
             }, 4000);
           }, 4000);
@@ -139,12 +156,12 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         easing: Easing.inOut(Easing.ease),
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (!isMounted || !finished) return;
+        if (!isMounted || !finished || isClosingRef.current) return;
 
         // Hold: 4 seconds
         setPhase('Hold');
         phaseTimerRef.current = setTimeout(() => {
-          if (!isMounted) return;
+          if (!isMounted || isClosingRef.current) return;
 
           // Exhale: 4 seconds (scale down)
           setPhase('Exhale');
@@ -154,7 +171,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }).start(({ finished: exhaleFinished }) => {
-            if (isMounted && exhaleFinished) {
+            if (isMounted && exhaleFinished && !isClosingRef.current) {
               runBreathingCycle();
             }
           });
@@ -163,7 +180,7 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
     };
 
     const syncCountdown = (): boolean => {
-      if (endTimeRef.current === null) return true;
+      if (isClosingRef.current || endTimeRef.current === null) return true;
       const leftMs = Math.max(0, endTimeRef.current - Date.now());
       remainingMsRef.current = leftMs;
       const leftSecs = Math.max(0, Math.ceil(leftMs / 1000));
@@ -184,15 +201,19 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
 
     runBreathingCycle();
 
-    const ticker = setInterval(() => {
-      if (syncCountdown()) {
-        clearInterval(ticker);
+    tickerRef.current = setInterval(() => {
+      if (syncCountdown() && tickerRef.current) {
+        clearInterval(tickerRef.current);
+        tickerRef.current = null;
       }
     }, 500);
 
     return () => {
       isMounted = false;
-      clearInterval(ticker);
+      if (tickerRef.current) {
+        clearInterval(tickerRef.current);
+        tickerRef.current = null;
+      }
       if (phaseTimerRef.current) {
         clearTimeout(phaseTimerRef.current);
         phaseTimerRef.current = null;
@@ -237,6 +258,8 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
       onRequestClose={handleCloseSilent}
     >
       <Animated.View
+        renderToHardwareTextureAndroid
+        collapsable={false}
         style={[
           styles.overlay,
           {
@@ -266,6 +289,8 @@ function ZenBreathingContent({ onClose, theme }: Omit<ZenBreathingModalProps, 'i
         {/* Breathing Orb */}
         <View style={styles.orbContainer}>
           <Animated.View
+            renderToHardwareTextureAndroid
+            collapsable={false}
             style={[
               styles.outerRing,
               {

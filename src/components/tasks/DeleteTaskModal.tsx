@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  BackHandler,
   Easing,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -28,7 +26,10 @@ interface DeleteTaskModalProps {
   onDeleteFuture: (taskId: string, dateStr: string) => void;
 }
 
-const DIALOG_ANIM_MS = 220;
+const OPEN_ANIM_MS = 280;
+const CLOSE_ANIM_MS = 260;
+const OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1);
+const CLOSE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 
 export function DeleteTaskModal({
   visible,
@@ -43,28 +44,36 @@ export function DeleteTaskModal({
   const { t } = useTranslation();
   const reducedMotion = useReducedMotion();
   const isOpen = visible && task !== null;
-  const [isExiting, setIsExiting] = useState(false);
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [scaleAnim] = useState(() => new Animated.Value(0.95));
   const actionLockRef = useRef(false);
   const isClosingRef = useRef(false);
   const wasOpenRef = useRef(false);
+  const openRafRef = useRef<number | null>(null);
+  const onCloseRef = useRef(onClose);
 
-  const shouldRender = isOpen || isExiting;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  const cancelOpenRaf = useCallback(() => {
+    if (openRafRef.current !== null) {
+      cancelAnimationFrame(openRafRef.current);
+      openRafRef.current = null;
+    }
+  }, []);
 
   const dismissAnimated = useCallback(
     (afterClose?: () => void) => {
       if (isClosingRef.current) return;
       isClosingRef.current = true;
-      setIsExiting(true);
+      cancelOpenRaf();
       fadeAnim.stopAnimation();
       scaleAnim.stopAnimation();
 
       const finish = () => {
-        isClosingRef.current = false;
         afterClose?.();
-        onClose();
-        setIsExiting(false);
+        onCloseRef.current();
       };
 
       if (reducedMotion) {
@@ -77,19 +86,23 @@ export function DeleteTaskModal({
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 180,
-          easing: Easing.out(Easing.cubic),
+          duration: CLOSE_ANIM_MS,
+          easing: CLOSE_EASING,
           useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
           toValue: 0.95,
-          duration: 180,
-          easing: Easing.out(Easing.cubic),
+          duration: CLOSE_ANIM_MS,
+          easing: CLOSE_EASING,
           useNativeDriver: true,
         }),
-      ]).start(() => finish());
+      ]).start(() => {
+        if (isClosingRef.current) {
+          finish();
+        }
+      });
     },
-    [fadeAnim, onClose, reducedMotion, scaleAnim]
+    [cancelOpenRaf, fadeAnim, reducedMotion, scaleAnim]
   );
 
   useEffect(() => {
@@ -97,6 +110,7 @@ export function DeleteTaskModal({
       wasOpenRef.current = true;
       isClosingRef.current = false;
       actionLockRef.current = false;
+      cancelOpenRaf();
       fadeAnim.stopAnimation();
       scaleAnim.stopAnimation();
 
@@ -108,37 +122,45 @@ export function DeleteTaskModal({
 
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.95);
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: DIALOG_ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: DIALOG_ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      openRafRef.current = requestAnimationFrame(() => {
+        openRafRef.current = null;
+        if (isClosingRef.current) return;
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: OPEN_ANIM_MS,
+            easing: OPEN_EASING,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: OPEN_ANIM_MS,
+            easing: OPEN_EASING,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
       return;
     }
     if (!isOpen && wasOpenRef.current) {
       wasOpenRef.current = false;
+      isClosingRef.current = false;
+      actionLockRef.current = false;
+      cancelOpenRaf();
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
     }
-  }, [fadeAnim, isOpen, reducedMotion, scaleAnim]);
+  }, [cancelOpenRaf, fadeAnim, isOpen, reducedMotion, scaleAnim]);
 
   useEffect(() => {
-    if (!shouldRender || Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      dismissAnimated();
-      return true;
-    });
-    return () => sub.remove();
-  }, [dismissAnimated, shouldRender]);
+    return () => {
+      cancelOpenRaf();
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
+    };
+  }, [cancelOpenRaf, fadeAnim, scaleAnim]);
 
-  if (!shouldRender || !task) return null;
+  if (!isOpen || !task) return null;
 
   const runDeleteAction = (action: () => void) => {
     if (actionLockRef.current || isClosingRef.current) return;
@@ -152,7 +174,7 @@ export function DeleteTaskModal({
 
   return (
     <Modal
-      visible={shouldRender}
+      visible={isOpen}
       transparent
       statusBarTranslucent
       navigationBarTranslucent
@@ -160,11 +182,16 @@ export function DeleteTaskModal({
       onRequestClose={() => dismissAnimated()}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}>
+        <Animated.View
+          collapsable={false}
+          style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissAnimated()} />
         </Animated.View>
 
         <Animated.View
+          renderToHardwareTextureAndroid
+          collapsable={false}
           style={[
             styles.dialog,
             {

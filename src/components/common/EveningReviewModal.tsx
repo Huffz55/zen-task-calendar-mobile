@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  BackHandler,
   Easing,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -30,7 +28,10 @@ interface EveningReviewModalProps {
   onRollover: () => void;
 }
 
-const MODAL_ANIM_MS = 240;
+const OPEN_ANIM_MS = 280;
+const CLOSE_ANIM_MS = 260;
+const OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1);
+const CLOSE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 
 export function EveningReviewModal({
   isOpen,
@@ -45,27 +46,35 @@ export function EveningReviewModal({
 }: EveningReviewModalProps) {
   const { t, language } = useTranslation();
   const reducedMotion = useReducedMotion();
-  const [isExiting, setIsExiting] = useState(false);
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [scaleAnim] = useState(() => new Animated.Value(0.95));
   const isClosingRef = useRef(false);
   const wasOpenRef = useRef(false);
+  const openRafRef = useRef<number | null>(null);
+  const onCloseRef = useRef(onClose);
 
-  const shouldRender = isOpen || isExiting;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  const cancelOpenRaf = useCallback(() => {
+    if (openRafRef.current !== null) {
+      cancelAnimationFrame(openRafRef.current);
+      openRafRef.current = null;
+    }
+  }, []);
 
   const dismissAnimated = useCallback(
     (afterClose?: () => void) => {
       if (isClosingRef.current) return;
       isClosingRef.current = true;
-      setIsExiting(true);
+      cancelOpenRaf();
       fadeAnim.stopAnimation();
       scaleAnim.stopAnimation();
 
       const finish = () => {
-        isClosingRef.current = false;
         afterClose?.();
-        onClose();
-        setIsExiting(false);
+        onCloseRef.current();
       };
 
       if (reducedMotion) {
@@ -78,25 +87,30 @@ export function EveningReviewModal({
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 200,
-          easing: Easing.out(Easing.cubic),
+          duration: CLOSE_ANIM_MS,
+          easing: CLOSE_EASING,
           useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
           toValue: 0.95,
-          duration: 200,
-          easing: Easing.out(Easing.cubic),
+          duration: CLOSE_ANIM_MS,
+          easing: CLOSE_EASING,
           useNativeDriver: true,
         }),
-      ]).start(() => finish());
+      ]).start(() => {
+        if (isClosingRef.current) {
+          finish();
+        }
+      });
     },
-    [fadeAnim, onClose, reducedMotion, scaleAnim]
+    [cancelOpenRaf, fadeAnim, reducedMotion, scaleAnim]
   );
 
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       wasOpenRef.current = true;
       isClosingRef.current = false;
+      cancelOpenRaf();
       fadeAnim.stopAnimation();
       scaleAnim.stopAnimation();
       if (reducedMotion) {
@@ -106,44 +120,51 @@ export function EveningReviewModal({
       }
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.95);
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: MODAL_ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: MODAL_ANIM_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      openRafRef.current = requestAnimationFrame(() => {
+        openRafRef.current = null;
+        if (isClosingRef.current) return;
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: OPEN_ANIM_MS,
+            easing: OPEN_EASING,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: OPEN_ANIM_MS,
+            easing: OPEN_EASING,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
       return;
     }
     if (!isOpen && wasOpenRef.current) {
       wasOpenRef.current = false;
+      isClosingRef.current = false;
+      cancelOpenRaf();
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
     }
-  }, [fadeAnim, isOpen, reducedMotion, scaleAnim]);
+  }, [cancelOpenRaf, fadeAnim, isOpen, reducedMotion, scaleAnim]);
 
   useEffect(() => {
-    if (!shouldRender || Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      dismissAnimated();
-      return true;
-    });
-    return () => sub.remove();
-  }, [dismissAnimated, shouldRender]);
+    return () => {
+      cancelOpenRaf();
+      fadeAnim.stopAnimation();
+      scaleAnim.stopAnimation();
+    };
+  }, [cancelOpenRaf, fadeAnim, scaleAnim]);
 
-  if (!shouldRender) return null;
+  if (!isOpen) return null;
 
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isPerfect = totalTasks > 0 && completedTasks === totalTasks;
 
   return (
     <Modal
-      visible={shouldRender}
+      visible={isOpen}
       transparent
       statusBarTranslucent
       navigationBarTranslucent
@@ -151,11 +172,16 @@ export function EveningReviewModal({
       onRequestClose={() => dismissAnimated()}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}>
+        <Animated.View
+          collapsable={false}
+          style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissAnimated()} />
         </Animated.View>
 
         <Animated.View
+          renderToHardwareTextureAndroid
+          collapsable={false}
           style={[
             styles.card,
             {
